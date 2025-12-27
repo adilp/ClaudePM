@@ -43,3 +43,36 @@ export function useSyncTickets() {
     },
   });
 }
+
+export function useApproveTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ticketId: string) => api.approveTicket(ticketId),
+    onSuccess: () => {
+      // Invalidate all ticket queries to refresh state
+      queryClient.invalidateQueries({ queryKey: ticketKeys.all });
+    },
+  });
+}
+
+export function useRejectTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ticketId, feedback }: { ticketId: string; feedback: string }) =>
+      api.rejectTicket(ticketId, feedback),
+    onSuccess: () => {
+      // Invalidate all ticket queries to refresh state
+      queryClient.invalidateQueries({ queryKey: ticketKeys.all });
+    },
+  });
+}
+
+export function useTicketHistory(ticketId: string) {
+  return useQuery({
+    queryKey: [...ticketKeys.detail('', ticketId), 'history'],
+    queryFn: () => api.getTicketHistory(ticketId),
+    enabled: !!ticketId,
+  });
+}

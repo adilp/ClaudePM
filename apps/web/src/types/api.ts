@@ -54,6 +54,30 @@ export interface Ticket {
 
 export interface TicketDetail extends Ticket {
   content: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface TransitionResult {
+  ticket_id: string;
+  from_state: TicketState;
+  to_state: TicketState;
+  trigger: string;
+  reason: string | null;
+  timestamp: string;
+  history_entry_id: string;
+}
+
+export interface StateHistoryEntry {
+  id: string;
+  ticket_id: string;
+  from_state: TicketState;
+  to_state: TicketState;
+  trigger: string;
+  reason: string | null;
+  feedback?: string;
+  triggered_by?: string;
+  created_at: string;
 }
 
 // ============================================================================
@@ -61,16 +85,18 @@ export interface TicketDetail extends Ticket {
 // ============================================================================
 
 export type SessionStatus = 'starting' | 'running' | 'waiting' | 'stopped';
+export type SessionType = 'ticket' | 'ad_hoc';
 
 export interface Session {
   id: string;
   project_id: string;
   ticket_id: string | null;
-  tmux_pane: string;
+  type: SessionType;
   status: SessionStatus;
   context_percent: number | null;
+  pane_id: string;
   started_at: string | null;
-  stopped_at: string | null;
+  ended_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -118,6 +144,31 @@ export interface BranchInfo {
     hash: string;
     message: string;
     date: string;
+  }>;
+}
+
+// ============================================================================
+// tmux Types
+// ============================================================================
+
+export interface TmuxSession {
+  name: string;
+  windows: number;
+  created: string;
+  attached: boolean;
+}
+
+export interface TmuxSessionDetail extends TmuxSession {
+  windows_detail: Array<{
+    index: number;
+    name: string;
+    active: boolean;
+    panes: Array<{
+      id: string;
+      index: number;
+      active: boolean;
+      pid: number;
+    }>;
   }>;
 }
 

@@ -8,10 +8,14 @@ import type {
   ProjectDetail,
   Ticket,
   TicketDetail,
+  TransitionResult,
+  StateHistoryEntry,
   Session,
   DiffResult,
   GitStatus,
   BranchInfo,
+  TmuxSession,
+  TmuxSessionDetail,
   PaginatedResponse,
   ApiError,
 } from '@/types/api';
@@ -101,7 +105,8 @@ class ApiClient {
 
   // Tickets
   async getTickets(projectId: string): Promise<Ticket[]> {
-    return this.request(`/projects/${projectId}/tickets`);
+    const response = await this.request<{ data: Ticket[]; pagination: unknown }>(`/projects/${projectId}/tickets`);
+    return response.data;
   }
 
   async getTicket(projectId: string, ticketId: string): Promise<TicketDetail> {
@@ -126,9 +131,11 @@ class ApiClient {
     project_id: string;
     ticket_id?: string;
   }): Promise<Session> {
-    return this.request('/sessions', {
+    const { project_id, ticket_id } = data;
+    const body = ticket_id ? { ticket_id } : {};
+    return this.request(`/projects/${project_id}/sessions`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(body),
     });
   }
 
@@ -139,7 +146,7 @@ class ApiClient {
   async sendInput(sessionId: string, text: string): Promise<void> {
     return this.request(`/sessions/${sessionId}/input`, {
       method: 'POST',
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ input: text }),
     });
   }
 
@@ -155,6 +162,32 @@ class ApiClient {
 
   async getBranchInfo(projectId: string): Promise<BranchInfo> {
     return this.request(`/projects/${projectId}/git/branch`);
+  }
+
+  // Ticket State Transitions
+  async approveTicket(ticketId: string): Promise<TransitionResult> {
+    return this.request(`/tickets/${ticketId}/approve`, { method: 'POST' });
+  }
+
+  async rejectTicket(ticketId: string, feedback: string): Promise<TransitionResult> {
+    return this.request(`/tickets/${ticketId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ feedback }),
+    });
+  }
+
+  async getTicketHistory(ticketId: string): Promise<StateHistoryEntry[]> {
+    const response = await this.request<{ data: StateHistoryEntry[] }>(`/tickets/${ticketId}/history`);
+    return response.data;
+  }
+
+  // tmux Discovery
+  async getTmuxSessions(): Promise<TmuxSession[]> {
+    return this.request('/tmux/sessions');
+  }
+
+  async getTmuxSessionDetail(name: string): Promise<TmuxSessionDetail> {
+    return this.request(`/tmux/sessions/${encodeURIComponent(name)}`);
   }
 }
 

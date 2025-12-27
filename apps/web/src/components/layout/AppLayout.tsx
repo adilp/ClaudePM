@@ -15,11 +15,13 @@ import {
   X,
   Wifi,
   WifiOff,
+  Terminal,
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Projects', href: '/projects', icon: FolderKanban },
+  { name: 'Sessions', href: '/sessions', icon: Terminal },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

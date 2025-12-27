@@ -8,7 +8,12 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Dashboard } from '@/pages/Dashboard';
 import { Projects } from '@/pages/Projects';
+import { ProjectCreate } from '@/pages/ProjectCreate';
 import { ProjectDetail } from '@/pages/ProjectDetail';
+import { TicketDetail } from '@/pages/TicketDetail';
+import { TicketReview } from '@/pages/TicketReview';
+import { Sessions } from '@/pages/Sessions';
+import { SessionDetail } from '@/pages/SessionDetail';
 import { Settings } from '@/pages/Settings';
 import { NotFound } from '@/pages/NotFound';
 
@@ -30,7 +35,12 @@ function App() {
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="projects" element={<Projects />} />
+            <Route path="projects/new" element={<ProjectCreate />} />
             <Route path="projects/:projectId" element={<ProjectDetail />} />
+            <Route path="projects/:projectId/tickets/:ticketId" element={<TicketDetail />} />
+            <Route path="projects/:projectId/tickets/:ticketId/review" element={<TicketReview />} />
+            <Route path="sessions" element={<Sessions />} />
+            <Route path="sessions/:sessionId" element={<SessionDetail />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Route>

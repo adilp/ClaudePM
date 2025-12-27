@@ -80,7 +80,8 @@ interface UseWebSocketReturn {
 
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
   const {
-    url = `ws://${window.location.host}`,
+    // Use /ws path which Vite proxies to the backend WebSocket server
+    url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`,
     reconnectInterval = 3000,
     maxReconnectAttempts = 10,
   } = options;

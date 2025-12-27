@@ -139,6 +139,24 @@ function asyncHandler<T>(
 // ============================================================================
 
 /**
+ * GET /api/sessions
+ * List all sessions, optionally filtered by project
+ *
+ * Query params:
+ * - project_id: Filter by project (optional)
+ */
+router.get(
+  '/sessions',
+  asyncHandler<SessionResponse[] | ErrorResponse>(async (req, res) => {
+    const projectId = req.query.project_id as string | undefined;
+
+    const sessions = await sessionSupervisor.listSessions(projectId);
+
+    res.json(sessions.map(toSessionResponse));
+  })
+);
+
+/**
  * POST /api/projects/:id/sessions
  * Start a new session for a project
  *

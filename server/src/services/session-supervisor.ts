@@ -304,6 +304,36 @@ export class SessionSupervisor extends EventEmitter {
   }
 
   /**
+   * List all sessions from database, optionally filtered by project
+   */
+  async listSessions(projectId?: string): Promise<SessionInfo[]> {
+    const where = projectId ? { projectId } : {};
+
+    const dbSessions = await prisma.session.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100, // Limit to last 100 sessions
+    });
+
+    return dbSessions.map((dbSession) => {
+      const active = this.sessions.get(dbSession.id);
+      return {
+        id: dbSession.id,
+        projectId: dbSession.projectId,
+        ticketId: dbSession.ticketId,
+        type: dbSession.type,
+        status: active?.status ?? dbSession.status,
+        contextPercent: dbSession.contextPercent,
+        paneId: dbSession.tmuxPaneId,
+        startedAt: dbSession.startedAt,
+        endedAt: dbSession.endedAt,
+        createdAt: dbSession.createdAt,
+        updatedAt: dbSession.updatedAt,
+      };
+    });
+  }
+
+  /**
    * Get active session by ID
    */
   getActiveSession(sessionId: string): ActiveSession | undefined {
