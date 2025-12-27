@@ -1,0 +1,179 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+
+enum TicketState {
+  backlog
+  in_progress
+  review
+  done
+}
+
+enum SessionType {
+  ticket
+  adhoc
+}
+
+enum SessionStatus {
+  running
+  paused
+  completed
+  error
+}
+
+enum NotificationType {
+  review_ready
+  context_low
+  handoff_complete
+  error
+  waiting_input
+}
+
+enum TransitionTrigger {
+  auto
+  manual
+}
+
+enum TransitionReason {
+  session_started
+  completion_detected
+  user_approved
+  user_rejected
+}
+
+// Models
+
+model Project {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(255)
+  repoPath     String   @unique @map("repo_path") @db.VarChar(500)
+  ticketsPath  String   @default("docs/jira-tickets/") @map("tickets_path") @db.VarChar(500)
+  handoffPath  String   @default("docs/ai-context/handoff.md") @map("handoff_path") @db.VarChar(500)
+  tmuxSession  String   @map("tmux_session") @db.VarChar(255)
+  tmuxWindow   String?  @map("tmux_window") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tickets  Ticket[]
+  sessions Session[]
+
+  @@map("projects")
+}
+
+model Ticket {
+  id                String      @id @default(uuid()) @db.Uuid
+  projectId         String      @map("project_id") @db.Uuid
+  externalId        String      @map("external_id") @db.VarChar(100)
+  title             String      @db.VarChar(500)
+  state             TicketState @default(backlog)
+  filePath          String      @map("file_path") @db.VarChar(500)
+  rejectionFeedback String?     @map("rejection_feedback") @db.Text
+  startedAt         DateTime?   @map("started_at")
+  completedAt       DateTime?   @map("completed_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  project       Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sessions      Session[]
+  notifications Notification[]
+  stateHistory  TicketStateHistory[]
+
+  // Indexes
+  @@index([projectId, state], name: "tickets_project_state_idx")
+  @@map("tickets")
+}
+
+model Session {
+  id             String        @id @default(uuid()) @db.Uuid
+  projectId      String        @map("project_id") @db.Uuid
+  ticketId       String?       @map("ticket_id") @db.Uuid
+  parentId       String?       @map("parent_id") @db.Uuid
+  type           SessionType
+  status         SessionStatus @default(running)
+  contextPercent Int           @default(0) @map("context_percent")
+  tmuxPaneId     String        @map("tmux_pane_id") @db.VarChar(100)
+  startedAt      DateTime?     @map("started_at")
+  endedAt        DateTime?     @map("ended_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ticket        Ticket?        @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  parent        Session?       @relation("SessionLineage", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Session[]      @relation("SessionLineage")
+  notifications Notification[]
+
+  // Handoff relations
+  handoffsFrom HandoffEvent[] @relation("HandoffFrom")
+  handoffsTo   HandoffEvent[] @relation("HandoffTo")
+
+  // Indexes
+  @@index([status], name: "sessions_status_idx")
+  @@map("sessions")
+}
+
+model HandoffEvent {
+  id               String   @id @default(uuid()) @db.Uuid
+  fromSessionId    String   @map("from_session_id") @db.Uuid
+  toSessionId      String   @map("to_session_id") @db.Uuid
+  contextAtHandoff Int      @map("context_at_handoff")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  // Relations
+  fromSession Session @relation("HandoffFrom", fields: [fromSessionId], references: [id], onDelete: Cascade)
+  toSession   Session @relation("HandoffTo", fields: [toSessionId], references: [id], onDelete: Cascade)
+
+  @@map("handoff_events")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  type      NotificationType
+  sessionId String?          @map("session_id") @db.Uuid
+  ticketId  String?          @map("ticket_id") @db.Uuid
+  message   String           @db.Text
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ticket  Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([read], name: "notifications_read_idx")
+  @@map("notifications")
+}
+
+model TicketStateHistory {
+  id          String            @id @default(uuid()) @db.Uuid
+  ticketId    String            @map("ticket_id") @db.Uuid
+  fromState   TicketState       @map("from_state")
+  toState     TicketState       @map("to_state")
+  trigger     TransitionTrigger
+  reason      TransitionReason
+  feedback    String?           @db.Text
+  triggeredBy String?           @map("triggered_by") @db.VarChar(255)
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([ticketId], name: "ticket_state_history_ticket_idx")
+  @@index([createdAt], name: "ticket_state_history_created_idx")
+  @@map("ticket_state_history")
+}
