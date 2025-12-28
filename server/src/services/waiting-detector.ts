@@ -23,6 +23,7 @@ import { contextMonitor } from './context-monitor.js';
 import type { ClaudeStateChangeEvent } from './context-monitor-types.js';
 import { sessionSupervisor } from './session-supervisor.js';
 import type { SessionOutputEvent } from './session-supervisor-types.js';
+import { prisma } from '../config/db.js';
 
 // ============================================================================
 // Events Interface
@@ -245,58 +246,69 @@ export class WaitingDetector extends EventEmitter {
   handleHookEvent(payload: ClaudeHookPayload): void {
     if (!this.config.enableHooks || !this.running) return;
 
-    // Determine session ID from payload
-    const sessionId = this.resolveSessionFromHook(payload);
-    if (!sessionId) {
-      this.emit(
-        'error',
-        new WaitingDetectorError('Could not resolve session from hook payload', 'HOOK_SESSION_RESOLVE_FAILED'),
-        undefined
-      );
-      return;
-    }
+    // Get event name (support both new and legacy field names)
+    const eventName = payload.hook_event_name || payload.event;
 
-    if (!this.sessions.has(sessionId)) {
-      return; // Not watching this session
-    }
+    // Resolve session async
+    this.resolveSessionFromHook(payload)
+      .then((sessionId) => {
+        if (!sessionId) {
+          // Log but don't error - session might not be tracked yet
+          console.log('[WaitingDetector] Could not resolve session from hook payload:', {
+            cwd: payload.cwd,
+            event: eventName,
+          });
+          return;
+        }
 
-    const now = new Date();
+        if (!this.sessions.has(sessionId)) {
+          return; // Not watching this session
+        }
 
-    // Handle Stop event - session finished
-    if (payload.event === 'Stop') {
-      this.processSignal({
-        sessionId,
-        waiting: false,
-        reason: 'stopped',
-        layer: 'hook',
-        timestamp: now,
-        context: 'stop_event',
+        const now = new Date();
+
+        // Handle Stop event - session finished
+        if (eventName === 'Stop') {
+          this.processSignal({
+            sessionId,
+            waiting: false,
+            reason: 'stopped',
+            layer: 'hook',
+            timestamp: now,
+            context: 'stop_event',
+          });
+          return;
+        }
+
+        // Handle Notification events
+        if (eventName === 'Notification') {
+          let reason: WaitingReason = 'unknown';
+
+          // Check notification_type (new format) or matcher (legacy format)
+          const notificationType = payload.notification_type || payload.matcher;
+
+          if (notificationType?.includes('permission_prompt')) {
+            reason = 'permission_prompt';
+          } else if (notificationType?.includes('idle_prompt')) {
+            reason = 'idle_prompt';
+          }
+
+          const signal: WaitingSignal = {
+            sessionId,
+            waiting: true,
+            reason,
+            layer: 'hook',
+            timestamp: now,
+          };
+          if (notificationType) {
+            signal.context = notificationType;
+          }
+          this.processSignal(signal);
+        }
+      })
+      .catch((error) => {
+        this.emit('error', error as Error, undefined);
       });
-      return;
-    }
-
-    // Handle Notification events
-    if (payload.event === 'Notification') {
-      let reason: WaitingReason = 'unknown';
-
-      if (payload.matcher?.includes('permission_prompt')) {
-        reason = 'permission_prompt';
-      } else if (payload.matcher?.includes('idle_prompt')) {
-        reason = 'idle_prompt';
-      }
-
-      const signal: WaitingSignal = {
-        sessionId,
-        waiting: true,
-        reason,
-        layer: 'hook',
-        timestamp: now,
-      };
-      if (payload.matcher) {
-        signal.context = payload.matcher;
-      }
-      this.processSignal(signal);
-    }
   }
 
   // ==========================================================================
@@ -577,23 +589,104 @@ export class WaitingDetector extends EventEmitter {
 
   /**
    * Resolve session ID from hook payload
+   * First tries to look up by Claude's session_id (if registered via SessionStart hook),
+   * then falls back to matching by cwd.
    */
-  private resolveSessionFromHook(payload: ClaudeHookPayload): string | null {
-    // Direct session ID in payload
+  private async resolveSessionFromHook(payload: ClaudeHookPayload): Promise<string | null> {
+    // First, try to find session by Claude's session_id
+    // (This works if SessionStart hook registered the session)
     if (payload.session_id) {
-      return payload.session_id;
+      const sessionByClaudeId = await prisma.session.findUnique({
+        where: { claudeSessionId: payload.session_id },
+        select: { id: true },
+      });
+
+      if (sessionByClaudeId) {
+        console.log('[WaitingDetector] Found session by claude_session_id:', sessionByClaudeId.id);
+        return sessionByClaudeId.id;
+      }
     }
 
-    // Try to match by cwd - check active sessions in supervisor
+    // Fallback: try to match by cwd
     if (payload.cwd) {
+      // Find projects where the cwd starts with the project's repo path
+      const projects = await prisma.project.findMany({
+        select: { id: true, repoPath: true },
+      });
+
+      const matchingProjectIds: string[] = [];
+      for (const project of projects) {
+        if (payload.cwd.startsWith(project.repoPath)) {
+          matchingProjectIds.push(project.id);
+        }
+      }
+
+      if (matchingProjectIds.length > 0) {
+        // First check in-memory sessions
+        const activeSessions = sessionSupervisor.listActiveSessions();
+        for (const session of activeSessions) {
+          if (matchingProjectIds.includes(session.projectId)) {
+            return session.id;
+          }
+        }
+
+        // Also check database for running sessions not in memory
+        const dbSession = await prisma.session.findFirst({
+          where: {
+            projectId: { in: matchingProjectIds },
+            status: { in: ['running', 'paused'] },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (dbSession) {
+          return dbSession.id;
+        }
+
+        // Fallback: get the most recent session for this project (even if completed)
+        // This handles cases where hooks fire but session status is stale
+        const recentSession = await prisma.session.findFirst({
+          where: {
+            projectId: { in: matchingProjectIds },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (recentSession) {
+          console.log('[WaitingDetector] Using recent session (status:', recentSession.status, ') for project');
+          return recentSession.id;
+        }
+      }
+
+      // Fallback: if there's only one active session in memory, use it
       const activeSessions = sessionSupervisor.listActiveSessions();
-      // For now, if there's only one active session, use it
-      // TODO: Match by project repo path when projects have repo_path stored
       if (activeSessions.length === 1) {
         const session = activeSessions[0];
         if (session) {
           return session.id;
         }
+      }
+
+      // Fallback: check database for any running session
+      const anyDbSession = await prisma.session.findFirst({
+        where: {
+          status: { in: ['running', 'paused'] },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (anyDbSession) {
+        return anyDbSession.id;
+      }
+
+      // Last resort: get any recent session
+      const anyRecentSession = await prisma.session.findFirst({
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (anyRecentSession) {
+        console.log('[WaitingDetector] Using any recent session as last resort (status:', anyRecentSession.status, ')');
+        return anyRecentSession.id;
       }
     }
 

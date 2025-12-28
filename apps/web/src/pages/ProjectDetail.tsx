@@ -2,35 +2,32 @@
  * Project Detail Page
  */
 
-import { useParams, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProject } from '@/hooks/useProjects';
 import { useTickets, useSyncTickets } from '@/hooks/useTickets';
-import { useStartSession } from '@/hooks/useSessions';
+import { useStartSession, useSyncSessions } from '@/hooks/useSessions';
+import { KanbanBoard } from '@/components/kanban';
+import { CreateAdhocTicketModal } from '@/components/CreateAdhocTicketModal';
 import { cn } from '@/lib/utils';
-import type { TicketState } from '@/types/api';
 import {
   ArrowLeft,
   Play,
+  Plus,
   RefreshCw,
   FileText,
-  Clock,
-  CheckCircle,
-  AlertCircle,
+  RotateCcw,
 } from 'lucide-react';
-
-const stateConfig: Record<TicketState, { label: string; color: string; icon: typeof Clock }> = {
-  backlog: { label: 'Backlog', color: 'bg-gray-500', icon: Clock },
-  in_progress: { label: 'In Progress', color: 'bg-blue-500', icon: Play },
-  review: { label: 'Review', color: 'bg-yellow-500', icon: AlertCircle },
-  done: { label: 'Done', color: 'bg-green-500', icon: CheckCircle },
-};
 
 export function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const { data: project, isLoading: projectLoading } = useProject(projectId!);
   const { data: tickets, isLoading: ticketsLoading } = useTickets(projectId!);
   const syncTickets = useSyncTickets();
+  const syncSessions = useSyncSessions();
   const startSession = useStartSession();
+  const [showAdhocModal, setShowAdhocModal] = useState(false);
 
   if (projectLoading || ticketsLoading) {
     return (
@@ -48,21 +45,23 @@ export function ProjectDetail() {
     );
   }
 
-  // Group tickets by state
-  const ticketsByState = tickets?.reduce(
-    (acc, ticket) => {
-      acc[ticket.state].push(ticket);
-      return acc;
-    },
-    { backlog: [], in_progress: [], review: [], done: [] } as Record<TicketState, typeof tickets>
-  );
-
-  const handleSync = () => {
+  const handleSyncTickets = () => {
     syncTickets.mutate(projectId!);
   };
 
+  const handleSyncSessions = () => {
+    syncSessions.mutate(projectId!);
+  };
+
   const handleStartSession = () => {
-    startSession.mutate({ project_id: projectId! });
+    startSession.mutate(
+      { project_id: projectId! },
+      {
+        onSuccess: (session) => {
+          navigate(`/sessions/${session.id}`);
+        },
+      }
+    );
   };
 
   return (
@@ -82,12 +81,28 @@ export function ProjectDetail() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSync}
+            onClick={handleSyncSessions}
+            disabled={syncSessions.isPending}
+            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+            title="Sync session state with tmux"
+          >
+            <RotateCcw className={cn('h-4 w-4', syncSessions.isPending && 'animate-spin')} />
+            Sync Sessions
+          </button>
+          <button
+            onClick={handleSyncTickets}
             disabled={syncTickets.isPending}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
           >
             <RefreshCw className={cn('h-4 w-4', syncTickets.isPending && 'animate-spin')} />
             Sync Tickets
+          </button>
+          <button
+            onClick={() => setShowAdhocModal(true)}
+            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent"
+          >
+            <Plus className="h-4 w-4" />
+            New Adhoc Ticket
           </button>
           <button
             onClick={handleStartSession}
@@ -123,66 +138,14 @@ export function ProjectDetail() {
         </Link>
       )}
 
-      {/* Ticket Counts */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {(Object.entries(stateConfig) as [TicketState, typeof stateConfig.backlog][]).map(
-          ([state, config]) => (
-            <div key={state} className="rounded-lg border bg-card p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className={cn('h-2 w-2 rounded-full', config.color)} />
-                <span className="text-sm font-medium">{config.label}</span>
-              </div>
-              <p className="text-2xl font-bold">
-                {project.ticket_counts[state]}
-              </p>
-            </div>
-          )
-        )}
-      </div>
-
-      {/* Tickets by State */}
-      {ticketsByState && (
-        <div className="space-y-6">
-          {(Object.entries(stateConfig) as [TicketState, typeof stateConfig.backlog][]).map(
-            ([state, config]) => {
-              const stateTickets = ticketsByState[state];
-              if (stateTickets.length === 0) return null;
-
-              return (
-                <div key={state}>
-                  <h2 className="flex items-center gap-2 text-lg font-semibold mb-3">
-                    <div className={cn('h-3 w-3 rounded-full', config.color)} />
-                    {config.label}
-                    <span className="text-muted-foreground font-normal">
-                      ({stateTickets.length})
-                    </span>
-                  </h2>
-                  <div className="space-y-2">
-                    {stateTickets.map((ticket) => (
-                      <Link
-                        key={ticket.id}
-                        to={`/projects/${projectId}/tickets/${ticket.id}`}
-                        className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                      >
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{ticket.title}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {ticket.external_id}
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-          )}
+      {/* Sprint Board */}
+      {tickets && tickets.length > 0 ? (
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Sprint Board</h2>
+          <KanbanBoard tickets={tickets} projectId={projectId!} />
         </div>
-      )}
-
-      {/* Empty State */}
-      {tickets?.length === 0 && (
+      ) : (
+        /* Empty State */
         <div className="rounded-lg border bg-card p-12 text-center">
           <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">No tickets found</h3>
@@ -190,7 +153,7 @@ export function ProjectDetail() {
             Sync tickets from your filesystem or add markdown files to your tickets path
           </p>
           <button
-            onClick={handleSync}
+            onClick={handleSyncTickets}
             disabled={syncTickets.isPending}
             className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
@@ -199,6 +162,13 @@ export function ProjectDetail() {
           </button>
         </div>
       )}
+
+      {/* Create Adhoc Ticket Modal */}
+      <CreateAdhocTicketModal
+        projectId={projectId!}
+        isOpen={showAdhocModal}
+        onClose={() => setShowAdhocModal(false)}
+      />
     </div>
   );
 }

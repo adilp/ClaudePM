@@ -31,6 +31,8 @@ export interface ActiveSession {
   startedAt: Date;
   /** Output ring buffer */
   outputBuffer: RingBuffer<string>;
+  /** Hash of last captured output to detect changes */
+  lastOutputHash?: string;
 }
 
 /**
@@ -124,6 +126,26 @@ export interface RecoveredSession {
   isAlive: boolean;
   /** Current PID in the pane */
   pid: number | null;
+}
+
+/**
+ * Result of syncing sessions with tmux state
+ */
+export interface SyncSessionsResult {
+  /** Sessions that were found to be orphaned (pane gone) and marked as completed */
+  orphanedSessions: Array<{
+    sessionId: string;
+    paneId: string;
+    paneTitle: string | null;
+  }>;
+  /** Sessions that are still alive */
+  aliveSessions: Array<{
+    sessionId: string;
+    paneId: string;
+    paneTitle: string | null;
+  }>;
+  /** Total sessions checked */
+  totalChecked: number;
 }
 
 // ============================================================================

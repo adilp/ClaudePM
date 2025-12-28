@@ -44,6 +44,19 @@ export function useSyncTickets() {
   });
 }
 
+export function useUpdateTicketState() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ticketId, state }: { ticketId: string; state: 'backlog' | 'in_progress' | 'review' | 'done' }) =>
+      api.updateTicket(ticketId, { state }),
+    onSuccess: () => {
+      // Invalidate all ticket queries to refresh state
+      queryClient.invalidateQueries({ queryKey: ticketKeys.all });
+    },
+  });
+}
+
 export function useApproveTicket() {
   const queryClient = useQueryClient();
 
@@ -74,5 +87,40 @@ export function useTicketHistory(ticketId: string) {
     queryKey: [...ticketKeys.detail('', ticketId), 'history'],
     queryFn: () => api.getTicketHistory(ticketId),
     enabled: !!ticketId,
+  });
+}
+
+export function useCreateAdhocTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ projectId, data }: { projectId: string; data: { title: string; slug: string } }) =>
+      api.createAdhocTicket(projectId, data),
+    onSuccess: (_, { projectId }) => {
+      // Invalidate ticket list to show the new adhoc ticket
+      queryClient.invalidateQueries({ queryKey: ticketKeys.list(projectId) });
+    },
+  });
+}
+
+export function useTicketContent(ticketId: string) {
+  return useQuery({
+    queryKey: [...ticketKeys.detail('', ticketId), 'content'],
+    queryFn: () => api.getTicketContent(ticketId),
+    enabled: !!ticketId,
+  });
+}
+
+export function useUpdateTicketContent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ticketId, content }: { ticketId: string; content: string }) =>
+      api.updateTicketContent(ticketId, content),
+    onSuccess: (_, { ticketId }) => {
+      // Invalidate ticket content and detail queries
+      queryClient.invalidateQueries({ queryKey: [...ticketKeys.detail('', ticketId), 'content'] });
+      queryClient.invalidateQueries({ queryKey: ticketKeys.details() });
+    },
   });
 }

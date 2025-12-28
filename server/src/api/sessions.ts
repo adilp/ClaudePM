@@ -291,4 +291,35 @@ router.get(
   }
 );
 
+/**
+ * POST /api/sessions/sync
+ * Sync session state with tmux reality - cleans up orphaned sessions
+ *
+ * Query params:
+ * - project_id: Optional project ID to limit sync scope
+ */
+router.post(
+  '/sessions/sync',
+  asyncHandler(async (req, res) => {
+    const projectId = req.query.project_id as string | undefined;
+
+    const result = await sessionSupervisor.syncSessions(projectId);
+
+    res.json({
+      message: `Synced ${result.totalChecked} sessions`,
+      orphaned_sessions: result.orphanedSessions.map((s) => ({
+        session_id: s.sessionId,
+        pane_id: s.paneId,
+      })),
+      alive_sessions: result.aliveSessions.map((s) => ({
+        session_id: s.sessionId,
+        pane_id: s.paneId,
+        pane_title: s.paneTitle,
+      })),
+      total_checked: result.totalChecked,
+      orphaned_count: result.orphanedSessions.length,
+    });
+  })
+);
+
 export default router;

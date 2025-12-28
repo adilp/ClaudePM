@@ -43,11 +43,30 @@ export type TicketState = 'backlog' | 'in_progress' | 'review' | 'done';
 export interface Ticket {
   id: string;
   project_id: string;
-  external_id: string;
+  external_id: string | null;
   title: string;
   state: TicketState;
   file_path: string;
   content_hash: string;
+  is_adhoc: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdhocTicketCreate {
+  title: string;
+  slug: string;
+}
+
+export interface AdhocTicketResponse {
+  id: string;
+  project_id: string;
+  external_id: string | null;
+  title: string;
+  state: TicketState;
+  file_path: string;
+  content_hash: string;
+  is_adhoc: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -84,8 +103,8 @@ export interface StateHistoryEntry {
 // Session Types
 // ============================================================================
 
-export type SessionStatus = 'starting' | 'running' | 'waiting' | 'stopped';
-export type SessionType = 'ticket' | 'ad_hoc';
+export type SessionStatus = 'running' | 'paused' | 'completed' | 'error';
+export type SessionType = 'ticket' | 'adhoc';
 
 export interface Session {
   id: string;
@@ -99,6 +118,21 @@ export interface Session {
   ended_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SyncSessionsResult {
+  message: string;
+  orphaned_sessions: Array<{
+    session_id: string;
+    pane_id: string;
+  }>;
+  alive_sessions: Array<{
+    session_id: string;
+    pane_id: string;
+    pane_title: string | null;
+  }>;
+  total_checked: number;
+  orphaned_count: number;
 }
 
 // ============================================================================

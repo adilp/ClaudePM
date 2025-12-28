@@ -19,28 +19,31 @@ export interface WebSocketMessage {
 export interface SessionOutputMessage {
   type: 'session:output';
   payload: {
-    session_id: string;
-    output: string;
-    timestamp: string;
+    sessionId: string;
+    lines: string[];
+    raw: boolean;
   };
 }
 
-export interface SessionStateMessage {
-  type: 'session:stateChange';
+export interface SessionStatusMessage {
+  type: 'session:status';
   payload: {
-    session_id: string;
-    status: string;
-    context_percent: number | null;
+    sessionId: string;
+    previousStatus: string;
+    newStatus: string;
+    timestamp: string;
+    error?: string;
   };
 }
 
 export interface SessionWaitingMessage {
   type: 'session:waiting';
   payload: {
-    session_id: string;
+    sessionId: string;
     waiting: boolean;
     reason?: string;
-    detected_by?: string;
+    detectedBy?: string;
+    timestamp: string;
   };
 }
 
@@ -53,11 +56,48 @@ export interface TicketStateMessage {
   };
 }
 
+// PTY Message Types
+export interface PtyAttachedMessage {
+  type: 'pty:attached';
+  payload: {
+    sessionId: string;
+    cols: number;
+    rows: number;
+  };
+}
+
+export interface PtyDetachedMessage {
+  type: 'pty:detached';
+  payload: {
+    sessionId: string;
+  };
+}
+
+export interface PtyOutputMessage {
+  type: 'pty:output';
+  payload: {
+    sessionId: string;
+    data: string;
+  };
+}
+
+export interface PtyExitMessage {
+  type: 'pty:exit';
+  payload: {
+    sessionId: string;
+    exitCode: number;
+  };
+}
+
 export type IncomingMessage =
   | SessionOutputMessage
-  | SessionStateMessage
+  | SessionStatusMessage
   | SessionWaitingMessage
   | TicketStateMessage
+  | PtyAttachedMessage
+  | PtyDetachedMessage
+  | PtyOutputMessage
+  | PtyExitMessage
   | WebSocketMessage;
 
 interface UseWebSocketOptions {
@@ -72,6 +112,11 @@ interface UseWebSocketReturn {
   unsubscribe: (sessionId: string) => void;
   lastMessage: IncomingMessage | null;
   sendMessage: (message: WebSocketMessage) => void;
+  // PTY methods for true terminal emulation
+  ptyAttach: (sessionId: string, cols?: number, rows?: number) => void;
+  ptyDetach: (sessionId: string) => void;
+  ptyWrite: (sessionId: string, data: string) => void;
+  ptyResize: (sessionId: string, cols: number, rows: number) => void;
 }
 
 // ============================================================================
@@ -111,7 +156,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
         // Resubscribe to any sessions
         subscribedSessionsRef.current.forEach((sessionId) => {
-          ws.send(JSON.stringify({ type: 'subscribe', sessionId }));
+          ws.send(JSON.stringify({ type: 'session:subscribe', payload: { sessionId } }));
         });
       };
 
@@ -160,14 +205,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const subscribe = useCallback((sessionId: string) => {
     subscribedSessionsRef.current.add(sessionId);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'subscribe', sessionId }));
+      wsRef.current.send(JSON.stringify({ type: 'session:subscribe', payload: { sessionId } }));
     }
   }, []);
 
   const unsubscribe = useCallback((sessionId: string) => {
     subscribedSessionsRef.current.delete(sessionId);
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'unsubscribe', sessionId }));
+      wsRef.current.send(JSON.stringify({ type: 'session:unsubscribe', payload: { sessionId } }));
     }
   }, []);
 
@@ -176,6 +221,34 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       wsRef.current.send(JSON.stringify(message));
     } else {
       console.warn('WebSocket not connected, message not sent:', message);
+    }
+  }, []);
+
+  // PTY methods for true terminal emulation
+  const ptyAttach = useCallback((sessionId: string, cols?: number, rows?: number) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const payload: { sessionId: string; cols?: number; rows?: number } = { sessionId };
+      if (cols !== undefined) payload.cols = cols;
+      if (rows !== undefined) payload.rows = rows;
+      wsRef.current.send(JSON.stringify({ type: 'pty:attach', payload }));
+    }
+  }, []);
+
+  const ptyDetach = useCallback((sessionId: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'pty:detach', payload: { sessionId } }));
+    }
+  }, []);
+
+  const ptyWrite = useCallback((sessionId: string, data: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'pty:data', payload: { sessionId, data } }));
+    }
+  }, []);
+
+  const ptyResize = useCallback((sessionId: string, cols: number, rows: number) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'pty:resize', payload: { sessionId, cols, rows } }));
     }
   }, []);
 
@@ -191,5 +264,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     unsubscribe,
     lastMessage,
     sendMessage,
+    ptyAttach,
+    ptyDetach,
+    ptyWrite,
+    ptyResize,
   };
 }

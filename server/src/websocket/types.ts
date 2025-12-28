@@ -39,13 +39,24 @@ export const unsubscribeMessageSchema = z.object({
 });
 
 /**
- * Send input to a session
+ * Send input to a session (with Enter appended)
  */
 export const inputMessageSchema = z.object({
   type: z.literal('session:input'),
   payload: z.object({
     sessionId: z.string().uuid(),
     text: z.string().max(10000),
+  }),
+});
+
+/**
+ * Send raw keys to a session (for real-time terminal input)
+ */
+export const keysMessageSchema = z.object({
+  type: z.literal('session:keys'),
+  payload: z.object({
+    sessionId: z.string().uuid(),
+    keys: z.string().max(1000),
   }),
 });
 
@@ -58,13 +69,63 @@ export const pingMessageSchema = z.object({
 });
 
 /**
+ * Attach to a session via PTY (true terminal emulation)
+ */
+export const ptyAttachMessageSchema = z.object({
+  type: z.literal('pty:attach'),
+  payload: z.object({
+    sessionId: z.string().uuid(),
+    cols: z.number().int().min(1).max(500).optional(),
+    rows: z.number().int().min(1).max(200).optional(),
+  }),
+});
+
+/**
+ * Detach from PTY
+ */
+export const ptyDetachMessageSchema = z.object({
+  type: z.literal('pty:detach'),
+  payload: z.object({
+    sessionId: z.string().uuid(),
+  }),
+});
+
+/**
+ * Send data to PTY (raw terminal input)
+ */
+export const ptyDataMessageSchema = z.object({
+  type: z.literal('pty:data'),
+  payload: z.object({
+    sessionId: z.string().uuid(),
+    data: z.string(),
+  }),
+});
+
+/**
+ * Resize PTY terminal
+ */
+export const ptyResizeMessageSchema = z.object({
+  type: z.literal('pty:resize'),
+  payload: z.object({
+    sessionId: z.string().uuid(),
+    cols: z.number().int().min(1).max(500),
+    rows: z.number().int().min(1).max(200),
+  }),
+});
+
+/**
  * Union of all valid client message schemas
  */
 export const clientMessageSchema = z.discriminatedUnion('type', [
   subscribeMessageSchema,
   unsubscribeMessageSchema,
   inputMessageSchema,
+  keysMessageSchema,
   pingMessageSchema,
+  ptyAttachMessageSchema,
+  ptyDetachMessageSchema,
+  ptyDataMessageSchema,
+  ptyResizeMessageSchema,
 ]);
 
 // ============================================================================
@@ -74,7 +135,12 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
 export type SubscribeMessage = z.infer<typeof subscribeMessageSchema>;
 export type UnsubscribeMessage = z.infer<typeof unsubscribeMessageSchema>;
 export type InputMessage = z.infer<typeof inputMessageSchema>;
+export type KeysMessage = z.infer<typeof keysMessageSchema>;
 export type PingMessage = z.infer<typeof pingMessageSchema>;
+export type PtyAttachMessage = z.infer<typeof ptyAttachMessageSchema>;
+export type PtyDetachMessage = z.infer<typeof ptyDetachMessageSchema>;
+export type PtyDataMessage = z.infer<typeof ptyDataMessageSchema>;
+export type PtyResizeMessage = z.infer<typeof ptyResizeMessageSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 // ============================================================================
@@ -236,6 +302,50 @@ export interface UnsubscribedMessage {
 }
 
 /**
+ * PTY attached confirmation message
+ */
+export interface PtyAttachedMessage {
+  type: 'pty:attached';
+  payload: {
+    sessionId: string;
+    cols: number;
+    rows: number;
+  };
+}
+
+/**
+ * PTY detached confirmation message
+ */
+export interface PtyDetachedMessage {
+  type: 'pty:detached';
+  payload: {
+    sessionId: string;
+  };
+}
+
+/**
+ * PTY output data message
+ */
+export interface PtyOutputMessage {
+  type: 'pty:output';
+  payload: {
+    sessionId: string;
+    data: string;
+  };
+}
+
+/**
+ * PTY exit message
+ */
+export interface PtyExitMessage {
+  type: 'pty:exit';
+  payload: {
+    sessionId: string;
+    exitCode: number;
+  };
+}
+
+/**
  * Union of all server messages
  */
 export type ServerMessage =
@@ -248,7 +358,11 @@ export type ServerMessage =
   | PongMessage
   | ErrorMessage
   | SubscribedMessage
-  | UnsubscribedMessage;
+  | UnsubscribedMessage
+  | PtyAttachedMessage
+  | PtyDetachedMessage
+  | PtyOutputMessage
+  | PtyExitMessage;
 
 // ============================================================================
 // Connection Types
@@ -280,6 +394,10 @@ export const WS_ERROR_CODES = {
   INPUT_FAILED: 'INPUT_FAILED',
   RATE_LIMITED: 'RATE_LIMITED',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  PTY_ALREADY_ATTACHED: 'PTY_ALREADY_ATTACHED',
+  PTY_NOT_ATTACHED: 'PTY_NOT_ATTACHED',
+  PTY_INVALID_PANE: 'PTY_INVALID_PANE',
+  PTY_ATTACH_FAILED: 'PTY_ATTACH_FAILED',
 } as const;
 
 export type WsErrorCode = (typeof WS_ERROR_CODES)[keyof typeof WS_ERROR_CODES];

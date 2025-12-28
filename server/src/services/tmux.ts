@@ -341,6 +341,35 @@ export async function killPane(paneId: string): Promise<void> {
 }
 
 /**
+ * Set the title of a pane
+ * @param paneId The pane ID (e.g., "%5")
+ * @param title The title to set
+ */
+export async function setPaneTitle(paneId: string, title: string): Promise<void> {
+  await execTmux(['select-pane', '-t', escapeShellArg(paneId), '-T', escapeShellArg(title)]);
+}
+
+/**
+ * Get the title of a pane
+ * @param paneId The pane ID (e.g., "%5")
+ * @returns The pane title, or null if pane not found
+ */
+export async function getPaneTitle(paneId: string): Promise<string | null> {
+  try {
+    const output = await execTmux([
+      'display-message',
+      '-t',
+      escapeShellArg(paneId),
+      '-p',
+      '"#{pane_title}"',
+    ]);
+    return output.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Check if a pane is still alive
  */
 export async function isPaneAlive(paneId: string): Promise<boolean> {
@@ -376,7 +405,7 @@ export async function isPaneAlive(paneId: string): Promise<boolean> {
 export async function getPane(paneId: string): Promise<TmuxPane | null> {
   try {
     const format =
-      '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_pid}|#{pane_active}';
+      '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_pid}|#{pane_active}|#{pane_title}';
     const output = await execTmux(['display-message', '-t', escapeShellArg(paneId), '-p', `"${format}"`]);
 
     const line = output.trim();
@@ -389,7 +418,7 @@ export async function getPane(paneId: string): Promise<TmuxPane | null> {
       return null;
     }
 
-    return {
+    const pane: TmuxPane = {
       id: parts[0] ?? '',
       session: parts[1] ?? '',
       window: parseInt(parts[2] ?? '0', 10),
@@ -397,6 +426,13 @@ export async function getPane(paneId: string): Promise<TmuxPane | null> {
       pid: parseInt(parts[4] ?? '0', 10),
       active: parts[5] === '1',
     };
+
+    // Only set title if present (exactOptionalPropertyTypes compatibility)
+    if (parts[6]) {
+      pane.title = parts[6];
+    }
+
+    return pane;
   } catch {
     return null;
   }
@@ -438,7 +474,18 @@ export async function capturePane(
     args.push('-e'); // Include escape sequences
   }
 
-  const output = await execTmux(args);
+  let output: string;
+  try {
+    // Try with alternate screen first (for TUI apps)
+    output = await execTmux([...args, '-a']);
+  } catch (error) {
+    // Fall back without -a if no alternate screen
+    if (error instanceof TmuxCommandError && error.stderr?.includes('no alternate screen')) {
+      output = await execTmux(args);
+    } else {
+      throw error;
+    }
+  }
 
   // Strip ANSI codes if requested (and not already handled by tmux)
   if (stripAnsi) {
@@ -463,13 +510,45 @@ export async function captureVisiblePane(paneId: string, stripAnsi = true): Prom
  * Send keys to a pane
  * @param paneId - The target pane ID
  * @param keys - Keys to send (can include special keys like Enter, C-c, etc.)
+ * @param literal - If true, send keys literally without key name lookup (default: false)
  */
-export async function sendKeys(paneId: string, keys: string): Promise<void> {
+export async function sendKeys(paneId: string, keys: string, literal: boolean = false): Promise<void> {
   if (!(await isPaneAlive(paneId))) {
     throw new TmuxPaneNotFoundError(paneId);
   }
 
-  await execTmux(['send-keys', '-t', escapeShellArg(paneId), escapeShellArg(keys)]);
+  const args = ['send-keys', '-t', escapeShellArg(paneId)];
+  if (literal) {
+    args.push('-l');
+  }
+  args.push(escapeShellArg(keys));
+
+  await execTmux(args);
+}
+
+/**
+ * Send raw keys to a pane (literal mode, for terminal emulation)
+ * This is designed for real-time terminal input where escape sequences
+ * should be passed through exactly as received from xterm.js
+ * @param paneId - The target pane ID
+ * @param keys - Raw key data from terminal emulator
+ */
+export async function sendRawKeys(paneId: string, keys: string): Promise<void> {
+  if (!(await isPaneAlive(paneId))) {
+    throw new TmuxPaneNotFoundError(paneId);
+  }
+
+  // For raw terminal input, use literal mode (-l) to prevent tmux from
+  // interpreting key names. Also use -H for hex encoding to handle
+  // escape sequences and special characters reliably.
+  const hexKeys = Buffer.from(keys, 'utf-8')
+    .toString('hex')
+    .match(/.{1,2}/g)
+    ?.join(' ') ?? '';
+
+  if (hexKeys) {
+    await execTmux(['send-keys', '-t', escapeShellArg(paneId), '-H', hexKeys]);
+  }
 }
 
 /**

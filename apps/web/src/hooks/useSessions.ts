@@ -62,3 +62,15 @@ export function useSendInput() {
       api.sendInput(sessionId, text),
   });
 }
+
+export function useSyncSessions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (projectId?: string) => api.syncSessions(projectId),
+    onSuccess: () => {
+      // Invalidate all session queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    },
+  });
+}

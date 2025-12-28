@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import * as path from 'path';
 import { prisma } from '../config/db.js';
 import type { Session, SessionStatus, SessionType } from '../generated/prisma/index.js';
 import * as tmux from './tmux.js';
@@ -17,6 +18,7 @@ import {
   type SessionExitEvent,
   type SessionInfo,
   type RecoveredSession,
+  type SyncSessionsResult,
   SessionNotFoundError,
   SessionProjectNotFoundError,
   SessionTicketNotFoundError,
@@ -169,6 +171,7 @@ export class SessionSupervisor extends EventEmitter {
       ...options,
       type: 'ticket',
       ticketId: options.ticketId,
+      externalTicketId: ticket.externalId,
       initialPrompt,
     });
   }
@@ -229,27 +232,78 @@ export class SessionSupervisor extends EventEmitter {
   }
 
   /**
-   * Send input to a running session
+   * Send input to a running session (with Enter key appended)
    */
   async sendInput(sessionId: string, input: string): Promise<void> {
-    const active = this.sessions.get(sessionId);
-
-    if (!active) {
-      throw new SessionNotFoundError(sessionId);
-    }
-
-    if (active.status !== 'running') {
-      throw new SessionInputError(sessionId, `Session is not running (status: ${active.status})`);
-    }
-
+    const paneId = await this.getValidPaneId(sessionId);
     try {
-      await tmux.sendText(active.paneId, input);
+      await tmux.sendText(paneId, input);
     } catch (error) {
       throw new SessionInputError(
         sessionId,
         error instanceof Error ? error.message : 'Unknown error'
       );
     }
+  }
+
+  /**
+   * Send raw keys to a running session (no Enter appended)
+   * Used for real-time terminal input from web terminal
+   * Uses hex encoding to reliably pass escape sequences
+   */
+  async sendKeys(sessionId: string, keys: string): Promise<void> {
+    const paneId = await this.getValidPaneId(sessionId);
+    try {
+      // Use sendRawKeys which uses hex encoding for reliable escape sequence handling
+      await tmux.sendRawKeys(paneId, keys);
+    } catch (error) {
+      throw new SessionInputError(
+        sessionId,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  /**
+   * Get valid pane ID for a session, checking both memory and DB
+   */
+  private async getValidPaneId(sessionId: string): Promise<string> {
+    let paneId: string;
+    let status: SessionStatus;
+
+    // Check in-memory registry first
+    const active = this.sessions.get(sessionId);
+
+    if (active) {
+      paneId = active.paneId;
+      status = active.status;
+    } else {
+      // Fall back to database lookup (for sessions created via hooks)
+      const dbSession = await prisma.session.findUnique({
+        where: { id: sessionId },
+      });
+
+      if (!dbSession) {
+        throw new SessionNotFoundError(sessionId);
+      }
+
+      paneId = dbSession.tmuxPaneId;
+      status = dbSession.status;
+    }
+
+    if (status !== 'running') {
+      throw new SessionInputError(sessionId, `Session is not running (status: ${status})`);
+    }
+
+    // Check if it's a placeholder pane ID (from hooks)
+    if (paneId === 'claude-code' || !paneId.startsWith('%')) {
+      throw new SessionInputError(
+        sessionId,
+        'Session does not have a valid tmux pane. It may have been created externally.'
+      );
+    }
+
+    return paneId;
   }
 
   /**
@@ -351,6 +405,7 @@ export class SessionSupervisor extends EventEmitter {
     projectId: string;
     type: SessionType;
     ticketId: string | null;
+    externalTicketId?: string | null;
     initialPrompt?: string;
     cwd?: string;
   }): Promise<Session> {
@@ -372,7 +427,28 @@ export class SessionSupervisor extends EventEmitter {
     });
 
     if (existingSession) {
-      throw new SessionAlreadyRunningError(options.projectId, existingSession.id);
+      // Sessions from hooks have placeholder pane IDs - check if it's a real tmux pane
+      const isPlaceholderPane = existingSession.tmuxPaneId === 'claude-code' ||
+        !existingSession.tmuxPaneId.startsWith('%');
+
+      // Check if the session's tmux pane is actually alive (skip for placeholder panes)
+      const isAlive = isPlaceholderPane ? false : await tmux.isPaneAlive(existingSession.tmuxPaneId);
+
+      if (isAlive) {
+        // Session is truly running - can't start a new one
+        throw new SessionAlreadyRunningError(options.projectId, existingSession.id);
+      } else {
+        // Pane is dead or placeholder - clean up the stale session
+        console.log(`[SessionSupervisor] Cleaning up stale session ${existingSession.id} (pane dead or placeholder)`);
+        await this.updateSessionStatus(existingSession.id, 'completed');
+
+        // Remove from in-memory registry if present
+        const active = this.sessions.get(existingSession.id);
+        if (active) {
+          waitingDetector.unwatchSession(existingSession.id);
+          this.sessions.delete(existingSession.id);
+        }
+      }
     }
 
     // Verify tmux session exists
@@ -385,11 +461,39 @@ export class SessionSupervisor extends EventEmitter {
 
     // Create pane in the project's tmux session
     let paneId: string;
+
+    // Query ticket if this is a ticket session to determine command
+    let ticket: { isAdhoc: boolean; filePath: string; title: string; externalId: string | null } | null = null;
+    if (options.ticketId) {
+      ticket = await prisma.ticket.findUnique({
+        where: { id: options.ticketId },
+        select: { isAdhoc: true, filePath: true, title: true, externalId: true },
+      });
+    }
+
+    // Build the command to start Claude
+    let claudeCommand: string;
+    if (ticket) {
+      // Build full file path for the ticket
+      const fullPath = path.join(project.repoPath, ticket.filePath);
+
+      if (ticket.isAdhoc) {
+        // Adhoc tickets: summarize and wait for confirmation
+        claudeCommand = `cat "${fullPath}" | claude "Summarize this ticket and propose next steps. Wait for my confirmation before implementing."`;
+      } else {
+        // Regular tickets: implement directly
+        claudeCommand = `cat "${fullPath}" | claude "Implement this ticket: ${ticket.title}"`;
+      }
+    } else {
+      // Adhoc sessions without ticket: just start claude
+      claudeCommand = 'claude';
+    }
+
     try {
       // Build pane options conditionally for exactOptionalPropertyTypes
       const paneOptions: tmux.CreatePaneOptions = {
         cwd: options.cwd ?? project.repoPath,
-        command: 'claude', // Start Claude Code
+        command: claudeCommand,
       };
       if (project.tmuxWindow !== null) {
         paneOptions.window = project.tmuxWindow;
@@ -419,6 +523,27 @@ export class SessionSupervisor extends EventEmitter {
       },
     });
 
+    // Set pane title for identification
+    let paneTitle: string;
+    if (ticket && ticket.isAdhoc) {
+      // For adhoc tickets: extract slug from filePath (e.g., "docs/adhoc/my-feature.md" -> "my-feature")
+      const fileName = path.basename(ticket.filePath, path.extname(ticket.filePath));
+      paneTitle = fileName;
+    } else if (ticket && ticket.externalId) {
+      // Regular ticket: use externalId
+      paneTitle = ticket.externalId;
+    } else {
+      // Adhoc session without ticket
+      paneTitle = `adhoc:${session.id.slice(0, 8)}`;
+    }
+
+    try {
+      await tmux.setPaneTitle(paneId, paneTitle);
+    } catch (error) {
+      // Non-fatal: log but don't fail session creation
+      console.warn(`Failed to set pane title for session ${session.id}:`, error);
+    }
+
     // Add to in-memory registry
     const activeSession: ActiveSession = {
       id: session.id,
@@ -437,15 +562,9 @@ export class SessionSupervisor extends EventEmitter {
     // Register with waiting detector for input detection
     waitingDetector.watchSession(session.id);
 
-    // Send initial prompt if provided (after a short delay to let Claude start)
-    if (options.initialPrompt) {
-      const prompt = options.initialPrompt;
-      setTimeout(() => {
-        tmux.sendText(paneId, prompt).catch((err) => {
-          console.error(`Failed to send initial prompt to session ${session.id}:`, err);
-        });
-      }, 2000); // 2 second delay for Claude to initialize
-    }
+    // Note: initialPrompt is no longer used here since we pipe ticket content
+    // directly to Claude via the command. The piping approach is more reliable
+    // than sending text after a delay.
 
     // Emit state change
     this.emitStateChange(session.id, 'running', 'running');
@@ -457,11 +576,12 @@ export class SessionSupervisor extends EventEmitter {
    * Build the initial prompt for a ticket session
    */
   private buildTicketPrompt(
-    externalId: string,
+    externalId: string | null,
     title: string,
     filePath: string
   ): string {
-    return `I'm working on ticket ${externalId}: ${title}
+    const ticketRef = externalId ? `${externalId}: ${title}` : title;
+    return `I'm working on ticket ${ticketRef}
 
 Please read the ticket at ${filePath} and begin implementation.`;
   }
@@ -606,9 +726,52 @@ Please read the ticket at ${filePath} and begin implementation.`;
   }
 
   /**
+   * Simple hash function for output deduplication
+   */
+  private hashOutput(output: string): string {
+    let hash = 0;
+    for (let i = 0; i < output.length; i++) {
+      const char = output.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash.toString(16);
+  }
+
+  /**
    * Capture output from all active sessions
    */
   private async captureOutput(): Promise<void> {
+    // Also check DB for running sessions not in memory
+    const dbSessions = await prisma.session.findMany({
+      where: { status: 'running' },
+      select: { id: true, tmuxPaneId: true },
+    });
+
+    for (const dbSession of dbSessions) {
+      // Skip if already in memory or has placeholder pane ID
+      if (this.sessions.has(dbSession.id)) continue;
+      if (dbSession.tmuxPaneId === 'claude-code' || !dbSession.tmuxPaneId.startsWith('%')) continue;
+
+      // Check if pane is alive and add to tracking
+      const isAlive = await tmux.isPaneAlive(dbSession.tmuxPaneId);
+      if (isAlive) {
+        console.log(`[SessionSupervisor] Adding DB session to memory tracking: ${dbSession.id}`);
+        const activeSession: ActiveSession = {
+          id: dbSession.id,
+          projectId: '',
+          ticketId: null,
+          type: 'adhoc',
+          status: 'running',
+          paneId: dbSession.tmuxPaneId,
+          pid: 0,
+          startedAt: new Date(),
+          outputBuffer: new RingBuffer<string>(this.outputBufferSize),
+        };
+        this.sessions.set(dbSession.id, activeSession);
+      }
+    }
+
     for (const [sessionId, session] of this.sessions) {
       if (session.status !== 'running') {
         continue;
@@ -621,11 +784,20 @@ Please read the ticket at ${filePath} and begin implementation.`;
           stripAnsi: false, // Keep ANSI codes for raw output
         });
 
+        // Check if output has changed
+        const outputHash = this.hashOutput(output);
+        if (outputHash === session.lastOutputHash) {
+          // No change, skip
+          continue;
+        }
+        session.lastOutputHash = outputHash;
+
         const lines = output.split('\n');
         session.outputBuffer.pushMany(lines);
 
         // Emit output event if we have content
         if (lines.length > 0) {
+          console.log(`[SessionSupervisor] Emitting output for session ${sessionId}, ${lines.length} lines`);
           const event: SessionOutputEvent = {
             sessionId,
             lines,
@@ -695,6 +867,63 @@ Please read the ticket at ${filePath} and begin implementation.`;
     }
 
     return recovered;
+  }
+
+  /**
+   * Sync session state with tmux - find and clean up orphaned sessions
+   * This can be called at any time to ensure database state matches tmux reality
+   */
+  async syncSessions(projectId?: string): Promise<SyncSessionsResult> {
+    const result: SyncSessionsResult = {
+      orphanedSessions: [],
+      aliveSessions: [],
+      totalChecked: 0,
+    };
+
+    // Find all sessions marked as running/paused
+    const statusFilter: SessionStatus[] = ['running', 'paused'];
+    const dbSessions = await prisma.session.findMany({
+      where: {
+        status: { in: statusFilter },
+        ...(projectId && { projectId }),
+      },
+    });
+
+    result.totalChecked = dbSessions.length;
+
+    for (const dbSession of dbSessions) {
+      const isAlive = await tmux.isPaneAlive(dbSession.tmuxPaneId);
+      const paneTitle = isAlive ? await tmux.getPaneTitle(dbSession.tmuxPaneId) : null;
+
+      if (isAlive) {
+        result.aliveSessions.push({
+          sessionId: dbSession.id,
+          paneId: dbSession.tmuxPaneId,
+          paneTitle,
+        });
+      } else {
+        // Pane is dead - mark session as completed
+        await this.updateSessionStatus(dbSession.id, 'completed');
+
+        // Remove from in-memory registry if present
+        const active = this.sessions.get(dbSession.id);
+        if (active) {
+          waitingDetector.unwatchSession(dbSession.id);
+          this.sessions.delete(dbSession.id);
+
+          // Emit state change
+          this.emitStateChange(dbSession.id, active.status, 'completed');
+        }
+
+        result.orphanedSessions.push({
+          sessionId: dbSession.id,
+          paneId: dbSession.tmuxPaneId,
+          paneTitle: null, // Pane is gone, no title available
+        });
+      }
+    }
+
+    return result;
   }
 }
 

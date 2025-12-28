@@ -21,10 +21,10 @@ import {
 } from 'lucide-react';
 
 const statusConfig: Record<SessionStatus, { label: string; color: string; bgColor: string; icon: typeof Play }> = {
-  starting: { label: 'Starting', color: 'text-yellow-700', bgColor: 'bg-yellow-100', icon: Clock },
   running: { label: 'Running', color: 'text-green-700', bgColor: 'bg-green-100', icon: Play },
-  waiting: { label: 'Waiting', color: 'text-blue-700', bgColor: 'bg-blue-100', icon: AlertCircle },
-  stopped: { label: 'Stopped', color: 'text-gray-700', bgColor: 'bg-gray-100', icon: Square },
+  paused: { label: 'Paused', color: 'text-blue-700', bgColor: 'bg-blue-100', icon: Clock },
+  completed: { label: 'Completed', color: 'text-gray-700', bgColor: 'bg-gray-100', icon: Square },
+  error: { label: 'Error', color: 'text-red-700', bgColor: 'bg-red-100', icon: AlertCircle },
 };
 
 export function Sessions() {
@@ -32,8 +32,8 @@ export function Sessions() {
   const { data: tmuxSessions, isLoading: tmuxLoading, error: tmuxError, refetch: refetchTmux } = useTmuxSessions();
   const { connectionState } = useWebSocket();
 
-  const activeSessions = sessions?.filter(s => s.status !== 'stopped') ?? [];
-  const stoppedSessions = sessions?.filter(s => s.status === 'stopped') ?? [];
+  const activeSessions = sessions?.filter(s => s.status === 'running' || s.status === 'paused') ?? [];
+  const completedSessions = sessions?.filter(s => s.status === 'completed' || s.status === 'error') ?? [];
 
   return (
     <div className="space-y-6">
@@ -208,17 +208,17 @@ export function Sessions() {
         )}
       </div>
 
-      {/* Stopped Sessions */}
-      {stoppedSessions.length > 0 && (
+      {/* Completed Sessions */}
+      {completedSessions.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-gray-400" />
             Recent Sessions
-            <span className="text-muted-foreground font-normal">({stoppedSessions.length})</span>
+            <span className="text-muted-foreground font-normal">({completedSessions.length})</span>
           </h2>
 
           <div className="grid gap-2">
-            {stoppedSessions.slice(0, 10).map((session) => (
+            {completedSessions.slice(0, 10).map((session) => (
               <Link
                 key={session.id}
                 to={`/sessions/${session.id}`}

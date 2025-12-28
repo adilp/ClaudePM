@@ -76,17 +76,28 @@ export interface WaitingSignal {
  * Claude Code hook payload (from HTTP endpoint)
  */
 export interface ClaudeHookPayload {
-  /** Hook event type */
-  event: HookEventType;
-  /** Matcher that triggered the hook (for Notification events) */
-  matcher?: string;
-  /** Session ID (if available) */
+  /** Hook event name from Claude Code (e.g., "Notification", "Stop") */
+  hook_event_name?: string;
+  /** Notification type (e.g., "permission_prompt", "idle_prompt") - for Notification events */
+  notification_type?: string;
+  /** Human-readable message (e.g., "Claude needs your permission to use Bash") */
+  message?: string;
+  /** Session ID from Claude Code */
   session_id?: string;
-  /** Path to transcript file */
+  /** Path to transcript JSONL file */
   transcript_path?: string;
   /** Current working directory */
   cwd?: string;
-  /** Timestamp of the hook event */
+  /** Permission mode (e.g., "default", "plan", "acceptEdits", "bypassPermissions") */
+  permission_mode?: string;
+  /** For Stop hooks - true if Claude is continuing from a previous stop hook */
+  stop_hook_active?: boolean;
+
+  // Legacy fields for backwards compatibility
+  /** @deprecated Use hook_event_name instead */
+  event?: string;
+  /** @deprecated Use notification_type instead */
+  matcher?: string;
   timestamp?: string;
 }
 

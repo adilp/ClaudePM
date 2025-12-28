@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
-import { useTicket, useApproveTicket, useRejectTicket } from '@/hooks/useTickets';
+import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent } from '@/hooks/useTickets';
 import { useStartSession } from '@/hooks/useSessions';
 import { cn } from '@/lib/utils';
 import type { TicketState } from '@/types/api';
@@ -18,6 +18,9 @@ import {
   AlertCircle,
   FileText,
   ExternalLink,
+  Pencil,
+  X,
+  Save,
 } from 'lucide-react';
 
 const stateConfig: Record<TicketState, { label: string; color: string; bgColor: string; icon: typeof Clock }> = {
@@ -34,9 +37,22 @@ export function TicketDetail() {
   const startSession = useStartSession();
   const approveTicket = useApproveTicket();
   const rejectTicket = useRejectTicket();
+  const updateState = useUpdateTicketState();
 
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectFeedback, setRejectFeedback] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+
+  // Query for ticket content (used for adhoc editing)
+  const { data: ticketContent } = useTicketContent(ticketId!);
+  const updateContent = useUpdateTicketContent();
+
+  const handleStateChange = (newState: TicketState) => {
+    if (newState !== ticket?.state) {
+      updateState.mutate({ ticketId: ticketId!, state: newState });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -109,17 +125,38 @@ export function TicketDetail() {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
-            <span className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium',
-              stateInfo.bgColor,
-              stateInfo.color
-            )}>
-              <StateIcon className="h-4 w-4" />
-              {stateInfo.label}
-            </span>
-            <span className="text-sm text-muted-foreground font-mono">
-              {ticket.external_id}
-            </span>
+            <div className="relative">
+              <select
+                value={ticket.state}
+                onChange={(e) => handleStateChange(e.target.value as TicketState)}
+                disabled={updateState.isPending}
+                className={cn(
+                  'appearance-none cursor-pointer inline-flex items-center gap-1.5 pl-8 pr-8 py-1 rounded-full text-sm font-medium border-0 focus:outline-none focus:ring-2 focus:ring-ring',
+                  stateInfo.bgColor,
+                  stateInfo.color,
+                  updateState.isPending && 'opacity-50 cursor-wait'
+                )}
+              >
+                <option value="backlog">Backlog</option>
+                <option value="in_progress">In Progress</option>
+                <option value="review">Review</option>
+                <option value="done">Done</option>
+              </select>
+              <StateIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none" />
+              <svg className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            {ticket.is_adhoc && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                ADHOC
+              </span>
+            )}
+            {ticket.external_id && (
+              <span className="text-sm text-muted-foreground font-mono">
+                {ticket.external_id}
+              </span>
+            )}
           </div>
           <h1 className="text-2xl font-bold">{ticket.title}</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
@@ -190,12 +227,61 @@ export function TicketDetail() {
 
       {/* Ticket Content */}
       <div className="rounded-lg border bg-card">
-        <div className="border-b px-4 py-3">
+        <div className="border-b px-4 py-3 flex items-center justify-between">
           <h2 className="font-semibold">Ticket Content</h2>
+          {ticket.is_adhoc && !isEditing && (
+            <button
+              onClick={() => {
+                setEditContent(ticketContent?.content || ticket.content);
+                setIsEditing(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border hover:bg-accent transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
+          )}
         </div>
-        <div className="p-6 prose prose-sm dark:prose-invert max-w-none">
-          <Markdown>{ticket.content}</Markdown>
-        </div>
+        {isEditing ? (
+          <div className="p-6 space-y-4">
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              className="w-full h-96 rounded-md border bg-background px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Enter ticket content in markdown..."
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsEditing(false)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium border hover:bg-accent transition-colors"
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  updateContent.mutate(
+                    { ticketId: ticketId!, content: editContent },
+                    {
+                      onSuccess: () => {
+                        setIsEditing(false);
+                      },
+                    }
+                  );
+                }}
+                disabled={updateContent.isPending}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                <Save className="h-4 w-4" />
+                {updateContent.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 prose prose-sm dark:prose-invert max-w-none">
+            <Markdown>{ticket.content}</Markdown>
+          </div>
+        )}
       </div>
 
       {/* Timestamps */}

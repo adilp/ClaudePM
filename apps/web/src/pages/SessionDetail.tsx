@@ -28,10 +28,10 @@ import {
 } from 'lucide-react';
 
 const statusConfig: Record<SessionStatus, { label: string; color: string; bgColor: string; icon: typeof Play }> = {
-  starting: { label: 'Starting', color: 'text-yellow-700', bgColor: 'bg-yellow-100', icon: Clock },
   running: { label: 'Running', color: 'text-green-700', bgColor: 'bg-green-100', icon: Play },
-  waiting: { label: 'Waiting for Input', color: 'text-blue-700', bgColor: 'bg-blue-100', icon: AlertCircle },
-  stopped: { label: 'Stopped', color: 'text-gray-700', bgColor: 'bg-gray-100', icon: Square },
+  paused: { label: 'Paused', color: 'text-blue-700', bgColor: 'bg-blue-100', icon: Clock },
+  completed: { label: 'Completed', color: 'text-gray-700', bgColor: 'bg-gray-100', icon: Square },
+  error: { label: 'Error', color: 'text-red-700', bgColor: 'bg-red-100', icon: AlertCircle },
 };
 
 interface QuickAction {
@@ -54,7 +54,9 @@ export function SessionDetail() {
   const { data: session, isLoading, error, refetch } = useSession(sessionId!);
   const stopSession = useStopSession();
   const sendInput = useSendInput();
-  const { connectionState, subscribe, unsubscribe, lastMessage } = useWebSocket();
+  const { connectionState, subscribe, unsubscribe, lastMessage, sendMessage, ptyAttach, ptyDetach, ptyWrite, ptyResize } = useWebSocket();
+  const [isPtyAttached, setIsPtyAttached] = useState(false);
+  const [useLegacyMode, setUseLegacyMode] = useState(false);
 
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -98,7 +100,7 @@ export function SessionDetail() {
       cursorBlink: true,
       cursorStyle: 'block',
       scrollback: 10000,
-      convertEol: true,
+      convertEol: false, // Critical for tmux output!
     });
 
     const fitAddon = new FitAddon();
@@ -109,19 +111,13 @@ export function SessionDetail() {
     xtermRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Handle window resize
-    const handleResize = () => {
-      fitAddon.fit();
-    };
-    window.addEventListener('resize', handleResize);
+    // Initial message
+    terminal.writeln('\x1b[90mConnecting to terminal...\x1b[0m');
 
-    // Welcome message
-    terminal.writeln('\x1b[1;34m=== Claude Session Manager ===\x1b[0m');
-    terminal.writeln('\x1b[90mConnecting to session...\x1b[0m');
-    terminal.writeln('');
+    // Focus terminal for keyboard input
+    terminal.focus();
 
     return () => {
-      window.removeEventListener('resize', handleResize);
       terminal.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
@@ -138,40 +134,155 @@ export function SessionDetail() {
     }
   }, [session]);
 
-  // Subscribe to session WebSocket updates
+  // Attach to session via PTY for true terminal emulation
   useEffect(() => {
-    if (sessionId) {
+    if (sessionId && connectionState === 'connected' && fitAddonRef.current) {
+      // Get terminal dimensions
+      const dims = fitAddonRef.current.proposeDimensions();
+      const cols = dims?.cols ?? 80;
+      const rows = dims?.rows ?? 24;
+
+      console.log('[Terminal] Attaching PTY:', { sessionId, cols, rows, connectionState });
+
+      // Attach via PTY
+      ptyAttach(sessionId, cols, rows);
+
+      // Also subscribe for status updates
       subscribe(sessionId);
-      return () => unsubscribe(sessionId);
+
+      return () => {
+        console.log('[Terminal] Detaching PTY:', { sessionId });
+        ptyDetach(sessionId);
+        unsubscribe(sessionId);
+        setIsPtyAttached(false);
+      };
     }
-  }, [sessionId, subscribe, unsubscribe]);
+  }, [sessionId, connectionState, ptyAttach, ptyDetach, subscribe, unsubscribe]);
+
+  // Handle terminal keyboard input - send to PTY or legacy mode
+  useEffect(() => {
+    if (!xtermRef.current || !sessionId) return;
+
+    const terminal = xtermRef.current;
+
+    // onData fires for all terminal input (keyboard, paste, etc.)
+    const disposable = terminal.onData((data) => {
+      console.log('[Terminal] onData:', { data, isPtyAttached, useLegacyMode, sessionId });
+      if (isPtyAttached) {
+        // Send data directly to PTY
+        ptyWrite(sessionId, data);
+      } else if (useLegacyMode) {
+        // Legacy mode: use session:keys with hex encoding
+        sendMessage({
+          type: 'session:keys',
+          payload: { sessionId, keys: data },
+        });
+      } else {
+        console.warn('[Terminal] Not connected, input dropped');
+      }
+    });
+
+    return () => {
+      disposable.dispose();
+    };
+  }, [sessionId, isPtyAttached, useLegacyMode, ptyWrite, sendMessage]);
+
+  // Handle terminal resize
+  useEffect(() => {
+    if (!fitAddonRef.current || !sessionId || !isPtyAttached) return;
+
+    const handleResize = () => {
+      if (fitAddonRef.current) {
+        fitAddonRef.current.fit();
+        const dims = fitAddonRef.current.proposeDimensions();
+        if (dims) {
+          ptyResize(sessionId, dims.cols, dims.rows);
+        }
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sessionId, isPtyAttached, ptyResize]);
 
   // Handle WebSocket messages
   useEffect(() => {
     if (!lastMessage || !xtermRef.current) return;
 
-    if (lastMessage.type === 'session:output') {
-      const payload = lastMessage.payload as { session_id: string; output: string };
-      if (payload.session_id === sessionId) {
-        xtermRef.current.write(payload.output);
+    // Log all messages for debugging
+    if (lastMessage.type.startsWith('pty:') || lastMessage.type === 'error') {
+      console.log('[Terminal] WebSocket message:', lastMessage.type, lastMessage.payload);
+    }
+
+    // Handle PTY attachment failure - fall back to legacy mode
+    if (lastMessage.type === 'error') {
+      const payload = lastMessage.payload as { code: string; message: string };
+      if (payload.code === 'PTY_ATTACH_FAILED' && !useLegacyMode) {
+        console.warn('[Terminal] PTY not available, switching to legacy mode');
+        setUseLegacyMode(true);
+        xtermRef.current.writeln('\x1b[33mPTY not available (Rosetta detected). Using legacy mode.\x1b[0m');
+        xtermRef.current.writeln('\x1b[90mFor best experience, use ARM-native Node.js.\x1b[0m');
       }
     }
 
-    if (lastMessage.type === 'session:stateChange') {
-      const payload = lastMessage.payload as { session_id: string; status: string; context_percent: number | null };
-      if (payload.session_id === sessionId) {
-        setContextPercent(payload.context_percent);
+    // PTY output - real-time streaming from the terminal
+    if (lastMessage.type === 'pty:output') {
+      const payload = lastMessage.payload as { sessionId: string; data: string };
+      if (payload.sessionId === sessionId) {
+        // Write data directly to terminal - no clearing needed with PTY
+        xtermRef.current.write(payload.data);
+      }
+    }
+
+    // PTY attached confirmation
+    if (lastMessage.type === 'pty:attached') {
+      const payload = lastMessage.payload as { sessionId: string; cols: number; rows: number };
+      console.log('[Terminal] PTY attached message received:', payload);
+      if (payload.sessionId === sessionId) {
+        console.log('[Terminal] Setting isPtyAttached = true');
+        setIsPtyAttached(true);
+        xtermRef.current.clear();
+        xtermRef.current.writeln('\x1b[32mTerminal connected.\x1b[0m');
+      }
+    }
+
+    // PTY exit notification
+    if (lastMessage.type === 'pty:exit') {
+      const payload = lastMessage.payload as { sessionId: string; exitCode: number };
+      if (payload.sessionId === sessionId) {
+        setIsPtyAttached(false);
+        xtermRef.current.writeln(`\x1b[33m\r\nTerminal disconnected (exit code: ${payload.exitCode})\x1b[0m`);
+      }
+    }
+
+    // Legacy session:output (fallback for polling-based output when PTY is unavailable)
+    if (lastMessage.type === 'session:output' && (useLegacyMode || !isPtyAttached)) {
+      const payload = lastMessage.payload as { sessionId: string; lines: string[]; raw: boolean };
+      if (payload.sessionId === sessionId) {
+        // Reset terminal and show current snapshot
+        xtermRef.current.write('\x1b[H\x1b[2J');
+        const output = payload.lines.join('\r\n');
+        xtermRef.current.write(output);
+      }
+    }
+
+    if (lastMessage.type === 'session:status') {
+      const payload = lastMessage.payload as { sessionId: string; newStatus: string; contextPercent?: number };
+      if (payload.sessionId === sessionId) {
+        if (payload.contextPercent !== undefined) {
+          setContextPercent(payload.contextPercent);
+        }
         refetch();
       }
     }
 
     if (lastMessage.type === 'session:waiting') {
-      const payload = lastMessage.payload as { session_id: string; waiting: boolean };
-      if (payload.session_id === sessionId) {
+      const payload = lastMessage.payload as { sessionId: string; waiting: boolean };
+      if (payload.sessionId === sessionId) {
         setIsWaiting(payload.waiting);
       }
     }
-  }, [lastMessage, sessionId, refetch]);
+  }, [lastMessage, sessionId, refetch, isPtyAttached, useLegacyMode]);
 
   // Update context from session data
   useEffect(() => {
@@ -268,7 +379,7 @@ export function SessionDetail() {
 
   const statusInfo = statusConfig[session.status];
   const StatusIcon = statusInfo.icon;
-  const isActive = session.status !== 'stopped';
+  const isActive = session.status === 'running' || session.status === 'paused';
   const displayContext = contextPercent ?? session.context_percent;
 
   return (
@@ -386,7 +497,10 @@ export function SessionDetail() {
       </div>
 
       {/* Terminal */}
-      <div className="flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden min-h-0">
+      <div
+        className="flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden min-h-0 cursor-text"
+        onClick={() => xtermRef.current?.focus()}
+      >
         <div ref={terminalRef} className="h-full w-full p-2" />
       </div>
 

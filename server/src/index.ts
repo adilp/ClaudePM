@@ -5,6 +5,7 @@ import healthRouter from './api/health.js';
 import projectsRouter from './api/projects.js';
 import sessionsRouter from './api/sessions.js';
 import ticketsRouter from './api/tickets.js';
+import adhocTicketsRouter from './api/adhoc-tickets.js';
 import hooksRouter from './api/hooks.js';
 import gitRouter from './api/git.js';
 import tmuxRouter from './api/tmux.js';
@@ -29,6 +30,7 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/projects', gitRouter);
 app.use('/api', sessionsRouter);
 app.use('/api', ticketsRouter);
+app.use('/api', adhocTicketsRouter);
 app.use('/api/hooks', hooksRouter);
 app.use('/api/tmux', tmuxRouter);
 

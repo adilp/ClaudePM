@@ -8,9 +8,11 @@ import type {
   ProjectDetail,
   Ticket,
   TicketDetail,
+  TicketState,
   TransitionResult,
   StateHistoryEntry,
   Session,
+  SyncSessionsResult,
   DiffResult,
   GitStatus,
   BranchInfo,
@@ -18,6 +20,8 @@ import type {
   TmuxSessionDetail,
   PaginatedResponse,
   ApiError,
+  AdhocTicketCreate,
+  AdhocTicketResponse,
 } from '@/types/api';
 
 // ============================================================================
@@ -105,16 +109,43 @@ class ApiClient {
 
   // Tickets
   async getTickets(projectId: string): Promise<Ticket[]> {
-    const response = await this.request<{ data: Ticket[]; pagination: unknown }>(`/projects/${projectId}/tickets`);
+    // Request up to 100 tickets (max allowed by server) to show all on Kanban board
+    const response = await this.request<{ data: Ticket[]; pagination: unknown }>(`/projects/${projectId}/tickets?limit=100`);
     return response.data;
   }
 
-  async getTicket(projectId: string, ticketId: string): Promise<TicketDetail> {
-    return this.request(`/projects/${projectId}/tickets/${ticketId}`);
+  async getTicket(_projectId: string, ticketId: string): Promise<TicketDetail> {
+    // Note: Server uses /api/tickets/:id, projectId is kept for API compatibility
+    return this.request(`/tickets/${ticketId}`);
   }
 
   async syncTickets(projectId: string): Promise<{ synced: number; created: number; updated: number }> {
-    return this.request(`/projects/${projectId}/tickets/sync`, { method: 'POST' });
+    return this.request(`/projects/${projectId}/sync-tickets`, { method: 'POST' });
+  }
+
+  async updateTicket(ticketId: string, data: { state: TicketState }): Promise<Ticket> {
+    return this.request(`/tickets/${ticketId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createAdhocTicket(projectId: string, data: AdhocTicketCreate): Promise<AdhocTicketResponse> {
+    return this.request(`/projects/${projectId}/adhoc-tickets`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getTicketContent(ticketId: string): Promise<{ content: string }> {
+    return this.request(`/tickets/${ticketId}/content`);
+  }
+
+  async updateTicketContent(ticketId: string, content: string): Promise<{ success: boolean }> {
+    return this.request(`/tickets/${ticketId}/content`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
   }
 
   // Sessions
@@ -141,6 +172,11 @@ class ApiClient {
 
   async stopSession(sessionId: string): Promise<void> {
     return this.request(`/sessions/${sessionId}/stop`, { method: 'POST' });
+  }
+
+  async syncSessions(projectId?: string): Promise<SyncSessionsResult> {
+    const query = projectId ? `?project_id=${projectId}` : '';
+    return this.request(`/sessions/sync${query}`, { method: 'POST' });
   }
 
   async sendInput(sessionId: string, text: string): Promise<void> {

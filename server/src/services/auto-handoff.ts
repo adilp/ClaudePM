@@ -331,7 +331,7 @@ export class AutoHandoff extends EventEmitter {
         where: { id: handoff.ticketId },
         select: { externalId: true },
       });
-      ticketExternalId = ticket?.externalId;
+      ticketExternalId = ticket?.externalId ?? undefined;
     }
 
     // Create new session with parent ID linking

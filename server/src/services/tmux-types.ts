@@ -39,6 +39,8 @@ export interface TmuxPane {
   pid: number;
   /** Whether the pane is currently active */
   active: boolean;
+  /** Pane title (can be set for identification) */
+  title?: string;
 }
 
 /**

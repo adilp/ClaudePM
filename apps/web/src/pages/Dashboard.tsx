@@ -19,7 +19,7 @@ export function Dashboard() {
   const { data: projectsData, isLoading: projectsLoading } = useProjects();
   const { data: sessions, isLoading: sessionsLoading } = useSessions();
 
-  const activeSessions = sessions?.filter((s) => s.status !== 'stopped') ?? [];
+  const activeSessions = sessions?.filter((s) => s.status === 'running' || s.status === 'paused') ?? [];
 
   if (projectsLoading || sessionsLoading) {
     return (
@@ -71,9 +71,9 @@ export function Dashboard() {
               <Clock className="h-6 w-6 text-yellow-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Waiting for Input</p>
+              <p className="text-sm text-muted-foreground">Paused</p>
               <p className="text-2xl font-bold">
-                {activeSessions.filter((s) => s.status === 'waiting').length}
+                {activeSessions.filter((s) => s.status === 'paused').length}
               </p>
             </div>
           </div>
@@ -162,10 +162,12 @@ function SessionStatusIcon({ status }: { status: string }) {
   switch (status) {
     case 'running':
       return <Play className="h-5 w-5 text-green-500" />;
-    case 'waiting':
-      return <AlertCircle className="h-5 w-5 text-yellow-500" />;
-    case 'stopped':
+    case 'paused':
+      return <Clock className="h-5 w-5 text-yellow-500" />;
+    case 'completed':
       return <CheckCircle className="h-5 w-5 text-muted-foreground" />;
+    case 'error':
+      return <AlertCircle className="h-5 w-5 text-red-500" />;
     default:
       return <Clock className="h-5 w-5 text-muted-foreground" />;
   }

@@ -22,6 +22,10 @@ import {
   type SubscribedMessage,
   type UnsubscribedMessage,
   type PongMessage,
+  type PtyAttachedMessage,
+  type PtyDetachedMessage,
+  type PtyOutputMessage,
+  type PtyExitMessage,
   type WebSocketServerConfig,
   DEFAULT_WS_CONFIG,
   WS_ERROR_CODES,
@@ -38,6 +42,15 @@ import {
   ticketStateMachine,
   type TicketStateChangeEvent,
 } from '../services/ticket-state-machine.js';
+import {
+  ptyManager,
+  PtySessionNotFoundError,
+  PtyInvalidPaneError,
+  PtyAlreadyAttachedError,
+  PtyNotAttachedError,
+  type PtyDataEvent,
+  type PtyExitEvent,
+} from '../services/pty-manager.js';
 
 // ============================================================================
 // Extended WebSocket Type
@@ -113,6 +126,11 @@ export class WebSocketManager {
     sessionSupervisor.removeListener('session:stateChange', this.handleSessionStateChange);
     waitingDetector.removeListener('waiting:stateChange', this.handleWaitingStateChange);
     ticketStateMachine.removeListener('ticket:stateChange', this.handleTicketStateChange);
+    ptyManager.removeListener('pty:data', this.handlePtyData);
+    ptyManager.removeListener('pty:exit', this.handlePtyExit);
+
+    // Detach all PTY connections
+    ptyManager.detachAll();
 
     // Close all connections
     for (const ws of this.connections.values()) {
@@ -170,11 +188,15 @@ export class WebSocketManager {
     this.handleSessionStateChange = this.handleSessionStateChange.bind(this);
     this.handleWaitingStateChange = this.handleWaitingStateChange.bind(this);
     this.handleTicketStateChange = this.handleTicketStateChange.bind(this);
+    this.handlePtyData = this.handlePtyData.bind(this);
+    this.handlePtyExit = this.handlePtyExit.bind(this);
 
     sessionSupervisor.on('session:output', this.handleSessionOutput);
     sessionSupervisor.on('session:stateChange', this.handleSessionStateChange);
     waitingDetector.on('waiting:stateChange', this.handleWaitingStateChange);
     ticketStateMachine.on('ticket:stateChange', this.handleTicketStateChange);
+    ptyManager.on('pty:data', this.handlePtyData);
+    ptyManager.on('pty:exit', this.handlePtyExit);
   }
 
   /**
@@ -246,6 +268,11 @@ export class WebSocketManager {
   private handleDisconnect(ws: ExtendedWebSocket): void {
     const { id, subscribedSessions } = ws.connectionInfo;
 
+    // Detach PTY if attached
+    if (ptyManager.isAttached(id)) {
+      ptyManager.detach(id);
+    }
+
     // Remove from all session subscriptions
     for (const sessionId of subscribedSessions) {
       const subscribers = this.sessionSubscriptions.get(sessionId);
@@ -310,8 +337,23 @@ export class WebSocketManager {
       case 'session:input':
         this.handleInput(ws, message.payload.sessionId, message.payload.text);
         break;
+      case 'session:keys':
+        this.handleKeys(ws, message.payload.sessionId, message.payload.keys);
+        break;
       case 'ping':
         this.handlePing(ws);
+        break;
+      case 'pty:attach':
+        this.handlePtyAttach(ws, message.payload.sessionId, message.payload.cols, message.payload.rows);
+        break;
+      case 'pty:detach':
+        this.handlePtyDetach(ws, message.payload.sessionId);
+        break;
+      case 'pty:data':
+        this.handlePtyInput(ws, message.payload.sessionId, message.payload.data);
+        break;
+      case 'pty:resize':
+        this.handlePtyResize(ws, message.payload.sessionId, message.payload.cols, message.payload.rows);
         break;
     }
   }
@@ -336,12 +378,17 @@ export class WebSocketManager {
   /**
    * Handle subscribe to session
    */
-  private handleSubscribe(ws: ExtendedWebSocket, sessionId: string): void {
-    // Check if session exists
+  private async handleSubscribe(ws: ExtendedWebSocket, sessionId: string): Promise<void> {
+    // Check if session exists (in-memory or database)
     const activeSession = sessionSupervisor.getActiveSession(sessionId);
     if (!activeSession) {
-      this.sendError(ws, WS_ERROR_CODES.SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
-      return;
+      // Fall back to database check
+      try {
+        await sessionSupervisor.getSession(sessionId);
+      } catch {
+        this.sendError(ws, WS_ERROR_CODES.SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
+        return;
+      }
     }
 
     // Add to subscriptions
@@ -351,15 +398,17 @@ export class WebSocketManager {
     this.sessionSubscriptions.get(sessionId)!.add(ws);
     ws.connectionInfo.subscribedSessions.add(sessionId);
 
-    // Get buffered output
+    // Get current output from session buffer if available
     let bufferLines: string[] = [];
-    try {
-      bufferLines = sessionSupervisor.getSessionOutput(sessionId, this.config.outputBufferLines);
-    } catch {
-      // Ignore errors - session might have ended
+    if (activeSession) {
+      try {
+        bufferLines = sessionSupervisor.getSessionOutput(sessionId, 100);
+      } catch {
+        // Ignore - session might have ended
+      }
     }
 
-    // Send confirmation with buffered output
+    // Send confirmation with current output
     const response: SubscribedMessage = {
       type: 'subscribed',
       payload: {
@@ -369,7 +418,20 @@ export class WebSocketManager {
     };
     this.send(ws, response);
 
-    console.log(`Connection ${ws.connectionInfo.id} subscribed to session ${sessionId}`);
+    // Also send as session:output so terminal displays it
+    if (bufferLines.length > 0) {
+      const outputMsg: SessionOutputMessage = {
+        type: 'session:output',
+        payload: {
+          sessionId,
+          lines: bufferLines,
+          raw: true,
+        },
+      };
+      this.send(ws, outputMsg);
+    }
+
+    console.log(`Connection ${ws.connectionInfo.id} subscribed to session ${sessionId}, sent ${bufferLines.length} buffered lines`);
   }
 
   /**
@@ -424,6 +486,33 @@ export class WebSocketManager {
   }
 
   /**
+   * Handle raw keys to session (for real-time terminal input)
+   */
+  private handleKeys(ws: ExtendedWebSocket, sessionId: string, keys: string): void {
+    // Check if subscribed
+    if (!ws.connectionInfo.subscribedSessions.has(sessionId)) {
+      this.sendError(ws, WS_ERROR_CODES.NOT_SUBSCRIBED, 'Not subscribed to this session');
+      return;
+    }
+
+    // Send keys to session
+    sessionSupervisor
+      .sendKeys(sessionId, keys)
+      .then(() => {
+        // Keys sent successfully - no response needed
+      })
+      .catch((error: unknown) => {
+        if (error instanceof SessionNotFoundError) {
+          this.sendError(ws, WS_ERROR_CODES.SESSION_NOT_FOUND, error.message);
+        } else if (error instanceof SessionInputError) {
+          this.sendError(ws, WS_ERROR_CODES.INPUT_FAILED, error.message);
+        } else {
+          this.sendError(ws, WS_ERROR_CODES.INTERNAL_ERROR, 'Failed to send keys');
+        }
+      });
+  }
+
+  /**
    * Handle ping message
    */
   private handlePing(ws: ExtendedWebSocket): void {
@@ -434,6 +523,186 @@ export class WebSocketManager {
       },
     };
     this.send(ws, response);
+  }
+
+  // ==========================================================================
+  // PTY Message Handlers
+  // ==========================================================================
+
+  /**
+   * Handle PTY attach request
+   */
+  private handlePtyAttach(
+    ws: ExtendedWebSocket,
+    sessionId: string,
+    cols?: number,
+    rows?: number
+  ): void {
+    const connectionId = ws.connectionInfo.id;
+
+    // Check if PTY is available on this system
+    if (!ptyManager.isAvailable()) {
+      const reason = ptyManager.getUnavailableReason() || 'PTY not available';
+      this.sendError(ws, WS_ERROR_CODES.PTY_ATTACH_FAILED,
+        `PTY not available on this system: ${reason}. ` +
+        'This often happens when Node.js runs under Rosetta on Apple Silicon. ' +
+        'Please use ARM-native Node.js or use the legacy input method.'
+      );
+      return;
+    }
+
+    // Build options object conditionally for exactOptionalPropertyTypes
+    const options: { cols?: number; rows?: number } = {};
+    if (cols !== undefined) {
+      options.cols = cols;
+    }
+    if (rows !== undefined) {
+      options.rows = rows;
+    }
+
+    ptyManager
+      .attach(connectionId, sessionId, options)
+      .then((connection) => {
+        // Also subscribe to session updates
+        if (!this.sessionSubscriptions.has(sessionId)) {
+          this.sessionSubscriptions.set(sessionId, new Set());
+        }
+        this.sessionSubscriptions.get(sessionId)!.add(ws);
+        ws.connectionInfo.subscribedSessions.add(sessionId);
+
+        // Send confirmation
+        const response: PtyAttachedMessage = {
+          type: 'pty:attached',
+          payload: {
+            sessionId,
+            cols: connection.cols,
+            rows: connection.rows,
+          },
+        };
+        this.send(ws, response);
+
+        console.log(`[WebSocket] PTY attached: connection ${connectionId} to session ${sessionId}`);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof PtySessionNotFoundError) {
+          this.sendError(ws, WS_ERROR_CODES.SESSION_NOT_FOUND, error.message);
+        } else if (error instanceof PtyInvalidPaneError) {
+          this.sendError(ws, WS_ERROR_CODES.PTY_INVALID_PANE, error.message);
+        } else if (error instanceof PtyAlreadyAttachedError) {
+          this.sendError(ws, WS_ERROR_CODES.PTY_ALREADY_ATTACHED, error.message);
+        } else {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          this.sendError(ws, WS_ERROR_CODES.PTY_ATTACH_FAILED, `Failed to attach PTY: ${message}`);
+        }
+      });
+  }
+
+  /**
+   * Handle PTY detach request
+   */
+  private handlePtyDetach(ws: ExtendedWebSocket, sessionId: string): void {
+    const connectionId = ws.connectionInfo.id;
+
+    // Detach from PTY
+    ptyManager.detach(connectionId);
+
+    // Send confirmation
+    const response: PtyDetachedMessage = {
+      type: 'pty:detached',
+      payload: { sessionId },
+    };
+    this.send(ws, response);
+
+    console.log(`[WebSocket] PTY detached: connection ${connectionId} from session ${sessionId}`);
+  }
+
+  /**
+   * Handle PTY input (data from client terminal)
+   */
+  private handlePtyInput(ws: ExtendedWebSocket, sessionId: string, data: string): void {
+    const connectionId = ws.connectionInfo.id;
+
+    try {
+      ptyManager.write(connectionId, data);
+    } catch (error) {
+      if (error instanceof PtyNotAttachedError) {
+        this.sendError(ws, WS_ERROR_CODES.PTY_NOT_ATTACHED, error.message);
+      } else {
+        this.sendError(ws, WS_ERROR_CODES.INTERNAL_ERROR, 'Failed to send data to PTY');
+      }
+    }
+  }
+
+  /**
+   * Handle PTY resize request
+   */
+  private handlePtyResize(
+    ws: ExtendedWebSocket,
+    sessionId: string,
+    cols: number,
+    rows: number
+  ): void {
+    const connectionId = ws.connectionInfo.id;
+
+    try {
+      ptyManager.resize(connectionId, cols, rows);
+    } catch (error) {
+      if (error instanceof PtyNotAttachedError) {
+        this.sendError(ws, WS_ERROR_CODES.PTY_NOT_ATTACHED, error.message);
+      } else {
+        this.sendError(ws, WS_ERROR_CODES.INTERNAL_ERROR, 'Failed to resize PTY');
+      }
+    }
+  }
+
+  // ==========================================================================
+  // PTY Event Handlers
+  // ==========================================================================
+
+  /**
+   * Handle PTY data event (output from terminal)
+   */
+  private handlePtyData(event: PtyDataEvent): void {
+    const { connectionId, sessionId, data } = event;
+
+    // Find the WebSocket connection
+    const ws = this.connections.get(connectionId);
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // Send PTY output to the client
+    const message: PtyOutputMessage = {
+      type: 'pty:output',
+      payload: {
+        sessionId,
+        data,
+      },
+    };
+    this.send(ws, message);
+  }
+
+  /**
+   * Handle PTY exit event
+   */
+  private handlePtyExit(event: PtyExitEvent): void {
+    const { connectionId, sessionId, exitCode } = event;
+
+    // Find the WebSocket connection
+    const ws = this.connections.get(connectionId);
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    // Send PTY exit notification
+    const message: PtyExitMessage = {
+      type: 'pty:exit',
+      payload: {
+        sessionId,
+        exitCode,
+      },
+    };
+    this.send(ws, message);
   }
 
   // ==========================================================================
@@ -567,9 +836,13 @@ export class WebSocketManager {
    */
   private broadcastToSession(sessionId: string, message: ServerMessage): void {
     const subscribers = this.sessionSubscriptions.get(sessionId);
-    if (!subscribers) return;
+    if (!subscribers) {
+      console.log(`[WebSocket] No subscribers for session ${sessionId}`);
+      return;
+    }
 
     const data = JSON.stringify(message);
+    console.log(`[WebSocket] Broadcasting ${message.type} to ${subscribers.size} subscribers for session ${sessionId}`);
 
     for (const ws of subscribers) {
       if (ws.readyState === WebSocket.OPEN) {

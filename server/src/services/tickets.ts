@@ -237,22 +237,25 @@ export async function syncTicketsFromFilesystem(projectId: string): Promise<Sync
 
   // Soft delete tickets that no longer exist in filesystem
   // We mark them by prefixing the externalId with "DELETED:"
+  // Skip adhoc tickets - they are managed separately
   for (const existing of existingTickets) {
+    // Skip adhoc tickets, tickets without externalId, or already deleted
+    if (existing.isAdhoc || !existing.externalId || existing.externalId.startsWith('DELETED:')) {
+      continue;
+    }
+
     if (!discoveredExternalIds.has(existing.externalId)) {
-      // Only mark as deleted if not already marked
-      if (!existing.externalId.startsWith('DELETED:')) {
-        try {
-          await prisma.ticket.update({
-            where: { id: existing.id },
-            data: {
-              externalId: `DELETED:${existing.externalId}`,
-            },
-          });
-          result.deleted++;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          result.errors.push(`Error deleting ${existing.externalId}: ${message}`);
-        }
+      try {
+        await prisma.ticket.update({
+          where: { id: existing.id },
+          data: {
+            externalId: `DELETED:${existing.externalId}`,
+          },
+        });
+        result.deleted++;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        result.errors.push(`Error deleting ${existing.externalId}: ${message}`);
       }
     }
   }
@@ -285,14 +288,17 @@ export async function listTickets(
   const { page, limit, state } = options;
   const skip = (page - 1) * limit;
 
-  // Build where clause - exclude soft-deleted tickets
+  // Build where clause - exclude soft-deleted tickets but include adhoc (null externalId)
   const where: {
     projectId: string;
     state?: TicketState;
-    externalId?: { not: { startsWith: string } };
+    OR?: Array<{ externalId: null } | { externalId: { not: { startsWith: string } } }>;
   } = {
     projectId,
-    externalId: { not: { startsWith: 'DELETED:' } },
+    OR: [
+      { externalId: null }, // Include adhoc tickets
+      { externalId: { not: { startsWith: 'DELETED:' } } }, // Include non-deleted regular tickets
+    ],
   };
 
   if (state) {

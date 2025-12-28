@@ -60,10 +60,11 @@ export type TransitionReason = z.infer<typeof transitionReasonEnum>;
 
 export interface TicketSummaryResponse {
   id: string;
-  external_id: string;
+  external_id: string | null;
   title: string;
   state: TicketState;
   file_path: string;
+  is_adhoc: boolean;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
