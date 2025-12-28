@@ -17,6 +17,7 @@ import {
   type HistoryResponse,
   type ReviewResultResponse,
   type StartTicketResponse,
+  type PrefixesResponse,
 } from './tickets-schemas.js';
 import {
   syncTicketsFromFilesystem,
@@ -24,6 +25,7 @@ import {
   getTicketById,
   syncSingleTicket,
   updateTicket,
+  getTicketPrefixes,
   TicketNotFoundError,
   ProjectNotFoundError,
 } from '../services/tickets.js';
@@ -186,12 +188,15 @@ router.get(
     const { id } = projectIdParamSchema.parse(req.params);
     const query = listTicketsQuerySchema.parse(req.query);
 
-    const options: { page: number; limit: number; state?: typeof query.state } = {
+    const options: { page: number; limit: number; state?: typeof query.state; prefixes?: string[] } = {
       page: query.page,
       limit: query.limit,
     };
     if (query.state !== undefined) {
       options.state = query.state;
+    }
+    if (query.prefixes !== undefined) {
+      options.prefixes = query.prefixes;
     }
 
     const result = await listTickets(id, options, query.sync);
@@ -204,6 +209,23 @@ router.get(
         total: result.total,
         total_pages: result.totalPages,
       },
+    });
+  })
+);
+
+/**
+ * GET /api/projects/:id/tickets/prefixes
+ * Get unique ticket prefixes for filtering
+ */
+router.get(
+  '/projects/:id/tickets/prefixes',
+  asyncHandler<PrefixesResponse | ErrorResponse>(async (req, res) => {
+    const { id } = projectIdParamSchema.parse(req.params);
+
+    const prefixes = await getTicketPrefixes(id);
+
+    res.json({
+      data: prefixes,
     });
   })
 );

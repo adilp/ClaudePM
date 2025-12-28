@@ -448,7 +448,7 @@ export class SessionSupervisor extends EventEmitter {
       if (ticket.isAdhoc) {
         // Adhoc tickets: summarize and wait for confirmation
         // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
-        claudeCommand = `claude "Read the ticket at ${ticketPath} and summarize what's being requested. Then propose next steps and wait for my confirmation before implementing.
+        claudeCommand = `claude "Read the ticket at ${ticketPath} Explore the the codebase, come up with a solution, and summarize what's being requested. Ask any clarifying questions. Then propose next steps and wait for my confirmation before implementing.
 
 IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
 ---TASK_COMPLETE---

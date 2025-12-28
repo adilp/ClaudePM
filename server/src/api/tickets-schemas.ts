@@ -26,7 +26,16 @@ export const listTicketsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
   state: ticketStateEnum.optional(),
   sync: booleanFromString.default(true), // Whether to sync from filesystem first
+  prefixes: z
+    .string()
+    .optional()
+    .transform((val) => (val ? val.split(',').filter(Boolean) : undefined)), // Comma-separated list of prefixes
 });
+
+// Response for prefixes endpoint
+export interface PrefixesResponse {
+  data: string[];
+}
 
 export const updateTicketSchema = z.object({
   state: ticketStateEnum.optional(),

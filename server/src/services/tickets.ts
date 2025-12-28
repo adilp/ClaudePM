@@ -61,6 +61,7 @@ export interface ListTicketsOptions {
   page: number;
   limit: number;
   state?: TicketState | undefined;
+  prefixes?: string[] | undefined; // Filter by ticket prefixes (e.g., ['CSM', 'ADHOC'])
 }
 
 export interface PaginatedTickets {
@@ -84,6 +85,16 @@ export interface UpdateTicketData {
 export function extractTicketId(filename: string): string | null {
   const match = filename.match(/^([A-Z]+-\d+)/);
   return match?.[1] ?? null;
+}
+
+/**
+ * Extract prefix from external ID
+ * Pattern: CSM-001 -> CSM
+ */
+export function extractPrefix(externalId: string | null): string {
+  if (!externalId) return 'ADHOC';
+  const match = externalId.match(/^([A-Z]+)-/);
+  return match?.[1] ?? 'ADHOC';
 }
 
 /**
@@ -292,17 +303,37 @@ export async function listTickets(
   const where: {
     projectId: string;
     state?: TicketState;
-    OR?: Array<{ externalId: null } | { externalId: { not: { startsWith: string } } }>;
+    OR?: Array<{ externalId: null } | { externalId: { not: { startsWith: string } } } | { externalId: { startsWith: string } } | { isAdhoc: boolean }>;
   } = {
     projectId,
-    OR: [
-      { externalId: null }, // Include adhoc tickets
-      { externalId: { not: { startsWith: 'DELETED:' } } }, // Include non-deleted regular tickets
-    ],
   };
 
   if (state) {
     where.state = state;
+  }
+
+  // Handle prefix filtering
+  if (options.prefixes && options.prefixes.length > 0) {
+    const orConditions: Array<{ externalId: null } | { externalId: { startsWith: string } } | { isAdhoc: boolean }> = [];
+
+    for (const prefix of options.prefixes) {
+      if (prefix === 'ADHOC') {
+        // ADHOC means tickets with null externalId or isAdhoc=true
+        orConditions.push({ externalId: null });
+        orConditions.push({ isAdhoc: true });
+      } else {
+        // Regular prefix like CSM, should match CSM-* but not DELETED:CSM-*
+        orConditions.push({ externalId: { startsWith: `${prefix}-` } });
+      }
+    }
+
+    where.OR = orConditions;
+  } else {
+    // No prefix filter - show all non-deleted tickets
+    where.OR = [
+      { externalId: null }, // Include adhoc tickets
+      { externalId: { not: { startsWith: 'DELETED:' } } }, // Include non-deleted regular tickets
+    ];
   }
 
   const [tickets, total] = await Promise.all([
@@ -433,4 +464,45 @@ export async function updateTicket(ticketId: string, data: UpdateTicketData): Pr
     where: { id: ticketId },
     data: updateData,
   });
+}
+
+/**
+ * Get unique ticket prefixes for a project
+ * Returns sorted list of prefixes (e.g., ['ADHOC', 'CSM'])
+ */
+export async function getTicketPrefixes(projectId: string): Promise<string[]> {
+  // Verify project exists
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) {
+    throw new ProjectNotFoundError(projectId);
+  }
+
+  // Get all non-deleted tickets for this project
+  const tickets = await prisma.ticket.findMany({
+    where: {
+      projectId,
+      OR: [
+        { externalId: null },
+        { externalId: { not: { startsWith: 'DELETED:' } } },
+      ],
+    },
+    select: {
+      externalId: true,
+      isAdhoc: true,
+    },
+  });
+
+  // Extract unique prefixes
+  const prefixSet = new Set<string>();
+
+  for (const ticket of tickets) {
+    const prefix = extractPrefix(ticket.externalId);
+    prefixSet.add(prefix);
+  }
+
+  // Return sorted array
+  return Array.from(prefixSet).sort();
 }

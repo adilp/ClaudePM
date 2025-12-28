@@ -2,12 +2,13 @@
  * Project Detail Page
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProject } from '@/hooks/useProjects';
 import { useTickets } from '@/hooks/useTickets';
 import { useStartSession, useSyncProject } from '@/hooks/useSessions';
 import { KanbanBoard } from '@/components/kanban';
+import { FilterChips } from '@/components/kanban/FilterChips';
 import { CreateAdhocTicketModal } from '@/components/CreateAdhocTicketModal';
 import { cn } from '@/lib/utils';
 import {
@@ -17,15 +18,59 @@ import {
   RefreshCw,
   FileText,
 } from 'lucide-react';
+import type { Ticket } from '@/types/api';
+
+// localStorage key for persisting filter selection
+const getFilterStorageKey = (projectId: string) => `ticket-filter-${projectId}`;
+
+// Extract prefix from external_id (e.g., "CSM-001" -> "CSM")
+function extractPrefix(ticket: Ticket): string {
+  if (!ticket.external_id) return 'ADHOC';
+  const match = ticket.external_id.match(/^([A-Z]+)-/);
+  return match?.[1] ?? 'ADHOC';
+}
 
 export function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { data: project, isLoading: projectLoading } = useProject(projectId!);
-  const { data: tickets, isLoading: ticketsLoading } = useTickets(projectId!);
+  const { data: allTickets, isLoading: ticketsLoading } = useTickets(projectId!);
   const syncProject = useSyncProject();
   const startSession = useStartSession();
   const [showAdhocModal, setShowAdhocModal] = useState(false);
+
+  // Filter state - empty array means "all"
+  const [selectedPrefixes, setSelectedPrefixes] = useState<string[]>(() => {
+    // Load from localStorage on initial render
+    if (!projectId) return [];
+    try {
+      const stored = localStorage.getItem(getFilterStorageKey(projectId));
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persist filter selection to localStorage
+  useEffect(() => {
+    if (projectId) {
+      localStorage.setItem(getFilterStorageKey(projectId), JSON.stringify(selectedPrefixes));
+    }
+  }, [projectId, selectedPrefixes]);
+
+  // Derive unique prefixes from tickets (client-side)
+  const prefixes = useMemo(() => {
+    if (!allTickets) return [];
+    const prefixSet = new Set(allTickets.map(extractPrefix));
+    return Array.from(prefixSet).sort();
+  }, [allTickets]);
+
+  // Filter tickets client-side based on selected prefixes
+  const tickets = useMemo(() => {
+    if (!allTickets) return [];
+    if (selectedPrefixes.length === 0) return allTickets; // No filter = show all
+    return allTickets.filter((ticket) => selectedPrefixes.includes(extractPrefix(ticket)));
+  }, [allTickets, selectedPrefixes]);
 
   if (projectLoading || ticketsLoading) {
     return (
@@ -125,29 +170,50 @@ export function ProjectDetail() {
       )}
 
       {/* Sprint Board */}
-      {tickets && tickets.length > 0 ? (
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Sprint Board</h2>
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">Sprint Board</h2>
+        </div>
+        {/* Filter Chips - only show if there are multiple prefixes */}
+        {prefixes.length > 1 && (
+          <div className="mb-4">
+            <FilterChips
+              prefixes={prefixes}
+              selectedPrefixes={selectedPrefixes}
+              onSelectionChange={setSelectedPrefixes}
+            />
+          </div>
+        )}
+        {tickets && tickets.length > 0 ? (
           <KanbanBoard tickets={tickets} projectId={projectId!} />
-        </div>
-      ) : (
-        /* Empty State */
-        <div className="rounded-lg border bg-card p-12 text-center">
-          <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">No tickets found</h3>
-          <p className="text-muted-foreground mb-4">
-            Sync tickets from your filesystem or add markdown files to your tickets path
-          </p>
-          <button
-            onClick={handleSync}
-            disabled={syncProject.isPending}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            <RefreshCw className={cn('h-4 w-4', syncProject.isPending && 'animate-spin')} />
-            Sync
-          </button>
-        </div>
-      )}
+        ) : selectedPrefixes.length > 0 ? (
+          /* Empty State with filter applied */
+          <div className="rounded-lg border bg-card p-12 text-center">
+            <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No matching tickets</h3>
+            <p className="text-muted-foreground mb-4">
+              No tickets match the current filter. Try selecting different prefixes or click "All" to show all tickets.
+            </p>
+          </div>
+        ) : (
+          /* Empty State - no tickets at all */
+          <div className="rounded-lg border bg-card p-12 text-center">
+            <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No tickets found</h3>
+            <p className="text-muted-foreground mb-4">
+              Sync tickets from your filesystem or add markdown files to your tickets path
+            </p>
+            <button
+              onClick={handleSync}
+              disabled={syncProject.isPending}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              <RefreshCw className={cn('h-4 w-4', syncProject.isPending && 'animate-spin')} />
+              Sync
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Create Adhoc Ticket Modal */}
       <CreateAdhocTicketModal
