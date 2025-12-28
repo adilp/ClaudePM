@@ -313,6 +313,7 @@ router.post(
 /**
  * POST /api/tickets/:id/reject
  * Reject a ticket with feedback (review → in_progress)
+ * Also sends the feedback to the running session if one exists
  */
 router.post(
   '/tickets/:id/reject',
@@ -321,6 +322,28 @@ router.post(
     const { feedback } = rejectTicketSchema.parse(req.body);
 
     const result = await ticketStateMachine.reject(id, feedback);
+
+    // Find running session for this ticket and send the feedback
+    const sessions = sessionSupervisor.listActiveSessions();
+    const ticketSession = sessions.find(
+      (s) => s.ticketId === id && s.status === 'running'
+    );
+
+    if (ticketSession) {
+      const feedbackMessage = `
+
+The reviewer has requested changes:
+
+${feedback}
+
+Please address the feedback above and continue working on the ticket.
+`;
+      try {
+        await sessionSupervisor.sendInput(ticketSession.id, feedbackMessage);
+      } catch (err) {
+        console.error('[Reject] Failed to send feedback to session:', err);
+      }
+    }
 
     res.json(toTransitionResultResponse(result));
   })

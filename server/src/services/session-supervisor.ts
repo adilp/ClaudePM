@@ -480,11 +480,15 @@ export class SessionSupervisor extends EventEmitter {
 
       if (ticket.isAdhoc) {
         // Adhoc tickets: summarize and wait for confirmation
-        claudeCommand = `claude "Read the ticket at ${ticketPath} and summarize what's being requested. Then propose next steps and wait for my confirmation before implementing."`;
+        claudeCommand = `claude --allowedTools "Write" "Read" "Read the ticket at ${ticketPath} and summarize what's being requested. Then propose next steps and wait for my confirmation before implementing.
+
+IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
+---TASK_COMPLETE---
+Followed by a brief summary of what was done."`;
       } else {
         // Regular tickets: implement directly
         // Include completion marker instruction for auto-progression
-        claudeCommand = `claude "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}
+        claudeCommand = `claude --allowedTools "Write" "Read" "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}
 
 IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
 ---TASK_COMPLETE---
@@ -492,7 +496,7 @@ Followed by a brief summary of what was done."`;
       }
     } else {
       // Adhoc sessions without ticket: just start claude
-      claudeCommand = 'claude';
+      claudeCommand = 'claude --allowedTools "Write" "Read"';
     }
 
     try {
