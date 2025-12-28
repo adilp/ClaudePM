@@ -208,12 +208,14 @@ class ApiClient {
   }
 
   // Session Analysis (Claude SDK-powered)
-  async getSessionSummary(sessionId: string): Promise<SessionSummary> {
-    return this.request(`/sessions/${sessionId}/summary`);
+  async getSessionSummary(sessionId: string, regenerate = false): Promise<SessionSummary> {
+    const query = regenerate ? '?regenerate=true' : '';
+    return this.request(`/sessions/${sessionId}/summary${query}`);
   }
 
-  async getSessionReviewReport(sessionId: string): Promise<ReviewReport> {
-    return this.request(`/sessions/${sessionId}/review-report`);
+  async getSessionReviewReport(sessionId: string, regenerate = false): Promise<ReviewReport> {
+    const query = regenerate ? '?regenerate=true' : '';
+    return this.request(`/sessions/${sessionId}/review-report${query}`);
   }
 
   async generateCommitMessage(sessionId: string): Promise<CommitMessage> {

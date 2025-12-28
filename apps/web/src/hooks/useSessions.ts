@@ -129,28 +129,90 @@ export function useSyncProject() {
 /**
  * Fetch AI-generated session summary
  * Provides headline, description, actions taken, and files changed
+ *
+ * Note: Summaries are cached in the database. Set enabled=true to fetch.
+ * Use useRegenerateSummary() mutation to force regeneration.
  */
-export function useSessionSummary(sessionId: string, enabled = true) {
+export function useSessionSummary(sessionId: string, enabled = false) {
   return useQuery({
     queryKey: sessionKeys.summary(sessionId),
     queryFn: () => api.getSessionSummary(sessionId),
     enabled: !!sessionId && enabled,
-    staleTime: 30_000, // Cache for 30s since analysis is expensive
+    staleTime: Infinity, // Never mark as stale - summaries are cached in DB
     retry: 1,
+  });
+}
+
+/**
+ * Regenerate session summary (forces new AI generation)
+ */
+export function useRegenerateSummary() {
+  const queryClient = useQueryClient();
+  const addNotification = useUIStore((state) => state.addNotification);
+
+  return useMutation({
+    mutationFn: (sessionId: string) => api.getSessionSummary(sessionId, true),
+    onSuccess: (summary, sessionId) => {
+      // Update the cache with the new summary
+      queryClient.setQueryData(sessionKeys.summary(sessionId), summary);
+      addNotification({
+        type: 'success',
+        title: 'Summary regenerated',
+        message: summary.headline,
+      });
+    },
+    onError: (error) => {
+      addNotification({
+        type: 'error',
+        title: 'Failed to regenerate summary',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    },
   });
 }
 
 /**
  * Fetch AI-generated review report for a session
  * Provides completion status, accomplishments, concerns, and suggested commit/PR
+ *
+ * Note: Reports are cached in the database. Set enabled=true to fetch.
+ * Use useRegenerateReviewReport() mutation to force regeneration.
  */
-export function useSessionReviewReport(sessionId: string, enabled = true) {
+export function useSessionReviewReport(sessionId: string, enabled = false) {
   return useQuery({
     queryKey: sessionKeys.reviewReport(sessionId),
     queryFn: () => api.getSessionReviewReport(sessionId),
     enabled: !!sessionId && enabled,
-    staleTime: 30_000,
+    staleTime: Infinity, // Never mark as stale - reports are cached in DB
     retry: 1,
+  });
+}
+
+/**
+ * Regenerate review report (forces new AI generation)
+ */
+export function useRegenerateReviewReport() {
+  const queryClient = useQueryClient();
+  const addNotification = useUIStore((state) => state.addNotification);
+
+  return useMutation({
+    mutationFn: (sessionId: string) => api.getSessionReviewReport(sessionId, true),
+    onSuccess: (report, sessionId) => {
+      // Update the cache with the new report
+      queryClient.setQueryData(sessionKeys.reviewReport(sessionId), report);
+      addNotification({
+        type: 'success',
+        title: 'Review report regenerated',
+        message: `Confidence: ${report.confidence}%`,
+      });
+    },
+    onError: (error) => {
+      addNotification({
+        type: 'error',
+        title: 'Failed to regenerate review report',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    },
   });
 }
 

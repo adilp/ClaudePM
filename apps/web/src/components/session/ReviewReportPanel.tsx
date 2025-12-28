@@ -19,8 +19,7 @@ import {
   GitPullRequest,
   RefreshCw,
 } from 'lucide-react';
-import { useSessionReviewReport, useGenerateCommitMessage, useGeneratePrDescription, sessionKeys } from '@/hooks/useSessions';
-import { useQueryClient } from '@tanstack/react-query';
+import { useSessionReviewReport, useRegenerateReviewReport, useGenerateCommitMessage, useGeneratePrDescription } from '@/hooks/useSessions';
 
 interface ReviewReportPanelProps {
   sessionId: string;
@@ -34,13 +33,20 @@ const statusConfig = {
 };
 
 export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
-  const queryClient = useQueryClient();
-  const { data: report, isLoading, error, refetch, isFetching } = useSessionReviewReport(sessionId);
+  const [loadRequested, setLoadRequested] = useState(false);
+  const { data: report, isLoading, error, refetch, isFetching } = useSessionReviewReport(sessionId, loadRequested);
+  const regenerateMutation = useRegenerateReviewReport();
+
+  const handleLoad = () => {
+    setLoadRequested(true);
+  };
 
   const handleRegenerate = () => {
-    queryClient.invalidateQueries({ queryKey: sessionKeys.reviewReport(sessionId) });
-    refetch();
+    regenerateMutation.mutate(sessionId);
   };
+
+  const isRegenerating = regenerateMutation.isPending;
+
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     accomplished: true,
     remaining: false,
@@ -62,13 +68,33 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  if (isLoading) {
+  // Show "Load Report" button if report hasn't been requested yet
+  if (!loadRequested && !report) {
+    return (
+      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-gray-400">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span className="text-sm">AI Review Report</span>
+          </div>
+          <button
+            onClick={handleLoad}
+            className="px-3 py-1.5 text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white rounded-md transition-colors"
+          >
+            Load Report
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || (loadRequested && !report && !error)) {
     return (
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
         <div className="flex items-center gap-3 text-gray-400">
           <Loader2 className="w-5 h-5 animate-spin" />
           <div>
-            <p className="text-sm font-medium">Generating review report...</p>
+            <p className="text-sm font-medium">Loading review report...</p>
             <p className="text-xs text-gray-500">This may take a moment</p>
           </div>
         </div>
@@ -82,7 +108,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-red-400">
             <AlertCircle className="w-5 h-5" />
-            <span>Failed to generate review report</span>
+            <span>Failed to load review report</span>
           </div>
           <button
             onClick={() => refetch()}
@@ -109,11 +135,11 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
             <span className="text-sm font-medium text-gray-200">AI Review Report</span>
             <button
               onClick={handleRegenerate}
-              disabled={isFetching}
+              disabled={isRegenerating || isFetching}
               className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 disabled:opacity-50"
               title="Regenerate report"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
             </button>
           </div>
           <div className="flex items-center gap-3">

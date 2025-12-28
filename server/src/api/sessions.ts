@@ -350,13 +350,17 @@ function handleAnalyzerError(err: Error, res: Response<ErrorResponse>): void {
 /**
  * Get session summary
  * GET /sessions/:id/summary
+ *
+ * Query params:
+ * - regenerate: If 'true', force regeneration even if cached
  */
 router.get(
   '/sessions/:id/summary',
   asyncHandler(async (req, res) => {
     try {
       const { id } = sessionIdSchema.parse(req.params);
-      const summary = await sessionAnalyzer.generateSummary(id);
+      const regenerate = req.query.regenerate === 'true';
+      const summary = await sessionAnalyzer.generateSummary(id, regenerate);
 
       res.json({
         session_id: summary.sessionId,
@@ -377,13 +381,17 @@ router.get(
 /**
  * Get review report for a session
  * GET /sessions/:id/review-report
+ *
+ * Query params:
+ * - regenerate: If 'true', force regeneration even if cached
  */
 router.get(
   '/sessions/:id/review-report',
   asyncHandler(async (req, res) => {
     try {
       const { id } = sessionIdSchema.parse(req.params);
-      const report = await sessionAnalyzer.generateReviewReport(id);
+      const regenerate = req.query.regenerate === 'true';
+      const report = await sessionAnalyzer.generateReviewReport(id, regenerate);
 
       res.json({
         session_id: report.sessionId,

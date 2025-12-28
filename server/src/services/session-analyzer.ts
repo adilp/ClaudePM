@@ -95,9 +95,19 @@ export class SessionAnalyzer extends TypedEventEmitter {
   // ==========================================================================
 
   /**
-   * Generate a summary for a session
+   * Get a summary for a session (from cache or generate new)
+   * @param sessionId - The session ID
+   * @param regenerate - If true, force regeneration even if cached
    */
-  async generateSummary(sessionId: string): Promise<SessionSummary> {
+  async generateSummary(sessionId: string, regenerate = false): Promise<SessionSummary> {
+    // Check cache first (unless regenerating)
+    if (!regenerate) {
+      const cached = await this.getCachedSummary(sessionId);
+      if (cached) {
+        return cached;
+      }
+    }
+
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: { ticket: true, project: true },
@@ -132,7 +142,72 @@ export class SessionAnalyzer extends TypedEventEmitter {
       ticketContent,
     };
 
-    return this.executeSummaryAnalysis(request);
+    const summary = await this.executeSummaryAnalysis(request);
+
+    // Cache the result
+    await this.saveSummary(summary, session.ticketId);
+
+    return summary;
+  }
+
+  /**
+   * Get cached summary from database
+   */
+  private async getCachedSummary(sessionId: string): Promise<SessionSummary | null> {
+    const cached = await prisma.sessionSummaryCache.findUnique({
+      where: { sessionId },
+    });
+
+    if (!cached) {
+      return null;
+    }
+
+    const result: SessionSummary = {
+      sessionId: cached.sessionId,
+      headline: cached.headline,
+      description: cached.description,
+      actions: cached.actions as unknown as SessionAction[],
+      filesChanged: cached.filesChanged as unknown as FileChange[],
+      status: cached.status as SessionSummary['status'],
+      analyzedAt: cached.analyzedAt,
+    };
+
+    if (cached.ticketId) {
+      result.ticketId = cached.ticketId;
+    }
+
+    return result;
+  }
+
+  /**
+   * Save summary to database cache
+   */
+  private async saveSummary(summary: SessionSummary, ticketId?: string | null): Promise<void> {
+    const actionsJson = JSON.parse(JSON.stringify(summary.actions));
+    const filesChangedJson = JSON.parse(JSON.stringify(summary.filesChanged));
+
+    await prisma.sessionSummaryCache.upsert({
+      where: { sessionId: summary.sessionId },
+      create: {
+        sessionId: summary.sessionId,
+        ticketId: ticketId ?? null,
+        headline: summary.headline,
+        description: summary.description,
+        actions: actionsJson,
+        filesChanged: filesChangedJson,
+        status: summary.status as 'completed' | 'in_progress' | 'blocked' | 'failed',
+        analyzedAt: summary.analyzedAt,
+      },
+      update: {
+        ticketId: ticketId ?? null,
+        headline: summary.headline,
+        description: summary.description,
+        actions: actionsJson,
+        filesChanged: filesChangedJson,
+        status: summary.status as 'completed' | 'in_progress' | 'blocked' | 'failed',
+        analyzedAt: summary.analyzedAt,
+      },
+    });
   }
 
   private async executeSummaryAnalysis(request: SummaryRequest): Promise<SessionSummary> {
@@ -211,9 +286,19 @@ Important:
   // ==========================================================================
 
   /**
-   * Generate a detailed review report for a session/ticket
+   * Generate a detailed review report for a session/ticket (from cache or generate new)
+   * @param sessionId - The session ID
+   * @param regenerate - If true, force regeneration even if cached
    */
-  async generateReviewReport(sessionId: string): Promise<ReviewReport> {
+  async generateReviewReport(sessionId: string, regenerate = false): Promise<ReviewReport> {
+    // Check cache first (unless regenerating)
+    if (!regenerate) {
+      const cached = await this.getCachedReviewReport(sessionId);
+      if (cached) {
+        return cached;
+      }
+    }
+
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: { ticket: true, project: true },
@@ -244,7 +329,76 @@ Important:
       testOutput,
     };
 
-    return this.executeReviewAnalysis(request);
+    const report = await this.executeReviewAnalysis(request);
+
+    // Cache the result
+    await this.saveReviewReport(report);
+
+    return report;
+  }
+
+  /**
+   * Get cached review report from database
+   */
+  private async getCachedReviewReport(sessionId: string): Promise<ReviewReport | null> {
+    const cached = await prisma.reviewReportCache.findUnique({
+      where: { sessionId },
+    });
+
+    if (!cached) {
+      return null;
+    }
+
+    return {
+      sessionId: cached.sessionId,
+      ticketId: cached.ticketId,
+      ticketTitle: cached.ticketTitle,
+      completionStatus: cached.completionStatus as ReviewReport['completionStatus'],
+      confidence: cached.confidence,
+      accomplished: cached.accomplished as string[],
+      remaining: cached.remaining as string[],
+      concerns: cached.concerns as string[],
+      nextSteps: cached.nextSteps as string[],
+      suggestedCommitMessage: cached.suggestedCommitMessage ?? undefined,
+      suggestedPrDescription: cached.suggestedPrDescription ?? undefined,
+      generatedAt: cached.generatedAt,
+    };
+  }
+
+  /**
+   * Save review report to database cache
+   */
+  private async saveReviewReport(report: ReviewReport): Promise<void> {
+    await prisma.reviewReportCache.upsert({
+      where: { sessionId: report.sessionId },
+      create: {
+        sessionId: report.sessionId,
+        ticketId: report.ticketId,
+        ticketTitle: report.ticketTitle,
+        completionStatus: report.completionStatus as 'complete' | 'partial' | 'blocked' | 'unclear',
+        confidence: report.confidence,
+        accomplished: report.accomplished,
+        remaining: report.remaining,
+        concerns: report.concerns,
+        nextSteps: report.nextSteps,
+        suggestedCommitMessage: report.suggestedCommitMessage ?? null,
+        suggestedPrDescription: report.suggestedPrDescription ?? null,
+        generatedAt: report.generatedAt,
+      },
+      update: {
+        ticketId: report.ticketId,
+        ticketTitle: report.ticketTitle,
+        completionStatus: report.completionStatus as 'complete' | 'partial' | 'blocked' | 'unclear',
+        confidence: report.confidence,
+        accomplished: report.accomplished,
+        remaining: report.remaining,
+        concerns: report.concerns,
+        nextSteps: report.nextSteps,
+        suggestedCommitMessage: report.suggestedCommitMessage ?? null,
+        suggestedPrDescription: report.suggestedPrDescription ?? null,
+        generatedAt: report.generatedAt,
+      },
+    });
   }
 
   private async executeReviewAnalysis(request: ReviewReportRequest): Promise<ReviewReport> {

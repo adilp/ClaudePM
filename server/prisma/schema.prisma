@@ -124,6 +124,10 @@ model Session {
   handoffsFrom HandoffEvent[] @relation("HandoffFrom")
   handoffsTo   HandoffEvent[] @relation("HandoffTo")
 
+  // Cached AI analysis
+  summaryCache SessionSummaryCache?
+  reviewCache  ReviewReportCache?
+
   // Indexes
   @@index([status], name: "sessions_status_idx")
   @@map("sessions")
@@ -179,4 +183,62 @@ model TicketStateHistory {
   @@index([ticketId], name: "ticket_state_history_ticket_idx")
   @@index([createdAt], name: "ticket_state_history_created_idx")
   @@map("ticket_state_history")
+}
+
+// AI-generated summaries (cached)
+
+enum SummaryStatus {
+  completed
+  in_progress
+  blocked
+  failed
+}
+
+enum CompletionStatus {
+  complete
+  partial
+  blocked
+  unclear
+}
+
+model SessionSummaryCache {
+  id           String        @id @default(uuid()) @db.Uuid
+  sessionId    String        @unique @map("session_id") @db.Uuid
+  ticketId     String?       @map("ticket_id") @db.Uuid
+  headline     String        @db.VarChar(255)
+  description  String        @db.Text
+  actions      Json          @default("[]")
+  filesChanged Json          @default("[]") @map("files_changed")
+  status       SummaryStatus
+  analyzedAt   DateTime      @map("analyzed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_summary_cache")
+}
+
+model ReviewReportCache {
+  id                     String           @id @default(uuid()) @db.Uuid
+  sessionId              String           @unique @map("session_id") @db.Uuid
+  ticketId               String           @map("ticket_id") @db.Uuid
+  ticketTitle            String           @map("ticket_title") @db.VarChar(500)
+  completionStatus       CompletionStatus @map("completion_status")
+  confidence             Int              @default(0)
+  accomplished           Json             @default("[]")
+  remaining              Json             @default("[]")
+  concerns               Json             @default("[]")
+  nextSteps              Json             @default("[]") @map("next_steps")
+  suggestedCommitMessage String?          @map("suggested_commit_message") @db.Text
+  suggestedPrDescription String?          @map("suggested_pr_description") @db.Text
+  generatedAt            DateTime         @map("generated_at")
+  createdAt              DateTime         @default(now()) @map("created_at")
+  updatedAt              DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("review_report_cache")
 }

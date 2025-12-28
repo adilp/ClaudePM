@@ -3,11 +3,10 @@
  * Displays AI-generated summary of a session's work
  */
 
+import { useState } from 'react';
 import { FileText, Code, Terminal, CheckCircle, Clock, AlertCircle, XCircle, Loader2, Sparkles, RefreshCw } from 'lucide-react';
-import { useSessionSummary } from '@/hooks/useSessions';
+import { useSessionSummary, useRegenerateSummary } from '@/hooks/useSessions';
 import type { SessionAction, FileChange } from '@/types/api';
-import { useQueryClient } from '@tanstack/react-query';
-import { sessionKeys } from '@/hooks/useSessions';
 
 interface SessionSummaryCardProps {
   sessionId: string;
@@ -31,21 +30,46 @@ const statusConfig = {
 };
 
 export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
-  const queryClient = useQueryClient();
-  const { data: summary, isLoading, error, refetch, isFetching } = useSessionSummary(sessionId);
+  const [loadRequested, setLoadRequested] = useState(false);
+  const { data: summary, isLoading, error, refetch, isFetching } = useSessionSummary(sessionId, loadRequested);
+  const regenerateMutation = useRegenerateSummary();
 
-  const handleRegenerate = () => {
-    // Invalidate the cache to force a fresh fetch
-    queryClient.invalidateQueries({ queryKey: sessionKeys.summary(sessionId) });
-    refetch();
+  const handleLoad = () => {
+    setLoadRequested(true);
   };
 
-  if (isLoading) {
+  const handleRegenerate = () => {
+    regenerateMutation.mutate(sessionId);
+  };
+
+  const isRegenerating = regenerateMutation.isPending;
+
+  // Show "Load Summary" button if summary hasn't been requested yet
+  if (!loadRequested && !summary) {
+    return (
+      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-gray-400">
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span className="text-sm">AI Summary</span>
+          </div>
+          <button
+            onClick={handleLoad}
+            className="px-3 py-1.5 text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white rounded-md transition-colors"
+          >
+            Load Summary
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || (loadRequested && !summary && !error)) {
     return (
       <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
         <div className="flex items-center gap-2 text-gray-400">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Generating summary...</span>
+          <span className="text-sm">Loading summary...</span>
         </div>
       </div>
     );
@@ -83,11 +107,11 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
           <span className="text-sm font-medium text-gray-200">AI Summary</span>
           <button
             onClick={handleRegenerate}
-            disabled={isFetching}
+            disabled={isRegenerating || isFetching}
             className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 disabled:opacity-50"
             title="Regenerate summary"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
           </button>
         </div>
         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${statusConfig[summary.status].bg} ${statusConfig[summary.status].color}`}>

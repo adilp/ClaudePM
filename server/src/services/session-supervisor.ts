@@ -480,23 +480,34 @@ export class SessionSupervisor extends EventEmitter {
 
       if (ticket.isAdhoc) {
         // Adhoc tickets: summarize and wait for confirmation
-        claudeCommand = `claude --allowedTools "Write" "Read" "Read the ticket at ${ticketPath} and summarize what's being requested. Then propose next steps and wait for my confirmation before implementing.
+        // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
+        claudeCommand = `claude "Read the ticket at ${ticketPath} and summarize what's being requested. Then propose next steps and wait for my confirmation before implementing.
 
 IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
 ---TASK_COMPLETE---
-Followed by a brief summary of what was done."`;
+Followed by a brief summary of what was done." --allowedTools Edit Read`;
       } else {
         // Regular tickets: implement directly
         // Include completion marker instruction for auto-progression
-        claudeCommand = `claude --allowedTools "Write" "Read" "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}
+        // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
+        claudeCommand = `claude "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}
 
 IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
 ---TASK_COMPLETE---
-Followed by a brief summary of what was done."`;
+Followed by a brief summary of what was done." --allowedTools Edit Read`;
       }
     } else {
-      // Adhoc sessions without ticket: just start claude
-      claudeCommand = 'claude --allowedTools "Write" "Read"';
+      // Adhoc sessions without ticket: start claude with optional initial prompt
+      // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
+      if (options.initialPrompt) {
+        // Escape the prompt for shell usage - replace backslashes and double quotes
+        const escapedPrompt = options.initialPrompt
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"');
+        claudeCommand = `claude "${escapedPrompt}" --allowedTools Edit Read`;
+      } else {
+        claudeCommand = 'claude --allowedTools Edit Read';
+      }
     }
 
     try {
