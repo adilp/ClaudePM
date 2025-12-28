@@ -100,6 +100,11 @@ export function SessionDetail() {
         const data = await response.json();
         console.log('[ttyd] Started:', data);
         setTtydUrl(data.url);
+
+        // Focus the tmux pane when ttyd starts
+        fetch(`/api/sessions/${sessionId}/focus`, { method: 'POST' }).catch(() => {
+          // Ignore focus errors - not critical
+        });
       } catch (err) {
         console.error('[ttyd] Error:', err);
         setTtydError(err instanceof Error ? err.message : 'Failed to start ttyd');

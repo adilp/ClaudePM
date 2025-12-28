@@ -651,4 +651,71 @@ router.delete(
   })
 );
 
+/**
+ * Focus/select tmux pane for a session
+ * POST /sessions/:id/focus
+ * Selects and zooms the tmux pane associated with the session
+ */
+router.post(
+  '/sessions/:id/focus',
+  asyncHandler(async (req, res) => {
+    const { id } = sessionIdSchema.parse(req.params);
+
+    // Get session from database to find pane ID
+    const { prisma } = await import('../config/db.js');
+    const session = await prisma.session.findUnique({
+      where: { id },
+    });
+
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    const paneId = session.tmuxPaneId;
+    if (!paneId || !paneId.startsWith('%')) {
+      res.status(400).json({ error: 'Session has no valid pane ID' });
+      return;
+    }
+
+    // Select and zoom the pane
+    const tmuxPath = process.env.TMUX_PATH ?? '/usr/local/bin/tmux';
+    const { execSync } = await import('child_process');
+
+    // Select the pane first
+    try {
+      execSync(`${tmuxPath} select-pane -t ${paneId}`, { env: { ...process.env, TMUX: '' } });
+    } catch (e) {
+      console.error(`[Sessions API] Failed to select pane ${paneId}:`, e);
+      res.status(500).json({ error: 'Failed to select pane' });
+      return;
+    }
+
+    // Check if pane is already zoomed using window_zoomed_flag
+    try {
+      const isZoomed = execSync(
+        `${tmuxPath} display-message -t ${paneId} -p '#{window_zoomed_flag}'`,
+        { env: { ...process.env, TMUX: '' }, encoding: 'utf8' }
+      ).trim();
+
+      // Only zoom if not already zoomed
+      if (isZoomed !== '1') {
+        execSync(`${tmuxPath} resize-pane -Z -t ${paneId}`, { env: { ...process.env, TMUX: '' } });
+        console.log(`[Sessions API] Pane ${paneId} zoomed`);
+      } else {
+        console.log(`[Sessions API] Pane ${paneId} already zoomed`);
+      }
+
+      res.json({
+        session_id: id,
+        pane_id: paneId,
+        message: 'Pane focused and zoomed',
+      });
+    } catch (e) {
+      console.error(`[Sessions API] Failed to zoom pane ${paneId}:`, e);
+      res.status(500).json({ error: 'Failed to zoom pane' });
+    }
+  })
+);
+
 export default router;
