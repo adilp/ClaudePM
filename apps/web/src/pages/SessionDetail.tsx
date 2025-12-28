@@ -64,6 +64,12 @@ export function SessionDetail() {
   const [useLegacyMode, setUseLegacyMode] = useState(false);
   const [isTerminalReady, setIsTerminalReady] = useState(false);
 
+  // ttyd mode state
+  const [useTtyd, setUseTtyd] = useState(true); // Default to ttyd mode
+  const [ttydUrl, setTtydUrl] = useState<string | null>(null);
+  const [ttydLoading, setTtydLoading] = useState(false);
+  const [ttydError, setTtydError] = useState<string | null>(null);
+
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -76,8 +82,51 @@ export function SessionDetail() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisTab, setAnalysisTab] = useState<'summary' | 'activity' | 'review'>('summary');
 
-  // Initialize terminal
+  // Start ttyd when in ttyd mode
   useEffect(() => {
+    if (!useTtyd || !sessionId) return;
+
+    const startTtyd = async () => {
+      setTtydLoading(true);
+      setTtydError(null);
+
+      try {
+        const response = await fetch(`/api/sessions/${sessionId}/ttyd`, {
+          method: 'POST',
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to start ttyd');
+        }
+
+        const data = await response.json();
+        console.log('[ttyd] Started:', data);
+        setTtydUrl(data.url);
+      } catch (err) {
+        console.error('[ttyd] Error:', err);
+        setTtydError(err instanceof Error ? err.message : 'Failed to start ttyd');
+        // Fall back to PTY mode
+        setUseTtyd(false);
+      } finally {
+        setTtydLoading(false);
+      }
+    };
+
+    startTtyd();
+
+    // Cleanup: stop ttyd when leaving
+    return () => {
+      fetch(`/api/sessions/${sessionId}/ttyd`, { method: 'DELETE' }).catch(() => {
+        // Ignore cleanup errors
+      });
+      setTtydUrl(null);
+    };
+  }, [useTtyd, sessionId]);
+
+  // Initialize terminal (only when NOT using ttyd)
+  useEffect(() => {
+    if (useTtyd) return; // Skip if using ttyd
     if (!terminalRef.current || xtermRef.current) return;
 
     const terminal = new Terminal({
@@ -134,7 +183,7 @@ export function SessionDetail() {
       fitAddonRef.current = null;
       setIsTerminalReady(false);
     };
-  }, []);
+  }, [useTtyd]);
 
   // Fit terminal on container size change
   useEffect(() => {
@@ -146,8 +195,9 @@ export function SessionDetail() {
     }
   }, [session]);
 
-  // Attach to session via PTY for true terminal emulation
+  // Attach to session via PTY for true terminal emulation (only when NOT using ttyd)
   useEffect(() => {
+    if (useTtyd) return; // Skip if using ttyd
     if (sessionId && connectionState === 'connected' && isTerminalReady && fitAddonRef.current) {
       // Get terminal dimensions
       const dims = fitAddonRef.current.proposeDimensions();
@@ -169,7 +219,7 @@ export function SessionDetail() {
         setIsPtyAttached(false);
       };
     }
-  }, [sessionId, connectionState, isTerminalReady, ptyAttach, ptyDetach, unsubscribe]);
+  }, [useTtyd, sessionId, connectionState, isTerminalReady, ptyAttach, ptyDetach, unsubscribe]);
 
   // Handle terminal keyboard input - send to PTY or legacy mode
   useEffect(() => {
@@ -251,10 +301,13 @@ export function SessionDetail() {
       const payload = lastMessage.payload as { sessionId: string; cols: number; rows: number };
       console.log('[Terminal] PTY attached message received:', payload);
       if (payload.sessionId === sessionId) {
-        console.log('[Terminal] Setting isPtyAttached = true');
+        console.log('[Terminal] Setting isPtyAttached = true, pane dimensions:', payload.cols, 'x', payload.rows);
         setIsPtyAttached(true);
+
+        // Resize xterm to match the actual tmux pane dimensions
+        // This ensures the web terminal displays at the same size as the pane
+        xtermRef.current.resize(payload.cols, payload.rows);
         xtermRef.current.clear();
-        xtermRef.current.writeln('\x1b[32mTerminal connected.\x1b[0m');
       }
     }
 
@@ -537,25 +590,82 @@ export function SessionDetail() {
         {/* Terminal */}
         <div
           className={cn(
-            'flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden cursor-text transition-all relative',
-            showAnalysis ? 'w-2/3' : 'w-full'
+            'flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden transition-all relative',
+            showAnalysis ? 'w-2/3' : 'w-full',
+            !useTtyd && 'cursor-text'
           )}
-          onClick={() => xtermRef.current?.focus()}
+          onClick={() => !useTtyd && xtermRef.current?.focus()}
         >
-          <div ref={terminalRef} className="h-full w-full p-2" />
-          {/* Focus Pane Button */}
-          {isPtyAttached && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleFocusPane();
-              }}
-              className="absolute top-2 right-2 p-2 rounded-md bg-gray-700/80 hover:bg-gray-600 text-gray-200 transition-colors"
-              title="Focus & zoom this pane in tmux"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </button>
+          {/* ttyd iframe mode */}
+          {useTtyd && ttydUrl && (
+            <iframe
+              src={ttydUrl}
+              className="h-full w-full border-0"
+              title="Terminal"
+              allow="clipboard-read; clipboard-write"
+            />
           )}
+
+          {/* ttyd loading state */}
+          {useTtyd && ttydLoading && (
+            <div className="h-full w-full flex items-center justify-center text-gray-400">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-400 mx-auto mb-2" />
+                <p>Starting terminal...</p>
+              </div>
+            </div>
+          )}
+
+          {/* ttyd error state */}
+          {useTtyd && ttydError && (
+            <div className="h-full w-full flex items-center justify-center text-red-400">
+              <div className="text-center">
+                <p className="mb-2">Failed to start ttyd: {ttydError}</p>
+                <button
+                  onClick={() => setUseTtyd(false)}
+                  className="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded"
+                >
+                  Switch to PTY mode
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* xterm.js fallback mode */}
+          {!useTtyd && (
+            <>
+              <div ref={terminalRef} className="h-full w-full p-2" />
+              {/* Focus Pane Button */}
+              {isPtyAttached && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleFocusPane();
+                  }}
+                  className="absolute top-2 right-2 p-2 rounded-md bg-gray-700/80 hover:bg-gray-600 text-gray-200 transition-colors"
+                  title="Focus & zoom this pane in tmux"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Mode toggle button */}
+          <button
+            onClick={() => {
+              if (useTtyd) {
+                // Stop ttyd and switch to PTY
+                fetch(`/api/sessions/${sessionId}/ttyd`, { method: 'DELETE' }).catch(() => {});
+                setTtydUrl(null);
+              }
+              setUseTtyd(!useTtyd);
+            }}
+            className="absolute top-2 left-2 px-2 py-1 text-xs rounded bg-gray-700/80 hover:bg-gray-600 text-gray-200 transition-colors"
+            title={useTtyd ? 'Switch to PTY mode' : 'Switch to ttyd mode'}
+          >
+            {useTtyd ? 'ttyd' : 'PTY'}
+          </button>
         </div>
 
         {/* Analysis Panel */}

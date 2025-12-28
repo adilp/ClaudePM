@@ -539,4 +539,94 @@ router.get(
   })
 );
 
+// ============================================================================
+// ttyd Terminal Endpoints
+// ============================================================================
+
+import {
+  ttydManager,
+  TtydSessionNotFoundError,
+  TtydAlreadyRunningError,
+  TtydError,
+} from '../services/ttyd-manager.js';
+
+/**
+ * Get or start ttyd for a session
+ * POST /sessions/:id/ttyd
+ * Returns the ttyd URL and port
+ */
+router.post(
+  '/sessions/:id/ttyd',
+  asyncHandler(async (req, res) => {
+    try {
+      const { id } = sessionIdSchema.parse(req.params);
+
+      const instance = await ttydManager.getOrStart(id);
+
+      res.json({
+        session_id: id,
+        port: instance.port,
+        url: `http://localhost:${instance.port}`,
+        ws_url: `ws://localhost:${instance.port}/ws`,
+      });
+    } catch (err) {
+      if (err instanceof TtydSessionNotFoundError) {
+        res.status(404).json({ error: err.message });
+      } else if (err instanceof TtydError) {
+        res.status(400).json({ error: err.message });
+      } else {
+        throw err;
+      }
+    }
+  })
+);
+
+/**
+ * Get ttyd status for a session
+ * GET /sessions/:id/ttyd
+ */
+router.get(
+  '/sessions/:id/ttyd',
+  asyncHandler(async (req, res) => {
+    const { id } = sessionIdSchema.parse(req.params);
+
+    const instance = ttydManager.getInstance(id);
+
+    if (!instance) {
+      res.json({
+        session_id: id,
+        running: false,
+      });
+      return;
+    }
+
+    res.json({
+      session_id: id,
+      running: true,
+      port: instance.port,
+      url: `http://localhost:${instance.port}`,
+      ws_url: `ws://localhost:${instance.port}/ws`,
+      created_at: instance.createdAt.toISOString(),
+    });
+  })
+);
+
+/**
+ * Stop ttyd for a session
+ * DELETE /sessions/:id/ttyd
+ */
+router.delete(
+  '/sessions/:id/ttyd',
+  asyncHandler(async (req, res) => {
+    const { id } = sessionIdSchema.parse(req.params);
+
+    ttydManager.stop(id);
+
+    res.json({
+      session_id: id,
+      message: 'ttyd stopped',
+    });
+  })
+);
+
 export default router;

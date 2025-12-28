@@ -351,6 +351,17 @@ export async function setPaneTitle(paneId: string, title: string): Promise<void>
 }
 
 /**
+ * Resize a pane to specific dimensions
+ * @param paneId The pane ID (e.g., "%5")
+ * @param cols Number of columns
+ * @param rows Number of rows
+ */
+export async function resizePane(paneId: string, cols: number, rows: number): Promise<void> {
+  // Use resize-pane with -x for width and -y for height
+  await execTmux(['resize-pane', '-t', escapeShellArg(paneId), '-x', String(cols), '-y', String(rows)]);
+}
+
+/**
  * Get the title of a pane
  * @param paneId The pane ID (e.g., "%5")
  * @returns The pane title, or null if pane not found
@@ -397,6 +408,33 @@ export async function isPaneAlive(paneId: string): Promise<boolean> {
       return false;
     }
     throw error;
+  }
+}
+
+/**
+ * Get the dimensions of a pane (cols x rows)
+ */
+export async function getPaneDimensions(paneId: string): Promise<{ cols: number; rows: number } | null> {
+  try {
+    const format = '#{pane_width}|#{pane_height}';
+    const output = await execTmux(['display-message', '-t', escapeShellArg(paneId), '-p', `"${format}"`]);
+
+    const line = output.trim();
+    if (!line) {
+      return null;
+    }
+
+    const parts = line.split('|');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    return {
+      cols: parseInt(parts[0] ?? '80', 10),
+      rows: parseInt(parts[1] ?? '24', 10),
+    };
+  } catch {
+    return null;
   }
 }
 

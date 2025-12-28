@@ -212,8 +212,13 @@ export class PtyManager extends EventEmitter {
       throw new PtyError(`Could not get pane info for ${paneId}`);
     }
 
-    const cols = options.cols ?? this.defaultCols;
-    const rows = options.rows ?? this.defaultRows;
+    // Get the actual pane dimensions - use these instead of requested dimensions
+    // This ensures the PTY matches what tmux is actually rendering
+    const paneDims = await tmux.getPaneDimensions(paneId);
+    const cols = paneDims?.cols ?? options.cols ?? this.defaultCols;
+    const rows = paneDims?.rows ?? options.rows ?? this.defaultRows;
+
+    console.log(`[PtyManager] Pane ${paneId} actual dimensions: ${cols}x${rows} (requested: ${options.cols}x${options.rows})`);
 
     // Attach directly to the tmux session containing this pane
     // This gives native terminal behavior - keyboard, scrolling, etc.
