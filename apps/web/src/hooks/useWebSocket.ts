@@ -89,11 +89,27 @@ export interface PtyExitMessage {
   };
 }
 
+export type AiAnalysisType = 'summary' | 'review_report';
+export type AiAnalysisStatus = 'generating' | 'completed' | 'failed';
+
+export interface AiAnalysisStatusMessage {
+  type: 'ai:analysis_status';
+  payload: {
+    sessionId: string;
+    ticketId?: string;
+    analysisType: AiAnalysisType;
+    status: AiAnalysisStatus;
+    timestamp: string;
+    error?: string;
+  };
+}
+
 export type IncomingMessage =
   | SessionOutputMessage
   | SessionStatusMessage
   | SessionWaitingMessage
   | TicketStateMessage
+  | AiAnalysisStatusMessage
   | PtyAttachedMessage
   | PtyDetachedMessage
   | PtyOutputMessage

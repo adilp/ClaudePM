@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { FileText, Code, Terminal, CheckCircle, Clock, AlertCircle, XCircle, Loader2, Sparkles, RefreshCw } from 'lucide-react';
 import { useSessionSummary, useRegenerateSummary } from '@/hooks/useSessions';
+import { useAiAnalysisStatus } from '@/hooks/useAiAnalysisStatus';
 import type { SessionAction, FileChange } from '@/types/api';
 
 interface SessionSummaryCardProps {
@@ -30,13 +31,11 @@ const statusConfig = {
 };
 
 export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
-  const [loadRequested, setLoadRequested] = useState(false);
-  const { data: summary, isLoading, error, refetch, isFetching } = useSessionSummary(sessionId, loadRequested);
+  // Auto-load summary on mount
+  const { data: summary, isLoading, error, refetch, isFetching } = useSessionSummary(sessionId, true);
   const regenerateMutation = useRegenerateSummary();
-
-  const handleLoad = () => {
-    setLoadRequested(true);
-  };
+  const { isSummaryGenerating } = useAiAnalysisStatus();
+  const isGenerating = isSummaryGenerating(sessionId);
 
   const handleRegenerate = () => {
     regenerateMutation.mutate(sessionId);
@@ -44,27 +43,28 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
 
   const isRegenerating = regenerateMutation.isPending;
 
-  // Show "Load Summary" button if summary hasn't been requested yet
-  if (!loadRequested && !summary) {
+  // Show generating state if AI is actively generating
+  if (isGenerating) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-gray-400">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span className="text-sm">AI Summary</span>
+      <div className="bg-gray-800 rounded-lg p-4 border border-purple-500/50">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
           </div>
-          <button
-            onClick={handleLoad}
-            className="px-3 py-1.5 text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white rounded-md transition-colors"
-          >
-            Load Summary
-          </button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-200">Generating AI Summary</span>
+              <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">Analyzing session activity...</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (isLoading || (loadRequested && !summary && !error)) {
+  if (isLoading) {
     return (
       <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
         <div className="flex items-center gap-2 text-gray-400">
@@ -173,8 +173,8 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
         )}
 
         {/* Timestamp */}
-        <div className="text-xs text-gray-500 pt-2 border-t border-gray-700">
-          Analyzed {new Date(summary.analyzed_at).toLocaleTimeString()}
+        <div className="text-sm text-gray-400 pt-2 border-t border-gray-700">
+          Analyzed {new Date(summary.analyzed_at).toLocaleString()}
         </div>
       </div>
     </div>

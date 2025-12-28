@@ -20,6 +20,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useSessionReviewReport, useRegenerateReviewReport, useGenerateCommitMessage, useGeneratePrDescription } from '@/hooks/useSessions';
+import { useAiAnalysisStatus } from '@/hooks/useAiAnalysisStatus';
 
 interface ReviewReportPanelProps {
   sessionId: string;
@@ -33,13 +34,11 @@ const statusConfig = {
 };
 
 export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
-  const [loadRequested, setLoadRequested] = useState(false);
-  const { data: report, isLoading, error, refetch, isFetching } = useSessionReviewReport(sessionId, loadRequested);
+  // Auto-load report on mount
+  const { data: report, isLoading, error, refetch, isFetching } = useSessionReviewReport(sessionId, true);
   const regenerateMutation = useRegenerateReviewReport();
-
-  const handleLoad = () => {
-    setLoadRequested(true);
-  };
+  const { isReviewReportGenerating } = useAiAnalysisStatus();
+  const isGenerating = isReviewReportGenerating(sessionId);
 
   const handleRegenerate = () => {
     regenerateMutation.mutate(sessionId);
@@ -68,27 +67,28 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Show "Load Report" button if report hasn't been requested yet
-  if (!loadRequested && !report) {
+  // Show generating state if AI is actively generating
+  if (isGenerating) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-gray-400">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <span className="text-sm">AI Review Report</span>
+      <div className="bg-gray-800 rounded-lg p-4 border border-purple-500/50">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
           </div>
-          <button
-            onClick={handleLoad}
-            className="px-3 py-1.5 text-xs font-medium bg-purple-600 hover:bg-purple-500 text-white rounded-md transition-colors"
-          >
-            Load Report
-          </button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-200">Generating Review Report</span>
+              <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">Analyzing ticket completion...</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (isLoading || (loadRequested && !report && !error)) {
+  if (isLoading) {
     return (
       <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
         <div className="flex items-center gap-3 text-gray-400">
@@ -320,7 +320,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
       </div>
 
       {/* Timestamp */}
-      <div className="px-4 py-2 text-xs text-gray-500 border-t border-gray-700">
+      <div className="px-4 py-2 text-sm text-gray-400 border-t border-gray-700">
         Generated {new Date(report.generated_at).toLocaleString()}
       </div>
     </div>

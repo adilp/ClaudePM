@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
-import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent, useStartTicket, useUpdateTicketTitle, useDeleteTicket } from '@/hooks/useTickets';
+import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent, useStartTicket, useUpdateTicketTitle, useDeleteTicket, useTicketHistory } from '@/hooks/useTickets';
 import { useSessions } from '@/hooks/useSessions';
 import { cn } from '@/lib/utils';
 import type { TicketState } from '@/types/api';
@@ -70,6 +70,13 @@ export function TicketDetail() {
   const updateContent = useUpdateTicketContent();
   const updateTitle = useUpdateTicketTitle();
   const deleteTicket = useDeleteTicket();
+  const { data: ticketHistory } = useTicketHistory(ticketId!);
+
+  // Find when ticket was moved to review status
+  const reviewedAtEntry = ticketHistory?.find(
+    (entry) => entry.to_state === 'review'
+  );
+  const reviewedAt = reviewedAtEntry?.created_at;
 
   const handleStateChange = (newState: TicketState) => {
     if (newState !== ticket?.state) {
@@ -388,7 +395,7 @@ export function TicketDetail() {
 
       {/* Timestamps */}
       <div className="rounded-lg border bg-card p-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <p className="text-sm text-muted-foreground">Created</p>
             <p className="font-medium">{new Date(ticket.created_at).toLocaleString()}</p>
@@ -401,6 +408,15 @@ export function TicketDetail() {
             <div>
               <p className="text-sm text-muted-foreground">Started</p>
               <p className="font-medium">{new Date(ticket.started_at).toLocaleString()}</p>
+            </div>
+          )}
+          {reviewedAt && (
+            <div>
+              <p className="text-sm text-muted-foreground">Moved to Review</p>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {new Date(reviewedAt).toLocaleString()}
+              </span>
             </div>
           )}
           {ticket.completed_at && (

@@ -246,6 +246,27 @@ export interface TicketStateMessage {
 }
 
 /**
+ * AI analysis generation status
+ */
+export type AiAnalysisType = 'summary' | 'review_report';
+export type AiAnalysisStatus = 'generating' | 'completed' | 'failed';
+
+/**
+ * AI analysis status message
+ */
+export interface AiAnalysisStatusMessage {
+  type: 'ai:analysis_status';
+  payload: {
+    sessionId: string;
+    ticketId?: string;
+    analysisType: AiAnalysisType;
+    status: AiAnalysisStatus;
+    timestamp: string;
+    error?: string;
+  };
+}
+
+/**
  * Notification message
  */
 export interface NotificationMessage {
@@ -354,6 +375,7 @@ export type ServerMessage =
   | SessionStatusMessage
   | SessionWaitingMessage
   | TicketStateMessage
+  | AiAnalysisStatusMessage
   | NotificationMessage
   | PongMessage
   | ErrorMessage

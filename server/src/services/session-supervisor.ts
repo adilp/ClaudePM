@@ -485,7 +485,7 @@ export class SessionSupervisor extends EventEmitter {
 
 IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
 ---TASK_COMPLETE---
-Followed by a brief summary of what was done." --allowedTools Edit Read`;
+Followed by a brief summary of what was done." --allowedTools Edit Read Write Bash Grep Glob`;
       } else {
         // Regular tickets: implement directly
         // Include completion marker instruction for auto-progression
@@ -494,7 +494,7 @@ Followed by a brief summary of what was done." --allowedTools Edit Read`;
 
 IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
 ---TASK_COMPLETE---
-Followed by a brief summary of what was done." --allowedTools Edit Read`;
+Followed by a brief summary of what was done." --allowedTools Edit Read Write Bash Grep Glob`;
       }
     } else {
       // Adhoc sessions without ticket: start claude with optional initial prompt
@@ -504,9 +504,9 @@ Followed by a brief summary of what was done." --allowedTools Edit Read`;
         const escapedPrompt = options.initialPrompt
           .replace(/\\/g, '\\\\')
           .replace(/"/g, '\\"');
-        claudeCommand = `claude "${escapedPrompt}" --allowedTools Edit Read`;
+        claudeCommand = `claude "${escapedPrompt}" --allowedTools Edit Read Write Bash Grep Glob`;
       } else {
-        claudeCommand = 'claude --allowedTools Edit Read';
+        claudeCommand = 'claude --allowedTools Edit Read Write Bash Grep Glob';
       }
     }
 

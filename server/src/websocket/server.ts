@@ -18,6 +18,9 @@ import {
   type TicketStateMessage,
   type TicketTransitionTrigger,
   type TicketTransitionReason,
+  type AiAnalysisStatusMessage,
+  type AiAnalysisType,
+  type AiAnalysisStatus,
   type ErrorMessage,
   type SubscribedMessage,
   type UnsubscribedMessage,
@@ -927,6 +930,39 @@ export class WebSocketManager {
 
     this.broadcast({
       type: 'ticket:state',
+      payload,
+    });
+  }
+
+  /**
+   * Send AI analysis status to all connections
+   */
+  sendAiAnalysisStatus(
+    sessionId: string,
+    analysisType: AiAnalysisType,
+    status: AiAnalysisStatus,
+    options?: {
+      ticketId?: string;
+      error?: string;
+    }
+  ): void {
+    const payload: AiAnalysisStatusMessage['payload'] = {
+      sessionId,
+      analysisType,
+      status,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (options?.ticketId) {
+      payload.ticketId = options.ticketId;
+    }
+
+    if (options?.error) {
+      payload.error = options.error;
+    }
+
+    this.broadcast({
+      type: 'ai:analysis_status',
       payload,
     });
   }

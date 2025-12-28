@@ -7,6 +7,8 @@ import { EventEmitter } from 'events';
 import { prisma } from '../config/db.js';
 import type { TicketStateHistory } from '../generated/prisma/index.js';
 import { sessionSupervisor } from './session-supervisor.js';
+import { sessionAnalyzer } from './session-analyzer.js';
+import { wsManager } from '../websocket/server.js';
 import {
   type TicketState,
   type TransitionTrigger,
@@ -318,6 +320,7 @@ export class TicketStateMachine extends TypedEventEmitter {
 
   /**
    * Move ticket to review (when completion is detected)
+   * Also triggers AI summary and review report generation
    */
   async moveToReview(ticketId: string, sessionId?: string): Promise<TransitionResult> {
     const request: TransitionRequest = {
@@ -331,7 +334,48 @@ export class TicketStateMachine extends TypedEventEmitter {
       request.triggeredBy = sessionId;
     }
 
-    return this.transition(request);
+    const result = await this.transition(request);
+
+    // Trigger AI summary and review report generation in the background
+    if (sessionId) {
+      // Don't await - let it run in background
+      this.generateAiAnalysis(sessionId, ticketId).catch((error) => {
+        console.warn(
+          `[TicketStateMachine] Failed to generate AI analysis for session ${sessionId}:`,
+          error instanceof Error ? error.message : error
+        );
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Generate AI summary and review report for a session (internal helper)
+   * Emits WebSocket events for status updates
+   */
+  private async generateAiAnalysis(sessionId: string, ticketId: string): Promise<void> {
+    const options = { ticketId };
+
+    try {
+      // Emit generating status for summary
+      wsManager.sendAiAnalysisStatus(sessionId, 'summary', 'generating', options);
+      await sessionAnalyzer.generateSummary(sessionId);
+      wsManager.sendAiAnalysisStatus(sessionId, 'summary', 'completed', options);
+
+      // Emit generating status for review report
+      wsManager.sendAiAnalysisStatus(sessionId, 'review_report', 'generating', options);
+      await sessionAnalyzer.generateReviewReport(sessionId);
+      wsManager.sendAiAnalysisStatus(sessionId, 'review_report', 'completed', options);
+
+      console.log(`[TicketStateMachine] Generated AI analysis for session ${sessionId}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      // Emit failed status - we don't know which one failed, so emit for both
+      wsManager.sendAiAnalysisStatus(sessionId, 'summary', 'failed', { ...options, error: errorMessage });
+      wsManager.sendAiAnalysisStatus(sessionId, 'review_report', 'failed', { ...options, error: errorMessage });
+      throw error;
+    }
   }
 
   /**
