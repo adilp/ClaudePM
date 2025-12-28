@@ -375,6 +375,9 @@ export class WebSocketManager {
       case 'pty:resize':
         this.handlePtyResize(ws, message.payload.sessionId, message.payload.cols, message.payload.rows);
         break;
+      case 'pty:selectPane':
+        this.handlePtySelectPane(ws, message.payload.sessionId);
+        break;
     }
   }
 
@@ -680,6 +683,38 @@ export class WebSocketManager {
         this.sendError(ws, WS_ERROR_CODES.INTERNAL_ERROR, 'Failed to resize PTY');
       }
     }
+  }
+
+  /**
+   * Handle PTY select pane request - re-focus and zoom the session's tmux pane
+   */
+  private handlePtySelectPane(ws: ExtendedWebSocket, sessionId: string): void {
+    const connectionId = ws.connectionInfo.id;
+
+    // Get the PTY connection to find the pane ID
+    const connection = ptyManager.getConnection(connectionId);
+    if (!connection) {
+      this.sendError(ws, WS_ERROR_CODES.PTY_NOT_ATTACHED, 'Not attached to PTY');
+      return;
+    }
+
+    const paneId = connection.paneId;
+    const tmuxPath = process.env.TMUX_PATH ?? '/usr/local/bin/tmux';
+
+    // Select the pane, then zoom it (resize-pane -Z toggles zoom)
+    import('child_process').then(({ exec }) => {
+      // First select the pane, then zoom it
+      exec(`${tmuxPath} select-pane -t ${paneId} && ${tmuxPath} resize-pane -Z -t ${paneId}`, (error) => {
+        if (error) {
+          console.error(`[WebSocket] Failed to select/zoom pane ${paneId}:`, error);
+          this.sendError(ws, WS_ERROR_CODES.INTERNAL_ERROR, 'Failed to select pane');
+        } else {
+          console.log(`[WebSocket] Selected and zoomed pane ${paneId} for connection ${connectionId}`);
+        }
+      });
+    }).catch((err) => {
+      console.error('[WebSocket] Failed to import child_process:', err);
+    });
   }
 
   // ==========================================================================

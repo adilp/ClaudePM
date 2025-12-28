@@ -215,36 +215,15 @@ export class PtyManager extends EventEmitter {
     const cols = options.cols ?? this.defaultCols;
     const rows = options.rows ?? this.defaultRows;
 
-    // For tmux panes, we use a "virtual PTY" approach:
-    // - Spawn a shell that we control for the PTY interface
-    // - Poll capture-pane for output and display it
-    // - Use send-keys for input
-    // This provides an independent view without affecting the user's tmux session
-    console.log(`[PtyManager] Setting up virtual PTY for pane ${paneId}`);
+    // Attach directly to the tmux session containing this pane
+    // This gives native terminal behavior - keyboard, scrolling, etc.
+    // Note: This will affect the user's actual tmux view
+    console.log(`[PtyManager] Attaching to tmux session for pane ${paneId}`);
 
-    // Spawn a shell that will act as our PTY interface
-    // We'll capture tmux output and display it here
     const tmuxPath = process.env.TMUX_PATH ?? '/usr/local/bin/tmux';
 
-    // Use a simple approach: spawn tmux capture-pane in a loop
-    // This script continuously captures and displays pane content
-    const script = `
-      trap 'exit 0' INT TERM
-      clear
-      last_hash=""
-      while true; do
-        content=$("${tmuxPath}" capture-pane -t "${paneId}" -p -e 2>/dev/null)
-        current_hash=$(echo "$content" | md5 -q 2>/dev/null || echo "$content" | md5sum 2>/dev/null | cut -d' ' -f1)
-        if [ "$current_hash" != "$last_hash" ]; then
-          clear
-          echo "$content"
-          last_hash="$current_hash"
-        fi
-        sleep 0.1
-      done
-    `;
-
-    const ptyProcess = pty.spawn('/bin/bash', ['-c', script], {
+    // Select the pane first, then attach - ensures we're viewing the right pane
+    const ptyProcess = pty.spawn('/bin/bash', ['-c', `${tmuxPath} select-pane -t ${paneId} \\; attach-session -t ${paneId}`], {
       name: 'xterm-256color',
       cols,
       rows,

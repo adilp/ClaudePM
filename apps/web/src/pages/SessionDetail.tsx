@@ -29,6 +29,7 @@ import {
   Sparkles,
   PanelRightClose,
   PanelRightOpen,
+  Maximize2,
 } from 'lucide-react';
 
 const statusConfig: Record<SessionStatus, { label: string; color: string; bgColor: string; icon: typeof Play }> = {
@@ -58,7 +59,7 @@ export function SessionDetail() {
   const { data: session, isLoading, error, refetch } = useSession(sessionId!);
   const stopSession = useStopSession();
   const sendInput = useSendInput();
-  const { connectionState, subscribe, unsubscribe, lastMessage, sendMessage, ptyAttach, ptyDetach, ptyWrite, ptyResize } = useWebSocket();
+  const { connectionState, subscribe, unsubscribe, lastMessage, sendMessage, ptyAttach, ptyDetach, ptyWrite, ptyResize, ptySelectPane } = useWebSocket();
   const [isPtyAttached, setIsPtyAttached] = useState(false);
   const [useLegacyMode, setUseLegacyMode] = useState(false);
   const [isTerminalReady, setIsTerminalReady] = useState(false);
@@ -363,6 +364,11 @@ export function SessionDetail() {
     });
   }, [sessionId, stopSession, refetch]);
 
+  const handleFocusPane = useCallback(() => {
+    if (!sessionId) return;
+    ptySelectPane(sessionId);
+  }, [sessionId, ptySelectPane]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -531,12 +537,25 @@ export function SessionDetail() {
         {/* Terminal */}
         <div
           className={cn(
-            'flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden cursor-text transition-all',
+            'flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden cursor-text transition-all relative',
             showAnalysis ? 'w-2/3' : 'w-full'
           )}
           onClick={() => xtermRef.current?.focus()}
         >
           <div ref={terminalRef} className="h-full w-full p-2" />
+          {/* Focus Pane Button */}
+          {isPtyAttached && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleFocusPane();
+              }}
+              className="absolute top-2 right-2 p-2 rounded-md bg-gray-700/80 hover:bg-gray-600 text-gray-200 transition-colors"
+              title="Focus & zoom this pane in tmux"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Analysis Panel */}

@@ -114,6 +114,16 @@ export const ptyResizeMessageSchema = z.object({
 });
 
 /**
+ * Select/focus the session's tmux pane
+ */
+export const ptySelectPaneMessageSchema = z.object({
+  type: z.literal('pty:selectPane'),
+  payload: z.object({
+    sessionId: z.string().uuid(),
+  }),
+});
+
+/**
  * Union of all valid client message schemas
  */
 export const clientMessageSchema = z.discriminatedUnion('type', [
@@ -126,6 +136,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   ptyDetachMessageSchema,
   ptyDataMessageSchema,
   ptyResizeMessageSchema,
+  ptySelectPaneMessageSchema,
 ]);
 
 // ============================================================================
@@ -141,6 +152,7 @@ export type PtyAttachMessage = z.infer<typeof ptyAttachMessageSchema>;
 export type PtyDetachMessage = z.infer<typeof ptyDetachMessageSchema>;
 export type PtyDataMessage = z.infer<typeof ptyDataMessageSchema>;
 export type PtyResizeMessage = z.infer<typeof ptyResizeMessageSchema>;
+export type PtySelectPaneMessage = z.infer<typeof ptySelectPaneMessageSchema>;
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 // ============================================================================

@@ -134,6 +134,7 @@ interface UseWebSocketReturn {
   ptyDetach: (sessionId: string) => void;
   ptyWrite: (sessionId: string, data: string) => void;
   ptyResize: (sessionId: string, cols: number, rows: number) => void;
+  ptySelectPane: (sessionId: string) => void;
 }
 
 // ============================================================================
@@ -336,6 +337,12 @@ class WebSocketManager {
       this.ws!.send(JSON.stringify({ type: 'pty:resize', payload: { sessionId, cols, rows } }));
     }
   }
+
+  ptySelectPane(sessionId: string): void {
+    if (this.isConnected()) {
+      this.ws!.send(JSON.stringify({ type: 'pty:selectPane', payload: { sessionId } }));
+    }
+  }
 }
 
 // Create singleton instance
@@ -392,6 +399,10 @@ export function useWebSocket(_options: UseWebSocketOptions = {}): UseWebSocketRe
     wsManager.ptyResize(sessionId, cols, rows);
   }, []);
 
+  const ptySelectPane = useCallback((sessionId: string) => {
+    wsManager.ptySelectPane(sessionId);
+  }, []);
+
   return {
     connectionState,
     subscribe,
@@ -402,5 +413,6 @@ export function useWebSocket(_options: UseWebSocketOptions = {}): UseWebSocketRe
     ptyDetach,
     ptyWrite,
     ptyResize,
+    ptySelectPane,
   };
 }
