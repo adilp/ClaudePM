@@ -418,39 +418,6 @@ export class SessionSupervisor extends EventEmitter {
       throw new SessionProjectNotFoundError(options.projectId);
     }
 
-    // Check for existing active session
-    const existingSession = await prisma.session.findFirst({
-      where: {
-        projectId: options.projectId,
-        status: { in: ['running', 'paused'] },
-      },
-    });
-
-    if (existingSession) {
-      // Sessions from hooks have placeholder pane IDs - check if it's a real tmux pane
-      const isPlaceholderPane = existingSession.tmuxPaneId === 'claude-code' ||
-        !existingSession.tmuxPaneId.startsWith('%');
-
-      // Check if the session's tmux pane is actually alive (skip for placeholder panes)
-      const isAlive = isPlaceholderPane ? false : await tmux.isPaneAlive(existingSession.tmuxPaneId);
-
-      if (isAlive) {
-        // Session is truly running - can't start a new one
-        throw new SessionAlreadyRunningError(options.projectId, existingSession.id);
-      } else {
-        // Pane is dead or placeholder - clean up the stale session
-        console.log(`[SessionSupervisor] Cleaning up stale session ${existingSession.id} (pane dead or placeholder)`);
-        await this.updateSessionStatus(existingSession.id, 'completed');
-
-        // Remove from in-memory registry if present
-        const active = this.sessions.get(existingSession.id);
-        if (active) {
-          waitingDetector.unwatchSession(existingSession.id);
-          this.sessions.delete(existingSession.id);
-        }
-      }
-    }
-
     // Verify tmux session exists
     const tmuxSessionExists = await tmux.sessionExists(project.tmuxSession);
     if (!tmuxSessionExists) {
