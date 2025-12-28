@@ -5,8 +5,8 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProject } from '@/hooks/useProjects';
-import { useTickets, useSyncTickets } from '@/hooks/useTickets';
-import { useStartSession, useSyncSessions } from '@/hooks/useSessions';
+import { useTickets } from '@/hooks/useTickets';
+import { useStartSession, useSyncProject } from '@/hooks/useSessions';
 import { KanbanBoard } from '@/components/kanban';
 import { CreateAdhocTicketModal } from '@/components/CreateAdhocTicketModal';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,6 @@ import {
   Plus,
   RefreshCw,
   FileText,
-  RotateCcw,
 } from 'lucide-react';
 
 export function ProjectDetail() {
@@ -24,8 +23,7 @@ export function ProjectDetail() {
   const navigate = useNavigate();
   const { data: project, isLoading: projectLoading } = useProject(projectId!);
   const { data: tickets, isLoading: ticketsLoading } = useTickets(projectId!);
-  const syncTickets = useSyncTickets();
-  const syncSessions = useSyncSessions();
+  const syncProject = useSyncProject();
   const startSession = useStartSession();
   const [showAdhocModal, setShowAdhocModal] = useState(false);
 
@@ -45,12 +43,8 @@ export function ProjectDetail() {
     );
   }
 
-  const handleSyncTickets = () => {
-    syncTickets.mutate(projectId!);
-  };
-
-  const handleSyncSessions = () => {
-    syncSessions.mutate(projectId!);
+  const handleSync = () => {
+    syncProject.mutate(projectId!);
   };
 
   const handleStartSession = () => {
@@ -81,21 +75,13 @@ export function ProjectDetail() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSyncSessions}
-            disabled={syncSessions.isPending}
+            onClick={handleSync}
+            disabled={syncProject.isPending}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
-            title="Sync session state with tmux"
+            title="Sync tickets and sessions"
           >
-            <RotateCcw className={cn('h-4 w-4', syncSessions.isPending && 'animate-spin')} />
-            Sync Sessions
-          </button>
-          <button
-            onClick={handleSyncTickets}
-            disabled={syncTickets.isPending}
-            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
-          >
-            <RefreshCw className={cn('h-4 w-4', syncTickets.isPending && 'animate-spin')} />
-            Sync Tickets
+            <RefreshCw className={cn('h-4 w-4', syncProject.isPending && 'animate-spin')} />
+            Sync
           </button>
           <button
             onClick={() => setShowAdhocModal(true)}
@@ -153,12 +139,12 @@ export function ProjectDetail() {
             Sync tickets from your filesystem or add markdown files to your tickets path
           </p>
           <button
-            onClick={handleSyncTickets}
-            disabled={syncTickets.isPending}
+            onClick={handleSync}
+            disabled={syncProject.isPending}
             className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            <RefreshCw className={cn('h-4 w-4', syncTickets.isPending && 'animate-spin')} />
-            Sync Tickets
+            <RefreshCw className={cn('h-4 w-4', syncProject.isPending && 'animate-spin')} />
+            Sync
           </button>
         </div>
       )}

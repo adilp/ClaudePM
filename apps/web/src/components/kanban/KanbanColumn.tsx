@@ -4,7 +4,6 @@
  */
 
 import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { KanbanCard } from './KanbanCard';
 import type { Ticket, TicketState } from '@/types/api';
 import { cn } from '@/lib/utils';
@@ -65,14 +64,12 @@ export function KanbanColumn({ state, tickets, projectId }: KanbanColumnProps) {
     },
   });
 
-  const ticketIds = tickets.map((t) => t.id);
-
   return (
     <div
       className={cn(
         'flex flex-col rounded-lg border-2 min-h-[500px] w-72 flex-shrink-0',
         config.borderColor,
-        isOver && 'ring-2 ring-primary ring-offset-2'
+        isOver && 'ring-2 ring-primary'
       )}
     >
       {/* Column Header */}
@@ -102,15 +99,13 @@ export function KanbanColumn({ state, tickets, projectId }: KanbanColumnProps) {
           isOver && 'bg-primary/5'
         )}
       >
-        <SortableContext items={ticketIds} strategy={verticalListSortingStrategy}>
-          {tickets.map((ticket) => (
-            <KanbanCard
-              key={ticket.id}
-              ticket={ticket}
-              projectId={projectId}
-            />
-          ))}
-        </SortableContext>
+        {tickets.map((ticket) => (
+          <KanbanCard
+            key={ticket.id}
+            ticket={ticket}
+            projectId={projectId}
+          />
+        ))}
 
         {tickets.length === 0 && (
           <div className="flex items-center justify-center h-24 text-muted-foreground text-sm border-2 border-dashed rounded-lg">

@@ -3,9 +3,8 @@
  * Draggable ticket card for the sprint board
  */
 
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { Link } from 'react-router-dom';
+import { useDraggable } from '@dnd-kit/core';
+import { useNavigate } from 'react-router-dom';
 import { GripVertical, FileText } from 'lucide-react';
 import type { Ticket } from '@/types/api';
 
@@ -15,14 +14,13 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ ticket, projectId }: KanbanCardProps) {
+  const navigate = useNavigate();
   const {
     attributes,
     listeners,
     setNodeRef,
-    transform,
-    transition,
     isDragging,
-  } = useSortable({
+  } = useDraggable({
     id: ticket.id,
     data: {
       type: 'ticket',
@@ -30,35 +28,38 @@ export function KanbanCard({ ticket, projectId }: KanbanCardProps) {
     },
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+  // When dragging, hide the original card (DragOverlay shows the preview)
+  const style = isDragging
+    ? { opacity: 0.4 }
+    : undefined;
+
+  const handleClick = () => {
+    // Only navigate if we're not dragging
+    if (!isDragging) {
+      navigate(`/projects/${projectId}/tickets/${ticket.id}`);
+    }
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
+      onClick={handleClick}
       className={`
-        group relative rounded-lg border bg-card p-3 shadow-sm
-        hover:border-primary/50 hover:shadow-md transition-all
-        ${isDragging ? 'opacity-50 shadow-lg ring-2 ring-primary' : ''}
+        group relative rounded-lg border bg-card p-3 shadow-sm cursor-grab active:cursor-grabbing
+        hover:border-primary/50 hover:shadow-md transition-colors transition-shadow
+        ${isDragging ? 'shadow-lg ring-2 ring-primary z-50' : ''}
       `}
     >
-      {/* Drag Handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        className="absolute left-1 top-1/2 -translate-y-1/2 p-1 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-opacity"
-      >
+      {/* Drag Handle Icon (visual indicator) */}
+      <div className="absolute left-1 top-1/2 -translate-y-1/2 p-1 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity">
         <GripVertical className="h-4 w-4" />
-      </button>
+      </div>
 
       {/* Card Content */}
-      <Link
-        to={`/projects/${projectId}/tickets/${ticket.id}`}
-        className="block pl-5"
-      >
+      <div className="block pl-5">
         <div className="flex items-start gap-2">
           <FileText className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <div className="min-w-0 flex-1">
@@ -79,7 +80,7 @@ export function KanbanCard({ ticket, projectId }: KanbanCardProps) {
             </div>
           </div>
         </div>
-      </Link>
+      </div>
     </div>
   );
 }

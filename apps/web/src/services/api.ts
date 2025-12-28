@@ -119,7 +119,7 @@ class ApiClient {
     return this.request(`/tickets/${ticketId}`);
   }
 
-  async syncTickets(projectId: string): Promise<{ synced: number; created: number; updated: number }> {
+  async syncTickets(projectId: string): Promise<{ message: string; result: { created: number; updated: number; deleted: number; errors: string[] } }> {
     return this.request(`/projects/${projectId}/sync-tickets`, { method: 'POST' });
   }
 

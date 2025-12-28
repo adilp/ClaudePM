@@ -472,17 +472,18 @@ export class SessionSupervisor extends EventEmitter {
     }
 
     // Build the command to start Claude
+    // Note: We pass file path in prompt instead of piping, as piping breaks interactive mode
     let claudeCommand: string;
     if (ticket) {
-      // Build full file path for the ticket
-      const fullPath = path.join(project.repoPath, ticket.filePath);
+      // Use relative path since cwd is set to project.repoPath
+      const ticketPath = ticket.filePath;
 
       if (ticket.isAdhoc) {
         // Adhoc tickets: summarize and wait for confirmation
-        claudeCommand = `cat "${fullPath}" | claude "Summarize this ticket and propose next steps. Wait for my confirmation before implementing."`;
+        claudeCommand = `claude "Read the ticket at ${ticketPath} and summarize what's being requested. Then propose next steps and wait for my confirmation before implementing."`;
       } else {
         // Regular tickets: implement directly
-        claudeCommand = `cat "${fullPath}" | claude "Implement this ticket: ${ticket.title}"`;
+        claudeCommand = `claude "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}"`;
       }
     } else {
       // Adhoc sessions without ticket: just start claude

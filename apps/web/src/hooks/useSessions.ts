@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
+import { useUIStore } from '@/store/ui';
 
 // Query keys
 export const sessionKeys = {
@@ -71,6 +72,47 @@ export function useSyncSessions() {
     onSuccess: () => {
       // Invalidate all session queries to refresh the data
       queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    },
+  });
+}
+
+export function useSyncProject() {
+  const queryClient = useQueryClient();
+  const addNotification = useUIStore((state) => state.addNotification);
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      // Run both syncs in parallel
+      const [ticketsResult, sessionsResult] = await Promise.all([
+        api.syncTickets(projectId),
+        api.syncSessions(projectId),
+      ]);
+      return { tickets: ticketsResult, sessions: sessionsResult };
+    },
+    onSuccess: (result, projectId) => {
+      // Invalidate both ticket and session queries
+      queryClient.invalidateQueries({ queryKey: ['tickets', 'list', projectId] });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+
+      // Show success toast with details
+      const ticketStats = result.tickets.result;
+      const sessionStats = result.sessions;
+
+      const ticketMessage = `Tickets: ${ticketStats.created} created, ${ticketStats.updated} updated`;
+      const sessionMessage = `Sessions: ${sessionStats.alive_sessions.length} alive, ${sessionStats.orphaned_sessions.length} orphaned`;
+
+      addNotification({
+        type: 'success',
+        title: 'Sync completed',
+        message: `${ticketMessage}. ${sessionMessage}`,
+      });
+    },
+    onError: (error) => {
+      addNotification({
+        type: 'error',
+        title: 'Sync failed',
+        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+      });
     },
   });
 }

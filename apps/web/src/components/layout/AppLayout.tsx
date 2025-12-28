@@ -7,6 +7,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { Toaster } from '@/components/ui/Toast';
 import {
   FolderKanban,
   LayoutDashboard,
@@ -128,6 +129,9 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Toast notifications */}
+      <Toaster />
     </div>
   );
 }
