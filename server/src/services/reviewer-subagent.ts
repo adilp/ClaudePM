@@ -155,8 +155,8 @@ export class ReviewerSubagent extends TypedEventEmitter {
    * Handle stop hook from waiting detector
    */
   private onStopHook(event: { sessionId: string; waiting: boolean; reason?: string }): void {
-    // Only trigger on 'stopped' reason
-    if (!event.waiting || event.reason !== 'stopped') return;
+    // Only trigger on 'stopped' reason (waiting=false means Claude finished)
+    if (event.waiting || event.reason !== 'stopped') return;
 
     this.triggerReviewForSession(event.sessionId, 'stop_hook').catch((err) => {
       console.error(`Failed to trigger stop hook review for session ${event.sessionId}:`, err);

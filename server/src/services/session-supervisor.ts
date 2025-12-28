@@ -483,7 +483,12 @@ export class SessionSupervisor extends EventEmitter {
         claudeCommand = `claude "Read the ticket at ${ticketPath} and summarize what's being requested. Then propose next steps and wait for my confirmation before implementing."`;
       } else {
         // Regular tickets: implement directly
-        claudeCommand = `claude "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}"`;
+        // Include completion marker instruction for auto-progression
+        claudeCommand = `claude "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}
+
+IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
+---TASK_COMPLETE---
+Followed by a brief summary of what was done."`;
       }
     } else {
       // Adhoc sessions without ticket: just start claude

@@ -113,6 +113,8 @@ export interface OutputPatternConfig {
   immediate: string[];
   /** Patterns that require idle time before triggering */
   questionPatterns: string[];
+  /** Patterns that indicate task completion (triggers review) */
+  completionPatterns: string[];
   /** Seconds of idle required for question patterns */
   idleThresholdSeconds: number;
 }
@@ -158,6 +160,9 @@ export const DEFAULT_WAITING_DETECTOR_CONFIG: WaitingDetectorConfig = {
       'Would you prefer',
       'Can you clarify',
       'Which option',
+    ],
+    completionPatterns: [
+      '---TASK_COMPLETE---',
     ],
     idleThresholdSeconds: 5,
   },

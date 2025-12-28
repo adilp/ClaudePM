@@ -70,6 +70,7 @@ export class WaitingDetector extends EventEmitter {
   /** Pre-compiled regex patterns */
   private immediatePatternRe: RegExp | null = null;
   private questionPatternRe: RegExp | null = null;
+  private completionPatternRe: RegExp | null = null;
 
   /** Whether the detector is running */
   private running: boolean = false;
@@ -380,7 +381,20 @@ export class WaitingDetector extends EventEmitter {
     // Check output lines for patterns
     const combinedOutput = event.lines.join('\n');
 
-    // Check immediate patterns first
+    // Check completion patterns first (task explicitly marked complete)
+    if (this.completionPatternRe?.test(combinedOutput)) {
+      this.processSignal({
+        sessionId: event.sessionId,
+        waiting: false,
+        reason: 'stopped',
+        layer: 'output_pattern',
+        timestamp: now,
+        context: 'completion_pattern',
+      });
+      return;
+    }
+
+    // Check immediate patterns (permission prompts, etc.)
     if (this.immediatePatternRe?.test(combinedOutput)) {
       this.processSignal({
         sessionId: event.sessionId,
@@ -558,7 +572,7 @@ export class WaitingDetector extends EventEmitter {
    * Compile output patterns into regex
    */
   private compilePatterns(): void {
-    const { immediate, questionPatterns } = this.config.outputPatterns;
+    const { immediate, questionPatterns, completionPatterns } = this.config.outputPatterns;
 
     if (immediate.length > 0) {
       const escaped = immediate.map((p) => this.escapeRegex(p));
@@ -576,6 +590,11 @@ export class WaitingDetector extends EventEmitter {
         return this.escapeRegex(p);
       });
       this.questionPatternRe = new RegExp(patterns.join('|'), 'im');
+    }
+
+    if (completionPatterns.length > 0) {
+      const escaped = completionPatterns.map((p) => this.escapeRegex(p));
+      this.completionPatternRe = new RegExp(escaped.join('|'), 'i');
     }
   }
 
