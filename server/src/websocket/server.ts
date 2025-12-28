@@ -313,6 +313,7 @@ export class WebSocketManager {
    * Handle incoming message
    */
   private handleMessage(ws: ExtendedWebSocket, data: RawData): void {
+    console.log(`[WebSocket] handleMessage called, data length: ${Buffer.isBuffer(data) ? data.length : String(data).length}`);
     // Update activity
     ws.connectionInfo.lastActivity = new Date();
     ws.connectionInfo.isAlive = true;
@@ -345,6 +346,7 @@ export class WebSocketManager {
     }
 
     // Route message to handler
+    console.log(`[WebSocket] Received message type: ${message.type}`, message.payload);
     switch (message.type) {
       case 'session:subscribe':
         void this.handleSubscribe(ws, message.payload.sessionId);
@@ -397,13 +399,17 @@ export class WebSocketManager {
    * Handle subscribe to session
    */
   private async handleSubscribe(ws: ExtendedWebSocket, sessionId: string): Promise<void> {
+    console.log(`[WebSocket] handleSubscribe called for session ${sessionId}`);
     // Check if session exists (in-memory or database)
     const activeSession = sessionSupervisor.getActiveSession(sessionId);
+    console.log(`[WebSocket] Active session in memory: ${activeSession ? 'found' : 'not found'}`);
     if (!activeSession) {
       // Fall back to database check
       try {
         await sessionSupervisor.getSession(sessionId);
-      } catch {
+        console.log(`[WebSocket] Session found in database`);
+      } catch (err) {
+        console.error(`[WebSocket] Session not found in database:`, err);
         this.sendError(ws, WS_ERROR_CODES.SESSION_NOT_FOUND, `Session not found: ${sessionId}`);
         return;
       }
@@ -557,9 +563,11 @@ export class WebSocketManager {
     rows?: number
   ): void {
     const connectionId = ws.connectionInfo.id;
+    console.log(`[WebSocket] handlePtyAttach called: session=${sessionId}, cols=${cols}, rows=${rows}`);
 
     // Check if PTY is available on this system
     if (!ptyManager.isAvailable()) {
+      console.log(`[WebSocket] PTY not available, reason: ${ptyManager.getUnavailableReason()}`);
       const reason = ptyManager.getUnavailableReason() ?? 'PTY not available';
       this.sendError(ws, WS_ERROR_CODES.PTY_ATTACH_FAILED,
         `PTY not available on this system: ${reason}. ` +
@@ -602,6 +610,7 @@ export class WebSocketManager {
         console.log(`[WebSocket] PTY attached: connection ${connectionId} to session ${sessionId}`);
       })
       .catch((error: unknown) => {
+        console.error(`[WebSocket] PTY attach failed for session ${sessionId}:`, error);
         if (error instanceof PtySessionNotFoundError) {
           this.sendError(ws, WS_ERROR_CODES.SESSION_NOT_FOUND, error.message);
         } else if (error instanceof PtyInvalidPaneError) {

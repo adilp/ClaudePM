@@ -61,6 +61,7 @@ export function SessionDetail() {
   const { connectionState, subscribe, unsubscribe, lastMessage, sendMessage, ptyAttach, ptyDetach, ptyWrite, ptyResize } = useWebSocket();
   const [isPtyAttached, setIsPtyAttached] = useState(false);
   const [useLegacyMode, setUseLegacyMode] = useState(false);
+  const [isTerminalReady, setIsTerminalReady] = useState(false);
 
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
@@ -123,10 +124,14 @@ export function SessionDetail() {
     // Focus terminal for keyboard input
     terminal.focus();
 
+    // Mark terminal as ready
+    setIsTerminalReady(true);
+
     return () => {
       terminal.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
+      setIsTerminalReady(false);
     };
   }, []);
 
@@ -142,13 +147,13 @@ export function SessionDetail() {
 
   // Attach to session via PTY for true terminal emulation
   useEffect(() => {
-    if (sessionId && connectionState === 'connected' && fitAddonRef.current) {
+    if (sessionId && connectionState === 'connected' && isTerminalReady && fitAddonRef.current) {
       // Get terminal dimensions
       const dims = fitAddonRef.current.proposeDimensions();
       const cols = dims?.cols ?? 80;
       const rows = dims?.rows ?? 24;
 
-      console.log('[Terminal] Attaching PTY:', { sessionId, cols, rows, connectionState });
+      console.log('[Terminal] Attaching PTY:', { sessionId, cols, rows, connectionState, isTerminalReady });
 
       // Attach via PTY
       ptyAttach(sessionId, cols, rows);
@@ -163,7 +168,7 @@ export function SessionDetail() {
         setIsPtyAttached(false);
       };
     }
-  }, [sessionId, connectionState, ptyAttach, ptyDetach, subscribe, unsubscribe]);
+  }, [sessionId, connectionState, isTerminalReady, ptyAttach, ptyDetach, subscribe, unsubscribe]);
 
   // Handle terminal keyboard input - send to PTY or legacy mode
   useEffect(() => {

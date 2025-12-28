@@ -215,11 +215,36 @@ export class PtyManager extends EventEmitter {
     const cols = options.cols ?? this.defaultCols;
     const rows = options.rows ?? this.defaultRows;
 
-    // Spawn tmux attach targeting the specific pane
-    // Using -t with pane ID directly attaches to that pane
-    // Use full path to tmux to avoid PATH issues in spawned processes
+    // For tmux panes, we use a "virtual PTY" approach:
+    // - Spawn a shell that we control for the PTY interface
+    // - Poll capture-pane for output and display it
+    // - Use send-keys for input
+    // This provides an independent view without affecting the user's tmux session
+    console.log(`[PtyManager] Setting up virtual PTY for pane ${paneId}`);
+
+    // Spawn a shell that will act as our PTY interface
+    // We'll capture tmux output and display it here
     const tmuxPath = process.env.TMUX_PATH ?? '/usr/local/bin/tmux';
-    const ptyProcess = pty.spawn(tmuxPath, ['attach-session', '-t', paneId], {
+
+    // Use a simple approach: spawn tmux capture-pane in a loop
+    // This script continuously captures and displays pane content
+    const script = `
+      trap 'exit 0' INT TERM
+      clear
+      last_hash=""
+      while true; do
+        content=$("${tmuxPath}" capture-pane -t "${paneId}" -p -e 2>/dev/null)
+        current_hash=$(echo "$content" | md5 -q 2>/dev/null || echo "$content" | md5sum 2>/dev/null | cut -d' ' -f1)
+        if [ "$current_hash" != "$last_hash" ]; then
+          clear
+          echo "$content"
+          last_hash="$current_hash"
+        fi
+        sleep 0.1
+      done
+    `;
+
+    const ptyProcess = pty.spawn('/bin/bash', ['-c', script], {
       name: 'xterm-256color',
       cols,
       rows,
@@ -228,7 +253,6 @@ export class PtyManager extends EventEmitter {
         ...process.env,
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
-        // Ensure common paths are in PATH
         PATH: `${process.env.PATH ?? ''}:/usr/local/bin:/usr/bin:/bin`,
       },
     });

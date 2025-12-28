@@ -1,9 +1,10 @@
 /**
  * WebSocket Hook
  * Manages WebSocket connection with auto-reconnect and subscriptions
+ * Uses a singleton pattern to share connection across all components
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useSyncExternalStore } from 'react';
 
 // ============================================================================
 // Types
@@ -136,42 +137,61 @@ interface UseWebSocketReturn {
 }
 
 // ============================================================================
-// Hook Implementation
+// Singleton WebSocket Manager
 // ============================================================================
 
-export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
-  const {
-    // Use /ws path which Vite proxies to the backend WebSocket server
-    url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`,
-    reconnectInterval = 3000,
-    maxReconnectAttempts = 10,
-  } = options;
+type MessageListener = (message: IncomingMessage) => void;
+type StateListener = () => void;
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const reconnectTimeoutRef = useRef<number | null>(null);
-  const subscribedSessionsRef = useRef<Set<string>>(new Set());
+class WebSocketManager {
+  private ws: WebSocket | null = null;
+  private connectionState: ConnectionState = 'disconnected';
+  private lastMessage: IncomingMessage | null = null;
+  private subscribedSessions = new Set<string>();
+  private messageListeners = new Set<MessageListener>();
+  private stateListeners = new Set<StateListener>();
+  private reconnectTimeout: number | null = null;
+  private reconnectAttempts = 0;
+  private isConnecting = false;
 
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
-  const [lastMessage, setLastMessage] = useState<IncomingMessage | null>(null);
+  private url: string;
+  private reconnectInterval: number;
+  private maxReconnectAttempts: number;
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+  constructor(
+    url: string = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`,
+    reconnectInterval: number = 3000,
+    maxReconnectAttempts: number = 10
+  ) {
+    this.url = url;
+    this.reconnectInterval = reconnectInterval;
+    this.maxReconnectAttempts = maxReconnectAttempts;
+  }
+
+  connect(): void {
+    // Prevent multiple simultaneous connection attempts
+    if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN) {
+      console.log('[WebSocketManager] Already connected or connecting');
       return;
     }
 
-    setConnectionState('connecting');
+    this.isConnecting = true;
+    this.setConnectionState('connecting');
 
     try {
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
+      console.log('[WebSocketManager] Creating new WebSocket connection');
+      const ws = new WebSocket(this.url);
+      this.ws = ws;
 
       ws.onopen = () => {
-        setConnectionState('connected');
-        reconnectAttemptsRef.current = 0;
+        console.log('[WebSocketManager] Connection opened');
+        this.isConnecting = false;
+        this.setConnectionState('connected');
+        this.reconnectAttempts = 0;
 
         // Resubscribe to any sessions
-        subscribedSessionsRef.current.forEach((sessionId) => {
+        this.subscribedSessions.forEach((sessionId) => {
+          console.log('[WebSocketManager] Resubscribing to session:', sessionId);
           ws.send(JSON.stringify({ type: 'session:subscribe', payload: { sessionId } }));
         });
       };
@@ -179,100 +199,198 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as IncomingMessage;
-          setLastMessage(message);
+          this.lastMessage = message;
+          this.notifyStateListeners();
+          this.messageListeners.forEach((listener) => listener(message));
         } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
+          console.error('[WebSocketManager] Failed to parse message:', err);
         }
       };
 
       ws.onclose = () => {
-        setConnectionState('disconnected');
-        wsRef.current = null;
+        console.log('[WebSocketManager] Connection closed');
+        this.isConnecting = false;
+        this.ws = null;
+        this.setConnectionState('disconnected');
 
         // Attempt reconnect
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current++;
-          reconnectTimeoutRef.current = window.setTimeout(() => {
-            connect();
-          }, reconnectInterval);
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          console.log(`[WebSocketManager] Scheduling reconnect attempt ${this.reconnectAttempts}`);
+          this.reconnectTimeout = window.setTimeout(() => {
+            this.connect();
+          }, this.reconnectInterval);
         }
       };
 
-      ws.onerror = () => {
-        setConnectionState('error');
+      ws.onerror = (error) => {
+        console.error('[WebSocketManager] Connection error:', error);
+        this.isConnecting = false;
+        this.setConnectionState('error');
       };
     } catch (err) {
-      console.error('Failed to create WebSocket:', err);
-      setConnectionState('error');
+      console.error('[WebSocketManager] Failed to create WebSocket:', err);
+      this.isConnecting = false;
+      this.setConnectionState('error');
     }
-  }, [url, reconnectInterval, maxReconnectAttempts]);
+  }
 
-  const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
+  private setConnectionState(state: ConnectionState): void {
+    this.connectionState = state;
+    this.notifyStateListeners();
+  }
+
+  private notifyStateListeners(): void {
+    this.stateListeners.forEach((listener) => listener());
+  }
+
+  getConnectionState(): ConnectionState {
+    return this.connectionState;
+  }
+
+  getLastMessage(): IncomingMessage | null {
+    return this.lastMessage;
+  }
+
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  // Subscribe to state changes (for useSyncExternalStore)
+  subscribeToState(listener: StateListener): () => void {
+    this.stateListeners.add(listener);
+
+    // Auto-connect when first subscriber
+    if (this.stateListeners.size === 1 && !this.ws && !this.isConnecting) {
+      this.connect();
     }
-    reconnectAttemptsRef.current = maxReconnectAttempts; // Prevent reconnect
-    wsRef.current?.close();
-    wsRef.current = null;
-    setConnectionState('disconnected');
-  }, [maxReconnectAttempts]);
 
-  const subscribe = useCallback((sessionId: string) => {
-    subscribedSessionsRef.current.add(sessionId);
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'session:subscribe', payload: { sessionId } }));
+    return () => {
+      this.stateListeners.delete(listener);
+    };
+  }
+
+  // Subscribe to messages
+  subscribeToMessages(listener: MessageListener): () => void {
+    this.messageListeners.add(listener);
+    return () => {
+      this.messageListeners.delete(listener);
+    };
+  }
+
+  // Session subscription
+  subscribeToSession(sessionId: string): void {
+    console.log('[WebSocketManager] subscribeToSession:', sessionId, 'isConnected:', this.isConnected());
+    this.subscribedSessions.add(sessionId);
+    if (this.isConnected()) {
+      const msg = JSON.stringify({ type: 'session:subscribe', payload: { sessionId } });
+      console.log('[WebSocketManager] Sending:', msg);
+      this.ws!.send(msg);
     }
-  }, []);
+  }
 
-  const unsubscribe = useCallback((sessionId: string) => {
-    subscribedSessionsRef.current.delete(sessionId);
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'session:unsubscribe', payload: { sessionId } }));
+  unsubscribeFromSession(sessionId: string): void {
+    this.subscribedSessions.delete(sessionId);
+    if (this.isConnected()) {
+      this.ws!.send(JSON.stringify({ type: 'session:unsubscribe', payload: { sessionId } }));
     }
-  }, []);
+  }
 
-  const sendMessage = useCallback((message: WebSocketMessage) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
+  send(message: WebSocketMessage): void {
+    if (this.isConnected()) {
+      this.ws!.send(JSON.stringify(message));
     } else {
-      console.warn('WebSocket not connected, message not sent:', message);
+      console.warn('[WebSocketManager] Not connected, message not sent:', message);
     }
-  }, []);
+  }
 
-  // PTY methods for true terminal emulation
-  const ptyAttach = useCallback((sessionId: string, cols?: number, rows?: number) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+  // PTY methods
+  ptyAttach(sessionId: string, cols?: number, rows?: number): void {
+    console.log('[WebSocketManager] ptyAttach:', { sessionId, cols, rows, isConnected: this.isConnected() });
+    if (this.isConnected()) {
       const payload: { sessionId: string; cols?: number; rows?: number } = { sessionId };
       if (cols !== undefined) payload.cols = cols;
       if (rows !== undefined) payload.rows = rows;
-      wsRef.current.send(JSON.stringify({ type: 'pty:attach', payload }));
+      const msg = JSON.stringify({ type: 'pty:attach', payload });
+      console.log('[WebSocketManager] Sending:', msg);
+      this.ws!.send(msg);
+    } else {
+      console.warn('[WebSocketManager] Not connected, cannot send pty:attach');
     }
+  }
+
+  ptyDetach(sessionId: string): void {
+    if (this.isConnected()) {
+      this.ws!.send(JSON.stringify({ type: 'pty:detach', payload: { sessionId } }));
+    }
+  }
+
+  ptyWrite(sessionId: string, data: string): void {
+    if (this.isConnected()) {
+      this.ws!.send(JSON.stringify({ type: 'pty:data', payload: { sessionId, data } }));
+    }
+  }
+
+  ptyResize(sessionId: string, cols: number, rows: number): void {
+    if (this.isConnected()) {
+      this.ws!.send(JSON.stringify({ type: 'pty:resize', payload: { sessionId, cols, rows } }));
+    }
+  }
+}
+
+// Create singleton instance
+const wsManager = new WebSocketManager();
+
+// ============================================================================
+// Hook Implementation
+// ============================================================================
+
+export function useWebSocket(_options: UseWebSocketOptions = {}): UseWebSocketReturn {
+  // Use useSyncExternalStore for connection state
+  const connectionState = useSyncExternalStore(
+    (callback) => wsManager.subscribeToState(callback),
+    () => wsManager.getConnectionState(),
+    () => 'disconnected' as ConnectionState // Server snapshot
+  );
+
+  // Track last message with local state (since it changes frequently)
+  const [lastMessage, setLastMessage] = useState<IncomingMessage | null>(null);
+
+  // Subscribe to messages
+  useEffect(() => {
+    return wsManager.subscribeToMessages((message) => {
+      setLastMessage(message);
+    });
+  }, []);
+
+  // Stable callbacks that delegate to the manager
+  const subscribe = useCallback((sessionId: string) => {
+    wsManager.subscribeToSession(sessionId);
+  }, []);
+
+  const unsubscribe = useCallback((sessionId: string) => {
+    wsManager.unsubscribeFromSession(sessionId);
+  }, []);
+
+  const sendMessage = useCallback((message: WebSocketMessage) => {
+    wsManager.send(message);
+  }, []);
+
+  const ptyAttach = useCallback((sessionId: string, cols?: number, rows?: number) => {
+    wsManager.ptyAttach(sessionId, cols, rows);
   }, []);
 
   const ptyDetach = useCallback((sessionId: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'pty:detach', payload: { sessionId } }));
-    }
+    wsManager.ptyDetach(sessionId);
   }, []);
 
   const ptyWrite = useCallback((sessionId: string, data: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'pty:data', payload: { sessionId, data } }));
-    }
+    wsManager.ptyWrite(sessionId, data);
   }, []);
 
   const ptyResize = useCallback((sessionId: string, cols: number, rows: number) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'pty:resize', payload: { sessionId, cols, rows } }));
-    }
+    wsManager.ptyResize(sessionId, cols, rows);
   }, []);
-
-  // Connect on mount, disconnect on unmount
-  useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
 
   return {
     connectionState,
