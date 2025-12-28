@@ -23,6 +23,11 @@ import type {
   AdhocTicketCreate,
   AdhocTicketResponse,
   StartTicketResponse,
+  SessionSummary,
+  ReviewReport,
+  CommitMessage,
+  PrDescription,
+  SessionActivity,
 } from '@/types/api';
 
 // ============================================================================
@@ -189,6 +194,32 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ input: text }),
     });
+  }
+
+  // Session Analysis (Claude SDK-powered)
+  async getSessionSummary(sessionId: string): Promise<SessionSummary> {
+    return this.request(`/sessions/${sessionId}/summary`);
+  }
+
+  async getSessionReviewReport(sessionId: string): Promise<ReviewReport> {
+    return this.request(`/sessions/${sessionId}/review-report`);
+  }
+
+  async generateCommitMessage(sessionId: string): Promise<CommitMessage> {
+    return this.request(`/sessions/${sessionId}/commit-message`, {
+      method: 'POST',
+    });
+  }
+
+  async generatePrDescription(sessionId: string, baseBranch?: string): Promise<PrDescription> {
+    const query = baseBranch ? `?base_branch=${baseBranch}` : '';
+    return this.request(`/sessions/${sessionId}/pr-description${query}`, {
+      method: 'POST',
+    });
+  }
+
+  async getSessionActivity(sessionId: string, lines = 100): Promise<SessionActivity> {
+    return this.request(`/sessions/${sessionId}/activity?lines=${lines}`);
   }
 
   // Git

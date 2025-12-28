@@ -9,6 +9,7 @@ import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, use
 import { useSessions } from '@/hooks/useSessions';
 import { cn } from '@/lib/utils';
 import type { TicketState } from '@/types/api';
+import { SessionSummaryCard, ReviewReportPanel } from '@/components/session';
 import {
   ArrowLeft,
   Play,
@@ -21,6 +22,7 @@ import {
   Pencil,
   X,
   Save,
+  Sparkles,
 } from 'lucide-react';
 
 const stateConfig: Record<TicketState, { label: string; color: string; bgColor: string; icon: typeof Clock }> = {
@@ -44,6 +46,14 @@ export function TicketDetail() {
   const hasRunningSession = sessions?.some(
     (s) => s.ticket_id === ticketId && s.status === 'running'
   ) ?? false;
+
+  // Get the most recent session for this ticket
+  const ticketSessions = sessions?.filter((s) => s.ticket_id === ticketId) ?? [];
+  const latestSession = ticketSessions.length > 0
+    ? ticketSessions.reduce((latest, s) =>
+        new Date(s.created_at) > new Date(latest.created_at) ? s : latest
+      )
+    : null;
 
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectFeedback, setRejectFeedback] = useState('');
@@ -314,6 +324,32 @@ export function TicketDetail() {
           )}
         </div>
       </div>
+
+      {/* AI Analysis Section - Show if there's a session for this ticket */}
+      {latestSession && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-purple-500" />
+            <h2 className="text-lg font-semibold">AI Analysis</h2>
+            <Link
+              to={`/sessions/${latestSession.id}`}
+              className="text-sm text-muted-foreground hover:text-foreground ml-auto"
+            >
+              View Session
+            </Link>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Session Summary */}
+            <SessionSummaryCard sessionId={latestSession.id} />
+
+            {/* Review Report - Show if ticket is in review or done */}
+            {(ticket.state === 'review' || ticket.state === 'done') && (
+              <ReviewReportPanel sessionId={latestSession.id} />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {showRejectModal && (

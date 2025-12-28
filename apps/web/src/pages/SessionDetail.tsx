@@ -12,6 +12,7 @@ import { useSession, useStopSession, useSendInput } from '@/hooks/useSessions';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { cn } from '@/lib/utils';
 import type { SessionStatus } from '@/types/api';
+import { SessionSummaryCard, SessionActivityFeed, ReviewReportPanel } from '@/components/session';
 import {
   ArrowLeft,
   Play,
@@ -25,6 +26,9 @@ import {
   GitCommit,
   GitBranch,
   GitPullRequest,
+  Sparkles,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
 
 const statusConfig: Record<SessionStatus, { label: string; color: string; bgColor: string; icon: typeof Play }> = {
@@ -67,6 +71,8 @@ export function SessionDetail() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [isWaiting, setIsWaiting] = useState(false);
   const [contextPercent, setContextPercent] = useState<number | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisTab, setAnalysisTab] = useState<'summary' | 'activity' | 'review'>('summary');
 
   // Initialize terminal
   useEffect(() => {
@@ -456,6 +462,25 @@ export function SessionDetail() {
               </div>
             )}
 
+            {/* Analysis Panel Toggle */}
+            <button
+              onClick={() => setShowAnalysis(!showAnalysis)}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                showAnalysis
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
+              )}
+            >
+              {showAnalysis ? (
+                <PanelRightClose className="h-4 w-4" />
+              ) : (
+                <PanelRightOpen className="h-4 w-4" />
+              )}
+              <Sparkles className="h-4 w-4" />
+              AI Analysis
+            </button>
+
             {/* Stop Button */}
             {isActive && (
               <button
@@ -496,12 +521,66 @@ export function SessionDetail() {
         )}
       </div>
 
-      {/* Terminal */}
-      <div
-        className="flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden min-h-0 cursor-text"
-        onClick={() => xtermRef.current?.focus()}
-      >
-        <div ref={terminalRef} className="h-full w-full p-2" />
+      {/* Main Content Area */}
+      <div className="flex-1 flex gap-4 min-h-0">
+        {/* Terminal */}
+        <div
+          className={cn(
+            'flex-1 rounded-lg border bg-[#1a1b26] overflow-hidden cursor-text transition-all',
+            showAnalysis ? 'w-2/3' : 'w-full'
+          )}
+          onClick={() => xtermRef.current?.focus()}
+        >
+          <div ref={terminalRef} className="h-full w-full p-2" />
+        </div>
+
+        {/* Analysis Panel */}
+        {showAnalysis && (
+          <div className="w-1/3 min-w-[320px] max-w-[480px] flex flex-col gap-4 overflow-y-auto">
+            {/* Tab Navigation */}
+            <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              {(['summary', 'activity', 'review'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setAnalysisTab(tab)}
+                  className={cn(
+                    'flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors capitalize',
+                    analysisTab === tab
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab Content */}
+            <div className="flex-1 overflow-y-auto">
+              {analysisTab === 'summary' && (
+                <SessionSummaryCard sessionId={sessionId!} />
+              )}
+              {analysisTab === 'activity' && (
+                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-700">
+                    <h3 className="text-sm font-medium text-gray-200">Activity Feed</h3>
+                  </div>
+                  <SessionActivityFeed sessionId={sessionId!} maxEvents={30} />
+                </div>
+              )}
+              {analysisTab === 'review' && session.ticket_id && (
+                <ReviewReportPanel sessionId={sessionId!} />
+              )}
+              {analysisTab === 'review' && !session.ticket_id && (
+                <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 text-center">
+                  <p className="text-gray-400 text-sm">
+                    Review reports are only available for sessions with associated tickets.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input Area */}

@@ -226,6 +226,74 @@ export interface PaginatedResponse<T> {
 }
 
 // ============================================================================
+// Session Analysis Types
+// ============================================================================
+
+export interface SessionAction {
+  type: 'read' | 'write' | 'edit' | 'bash' | 'test' | 'other';
+  description: string;
+  target?: string;
+}
+
+export interface FileChange {
+  path: string;
+  changeType: 'created' | 'modified' | 'deleted';
+  summary?: string;
+}
+
+export interface SessionSummary {
+  session_id: string;
+  ticket_id?: string;
+  headline: string;
+  description: string;
+  actions: SessionAction[];
+  files_changed: FileChange[];
+  status: 'completed' | 'in_progress' | 'blocked' | 'failed';
+  analyzed_at: string;
+}
+
+export interface ReviewReport {
+  session_id: string;
+  ticket_id: string;
+  ticket_title: string;
+  completion_status: 'complete' | 'partial' | 'blocked' | 'unclear';
+  confidence: number;
+  accomplished: string[];
+  remaining: string[];
+  concerns: string[];
+  next_steps: string[];
+  suggested_commit_message?: string;
+  suggested_pr_description?: string;
+  generated_at: string;
+}
+
+export interface CommitMessage {
+  message: string;
+  type: 'feat' | 'fix' | 'refactor' | 'docs' | 'test' | 'chore';
+  scope?: string;
+  breaking: boolean;
+}
+
+export interface PrDescription {
+  title: string;
+  body: string;
+  labels: string[];
+}
+
+export interface ActivityEvent {
+  type: 'tool_use' | 'thinking' | 'text' | 'error' | 'milestone';
+  tool?: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface SessionActivity {
+  session_id: string;
+  events: ActivityEvent[];
+  line_count: number;
+}
+
+// ============================================================================
 // Error Types
 // ============================================================================
 

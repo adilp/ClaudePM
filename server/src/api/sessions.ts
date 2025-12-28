@@ -29,6 +29,12 @@ import {
   SessionInputError,
   type SessionInfo,
 } from '../services/session-supervisor.js';
+import {
+  sessionAnalyzer,
+  SessionAnalyzerError,
+  AnalysisTimeoutError,
+  AnalysisParseError,
+} from '../services/session-analyzer.js';
 import type { Session } from '../generated/prisma/index.js';
 
 const router = Router();
@@ -319,6 +325,209 @@ router.post(
       total_checked: result.totalChecked,
       orphaned_count: result.orphanedSessions.length,
     });
+  })
+);
+
+// ============================================================================
+// Session Analysis Endpoints (Anthropic SDK-powered)
+// ============================================================================
+
+/**
+ * Handle session analyzer errors
+ */
+function handleAnalyzerError(err: Error, res: Response<ErrorResponse>): void {
+  if (err instanceof AnalysisTimeoutError) {
+    res.status(504).json({ error: err.message });
+  } else if (err instanceof AnalysisParseError) {
+    res.status(500).json({ error: `Failed to parse analysis response: ${err.rawOutput.substring(0, 200)}` });
+  } else if (err instanceof SessionAnalyzerError) {
+    res.status(400).json({ error: err.message });
+  } else {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+/**
+ * Get session summary
+ * GET /sessions/:id/summary
+ */
+router.get(
+  '/sessions/:id/summary',
+  asyncHandler(async (req, res) => {
+    try {
+      const { id } = sessionIdSchema.parse(req.params);
+      const summary = await sessionAnalyzer.generateSummary(id);
+
+      res.json({
+        session_id: summary.sessionId,
+        ticket_id: summary.ticketId,
+        headline: summary.headline,
+        description: summary.description,
+        actions: summary.actions,
+        files_changed: summary.filesChanged,
+        status: summary.status,
+        analyzed_at: summary.analyzedAt.toISOString(),
+      });
+    } catch (err) {
+      handleAnalyzerError(err as Error, res);
+    }
+  })
+);
+
+/**
+ * Get review report for a session
+ * GET /sessions/:id/review-report
+ */
+router.get(
+  '/sessions/:id/review-report',
+  asyncHandler(async (req, res) => {
+    try {
+      const { id } = sessionIdSchema.parse(req.params);
+      const report = await sessionAnalyzer.generateReviewReport(id);
+
+      res.json({
+        session_id: report.sessionId,
+        ticket_id: report.ticketId,
+        ticket_title: report.ticketTitle,
+        completion_status: report.completionStatus,
+        confidence: report.confidence,
+        accomplished: report.accomplished,
+        remaining: report.remaining,
+        concerns: report.concerns,
+        next_steps: report.nextSteps,
+        suggested_commit_message: report.suggestedCommitMessage,
+        suggested_pr_description: report.suggestedPrDescription,
+        generated_at: report.generatedAt.toISOString(),
+      });
+    } catch (err) {
+      handleAnalyzerError(err as Error, res);
+    }
+  })
+);
+
+/**
+ * Generate commit message for a session's changes
+ * POST /sessions/:id/commit-message
+ */
+router.post(
+  '/sessions/:id/commit-message',
+  asyncHandler(async (req, res) => {
+    try {
+      const { id } = sessionIdSchema.parse(req.params);
+
+      // Get session to find project path
+      const session = await sessionSupervisor.getSession(id);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      // Get project info
+      const { prisma } = await import('../config/db.js');
+      const dbSession = await prisma.session.findUnique({
+        where: { id },
+        include: { project: true },
+      });
+
+      if (!dbSession?.project) {
+        res.status(400).json({ error: 'Session not associated with a project' });
+        return;
+      }
+
+      const result = await sessionAnalyzer.generateCommitMessage(
+        dbSession.project.repoPath,
+        dbSession.ticketId ?? undefined
+      );
+
+      res.json({
+        message: result.message,
+        type: result.type,
+        scope: result.scope,
+        breaking: result.breaking,
+      });
+    } catch (err) {
+      handleAnalyzerError(err as Error, res);
+    }
+  })
+);
+
+/**
+ * Generate PR description for a session's work
+ * POST /sessions/:id/pr-description
+ */
+router.post(
+  '/sessions/:id/pr-description',
+  asyncHandler(async (req, res) => {
+    try {
+      const { id } = sessionIdSchema.parse(req.params);
+      const baseBranch = (req.query.base_branch as string) || 'main';
+
+      // Get session with project and ticket
+      const { prisma } = await import('../config/db.js');
+      const session = await prisma.session.findUnique({
+        where: { id },
+        include: { project: true, ticket: true },
+      });
+
+      if (!session?.project) {
+        res.status(400).json({ error: 'Session not associated with a project' });
+        return;
+      }
+
+      if (!session.ticketId) {
+        res.status(400).json({ error: 'Session not associated with a ticket' });
+        return;
+      }
+
+      const result = await sessionAnalyzer.generatePrDescription(
+        session.project.repoPath,
+        session.ticketId,
+        baseBranch
+      );
+
+      res.json({
+        title: result.title,
+        body: result.body,
+        labels: result.labels,
+      });
+    } catch (err) {
+      handleAnalyzerError(err as Error, res);
+    }
+  })
+);
+
+/**
+ * Parse activity events from session output
+ * GET /sessions/:id/activity
+ */
+router.get(
+  '/sessions/:id/activity',
+  asyncHandler(async (req, res) => {
+    try {
+      const { id } = sessionIdSchema.parse(req.params);
+      const lines = parseInt(req.query.lines as string) || 100;
+
+      // Get session output
+      const output = sessionSupervisor.getSessionOutput(id, lines);
+      const events = sessionAnalyzer.parseActivityFromOutput(id, output.join('\n'));
+
+      res.json({
+        session_id: id,
+        events: events.map((e) => ({
+          type: e.type,
+          tool: e.tool,
+          description: e.description,
+          timestamp: e.timestamp.toISOString(),
+        })),
+        line_count: output.length,
+      });
+    } catch (err) {
+      if (err instanceof SessionNotFoundError) {
+        res.status(404).json({ error: 'Session not found' });
+      } else {
+        handleAnalyzerError(err as Error, res);
+      }
+    }
   })
 );
 
