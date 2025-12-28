@@ -10,6 +10,7 @@ import {
   ticketIdSchema,
   createAdhocTicketSchema,
   updateTicketContentSchema,
+  updateTicketTitleSchema,
   type AdhocTicketResponse,
   type TicketContentResponse,
   type ErrorResponse,
@@ -21,6 +22,7 @@ import {
   ProjectNotFoundError,
   TicketNotFoundError,
   FileOperationError,
+  TicketCannotBeDeletedError,
 } from '../services/adhoc-tickets.js';
 import type { Ticket } from '../generated/prisma/index.js';
 
@@ -86,6 +88,11 @@ function handleAdhocTicketError(err: Error, res: Response<ErrorResponse>): void 
   }
 
   if (err instanceof SlugExistsError) {
+    res.status(409).json({ error: err.message });
+    return;
+  }
+
+  if (err instanceof TicketCannotBeDeletedError) {
     res.status(409).json({ error: err.message });
     return;
   }
@@ -181,6 +188,42 @@ router.put(
       file_path: ticket.filePath,
       content,
     });
+  })
+);
+
+/**
+ * PATCH /api/tickets/:ticketId/title
+ * Update the title of an adhoc ticket
+ * Also renames the file to match the new slug
+ *
+ * Body:
+ * - title: New title (3-100 chars)
+ */
+router.patch(
+  '/tickets/:ticketId/title',
+  asyncHandler<AdhocTicketResponse | ErrorResponse>(async (req, res) => {
+    const { ticketId } = ticketIdSchema.parse(req.params);
+    const { title } = updateTicketTitleSchema.parse(req.body);
+
+    const ticket = await adhocTicketsService.updateTicketTitle(ticketId, title);
+
+    res.json(toAdhocTicketResponse(ticket));
+  })
+);
+
+/**
+ * DELETE /api/tickets/:ticketId
+ * Delete a ticket (both database record and file)
+ * Will fail if ticket has a running session
+ */
+router.delete(
+  '/tickets/:ticketId',
+  asyncHandler<{ message: string } | ErrorResponse>(async (req, res) => {
+    const { ticketId } = ticketIdSchema.parse(req.params);
+
+    await adhocTicketsService.deleteTicket(ticketId);
+
+    res.json({ message: 'Ticket deleted successfully' });
   })
 );
 

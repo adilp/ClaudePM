@@ -54,6 +54,17 @@ export const updateTicketContentSchema = z.object({
     .max(100000, 'Content must be at most 100000 characters'),
 });
 
+/**
+ * Schema for updating ticket title
+ * - title: 3-100 characters
+ */
+export const updateTicketTitleSchema = z.object({
+  title: z
+    .string()
+    .min(3, 'Title must be at least 3 characters')
+    .max(100, 'Title must be at most 100 characters'),
+});
+
 // ============================================================================
 // Input Types
 // ============================================================================
@@ -62,6 +73,7 @@ export type ProjectIdInput = z.infer<typeof projectIdSchema>;
 export type TicketIdInput = z.infer<typeof ticketIdSchema>;
 export type CreateAdhocTicketInput = z.infer<typeof createAdhocTicketSchema>;
 export type UpdateTicketContentInput = z.infer<typeof updateTicketContentSchema>;
+export type UpdateTicketTitleInput = z.infer<typeof updateTicketTitleSchema>;
 
 // ============================================================================
 // Response Types

@@ -213,8 +213,14 @@ export interface SessionAnalyzerConfig {
   outputLinesToAnalyze: number;
 }
 
+/**
+ * Available models (cheapest to most capable):
+ * - claude-3-5-haiku-20241022 (fastest, cheapest - good for summaries)
+ * - claude-sonnet-4-20250514 (balanced)
+ * - claude-opus-4-20250514 (most capable)
+ */
 export const DEFAULT_ANALYZER_CONFIG: SessionAnalyzerConfig = {
-  model: 'claude-sonnet-4-20250514',
+  model: process.env.ANALYZER_MODEL || 'claude-3-5-haiku-20241022',
   maxTokens: 2048,
   timeoutMs: 60_000,
   enableActivityStreaming: true,

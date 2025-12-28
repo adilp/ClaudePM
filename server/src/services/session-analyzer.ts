@@ -551,17 +551,17 @@ Rules:
     }, this.config.timeoutMs);
 
     try {
+      console.log('[SessionAnalyzer] Calling Claude SDK with model:', this.config.model);
       const stream = query({
         prompt,
         options: {
           model: this.config.model,
           maxTurns: 1,
           abortController,
-          // Don't use any tools for analysis - just get text response
+          // Disable all tools - we just want text analysis
           tools: [],
-          // Bypass permissions since we're just doing analysis
-          permissionMode: 'bypassPermissions',
-          allowDangerouslySkipPermissions: true,
+          // Auto-allow everything since no tools are used anyway
+          permissionMode: 'default',
         },
       });
 
@@ -595,14 +595,16 @@ Rules:
 
       return resultText;
     } catch (error) {
+      console.error('[SessionAnalyzer] Claude SDK error:', error);
       if (error instanceof SessionAnalyzerError) {
         throw error;
       }
       if (abortController.signal.aborted) {
         throw new AnalysisTimeoutError(this.config.timeoutMs);
       }
+      const errorMessage = error instanceof Error ? error.message : String(error);
       throw new SessionAnalyzerError(
-        `Claude SDK error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Claude SDK error: ${errorMessage}`,
         'SDK_ERROR'
       );
     } finally {
@@ -625,9 +627,14 @@ Rules:
 
   private async getGitDiff(repoPath: string, baseBranch?: string): Promise<string> {
     try {
-      const diffCmd = baseBranch
-        ? `git diff ${baseBranch}...HEAD -- . ":(exclude)*.md" ":(exclude)docs/*"`
-        : 'git diff HEAD -- . ":(exclude)*.md" ":(exclude)docs/*"';
+      // Determine base branch if not provided
+      let base = baseBranch;
+      if (!base) {
+        base = await this.detectBaseBranch(repoPath);
+      }
+
+      // Compare against base branch, excluding markdown files
+      const diffCmd = `git diff ${base}...HEAD -- . ":(exclude)*.md"`;
 
       const { stdout } = await execAsync(diffCmd, {
         cwd: repoPath,
@@ -642,6 +649,29 @@ Rules:
       return diff || 'No changes detected';
     } catch {
       return 'Git diff not available';
+    }
+  }
+
+  private async detectBaseBranch(repoPath: string): Promise<string> {
+    try {
+      // Try to get the default branch from remote
+      const { stdout } = await execAsync(
+        'git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed "s@^refs/remotes/origin/@@"',
+        { cwd: repoPath, timeout: 5000 }
+      );
+      const branch = stdout.trim();
+      if (branch) return branch;
+    } catch {
+      // Fallback: check if main or master exists
+    }
+
+    try {
+      // Check if 'main' exists
+      await execAsync('git rev-parse --verify main', { cwd: repoPath, timeout: 5000 });
+      return 'main';
+    } catch {
+      // Fall back to 'master'
+      return 'master';
     }
   }
 

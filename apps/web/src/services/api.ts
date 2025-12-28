@@ -154,6 +154,17 @@ class ApiClient {
     });
   }
 
+  async updateTicketTitle(ticketId: string, title: string): Promise<Ticket> {
+    return this.request(`/tickets/${ticketId}/title`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    });
+  }
+
+  async deleteTicket(ticketId: string): Promise<void> {
+    return this.request(`/tickets/${ticketId}`, { method: 'DELETE' });
+  }
+
   async startTicket(ticketId: string): Promise<StartTicketResponse> {
     return this.request(`/tickets/${ticketId}/start`, { method: 'POST' });
   }

@@ -140,3 +140,30 @@ export function useStartTicket() {
     },
   });
 }
+
+export function useUpdateTicketTitle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ ticketId, title }: { ticketId: string; title: string }) =>
+      api.updateTicketTitle(ticketId, title),
+    onSuccess: () => {
+      // Invalidate all ticket queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ticketKeys.all });
+    },
+  });
+}
+
+export function useDeleteTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ticketId: string) => api.deleteTicket(ticketId),
+    onSuccess: (_data, ticketId) => {
+      // Remove the deleted ticket's queries from cache (don't refetch them)
+      queryClient.removeQueries({ queryKey: ticketKeys.detail('', ticketId) });
+      // Invalidate list queries to refresh the ticket list
+      queryClient.invalidateQueries({ queryKey: ticketKeys.lists() });
+    },
+  });
+}

@@ -17,8 +17,10 @@ import {
   Check,
   GitCommit,
   GitPullRequest,
+  RefreshCw,
 } from 'lucide-react';
-import { useSessionReviewReport, useGenerateCommitMessage, useGeneratePrDescription } from '@/hooks/useSessions';
+import { useSessionReviewReport, useGenerateCommitMessage, useGeneratePrDescription, sessionKeys } from '@/hooks/useSessions';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ReviewReportPanelProps {
   sessionId: string;
@@ -32,7 +34,13 @@ const statusConfig = {
 };
 
 export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
-  const { data: report, isLoading, error, refetch } = useSessionReviewReport(sessionId);
+  const queryClient = useQueryClient();
+  const { data: report, isLoading, error, refetch, isFetching } = useSessionReviewReport(sessionId);
+
+  const handleRegenerate = () => {
+    queryClient.invalidateQueries({ queryKey: sessionKeys.reviewReport(sessionId) });
+    refetch();
+  };
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     accomplished: true,
     remaining: false,
@@ -99,6 +107,14 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-400" />
             <span className="text-sm font-medium text-gray-200">AI Review Report</span>
+            <button
+              onClick={handleRegenerate}
+              disabled={isFetching}
+              className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 disabled:opacity-50"
+              title="Regenerate report"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            </button>
           </div>
           <div className="flex items-center gap-3">
             {/* Confidence */}

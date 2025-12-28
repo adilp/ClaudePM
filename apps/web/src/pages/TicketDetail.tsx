@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
-import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent, useStartTicket } from '@/hooks/useTickets';
+import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent, useStartTicket, useUpdateTicketTitle, useDeleteTicket } from '@/hooks/useTickets';
 import { useSessions } from '@/hooks/useSessions';
 import { cn } from '@/lib/utils';
 import type { TicketState } from '@/types/api';
@@ -23,6 +23,8 @@ import {
   X,
   Save,
   Sparkles,
+  Trash2,
+  Check,
 } from 'lucide-react';
 
 const stateConfig: Record<TicketState, { label: string; color: string; bgColor: string; icon: typeof Clock }> = {
@@ -59,10 +61,15 @@ export function TicketDetail() {
   const [rejectFeedback, setRejectFeedback] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Query for ticket content (used for adhoc editing)
   const { data: ticketContent } = useTicketContent(ticketId!);
   const updateContent = useUpdateTicketContent();
+  const updateTitle = useUpdateTicketTitle();
+  const deleteTicket = useDeleteTicket();
 
   const handleStateChange = (newState: TicketState) => {
     if (newState !== ticket?.state) {
@@ -123,6 +130,29 @@ export function TicketDetail() {
     );
   };
 
+  const handleUpdateTitle = () => {
+    if (!editTitle.trim() || editTitle === ticket?.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+    updateTitle.mutate(
+      { ticketId: ticketId!, title: editTitle },
+      {
+        onSuccess: () => {
+          setIsEditingTitle(false);
+        },
+      }
+    );
+  };
+
+  const handleDelete = () => {
+    deleteTicket.mutate(ticketId!, {
+      onSuccess: () => {
+        navigate(`/projects/${projectId}`);
+      },
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -171,7 +201,52 @@ export function TicketDetail() {
               </span>
             )}
           </div>
-          <h1 className="text-2xl font-bold">{ticket.title}</h1>
+          {isEditingTitle ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleUpdateTitle();
+                  if (e.key === 'Escape') setIsEditingTitle(false);
+                }}
+                className="text-2xl font-bold bg-background border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                onClick={handleUpdateTitle}
+                disabled={updateTitle.isPending}
+                className="p-1.5 rounded-md hover:bg-accent text-green-600"
+                title="Save"
+              >
+                <Check className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setIsEditingTitle(false)}
+                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
+                title="Cancel"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{ticket.title}</h1>
+              {ticket.is_adhoc && (
+                <button
+                  onClick={() => {
+                    setEditTitle(ticket.title);
+                    setIsEditingTitle(true);
+                  }}
+                  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
+                  title="Edit title"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
           <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
             <FileText className="h-4 w-4" />
             {ticket.file_path}
@@ -236,6 +311,18 @@ export function TicketDetail() {
               <CheckCircle className="h-4 w-4" />
               Completed
             </span>
+          )}
+
+          {/* Delete button - only show if no running session */}
+          {!hasRunningSession && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 hover:border-red-300"
+              title="Delete ticket"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </button>
           )}
         </div>
       </div>
@@ -382,6 +469,41 @@ export function TicketDetail() {
                 className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {rejectTicket.isPending ? 'Rejecting...' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card rounded-lg border shadow-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Ticket
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Are you sure you want to delete this ticket? This action cannot be undone.
+              The ticket file and all associated data will be permanently removed.
+            </p>
+            <div className="rounded-md bg-muted p-3 mb-4">
+              <p className="font-medium text-sm">{ticket.title}</p>
+              <p className="text-xs text-muted-foreground">{ticket.file_path}</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-sm rounded-md border hover:bg-accent"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteTicket.isPending}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteTicket.isPending ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

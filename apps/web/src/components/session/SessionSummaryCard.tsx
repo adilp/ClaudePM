@@ -3,9 +3,11 @@
  * Displays AI-generated summary of a session's work
  */
 
-import { FileText, Code, Terminal, CheckCircle, Clock, AlertCircle, XCircle, Loader2, Sparkles } from 'lucide-react';
+import { FileText, Code, Terminal, CheckCircle, Clock, AlertCircle, XCircle, Loader2, Sparkles, RefreshCw } from 'lucide-react';
 import { useSessionSummary } from '@/hooks/useSessions';
 import type { SessionAction, FileChange } from '@/types/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { sessionKeys } from '@/hooks/useSessions';
 
 interface SessionSummaryCardProps {
   sessionId: string;
@@ -29,7 +31,14 @@ const statusConfig = {
 };
 
 export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
-  const { data: summary, isLoading, error, refetch } = useSessionSummary(sessionId);
+  const queryClient = useQueryClient();
+  const { data: summary, isLoading, error, refetch, isFetching } = useSessionSummary(sessionId);
+
+  const handleRegenerate = () => {
+    // Invalidate the cache to force a fresh fetch
+    queryClient.invalidateQueries({ queryKey: sessionKeys.summary(sessionId) });
+    refetch();
+  };
 
   if (isLoading) {
     return (
@@ -72,6 +81,14 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-purple-400" />
           <span className="text-sm font-medium text-gray-200">AI Summary</span>
+          <button
+            onClick={handleRegenerate}
+            disabled={isFetching}
+            className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 disabled:opacity-50"
+            title="Regenerate summary"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+          </button>
         </div>
         <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${statusConfig[summary.status].bg} ${statusConfig[summary.status].color}`}>
           <StatusIcon className="w-3 h-3" />
