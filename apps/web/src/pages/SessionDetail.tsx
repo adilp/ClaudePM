@@ -19,7 +19,6 @@ import {
   Square,
   Clock,
   AlertCircle,
-  Send,
   Wifi,
   WifiOff,
   TestTube,
@@ -73,10 +72,8 @@ export function SessionDetail() {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const [inputValue, setInputValue] = useState('');
-  const [inputHistory, setInputHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
   const [isWaiting, setIsWaiting] = useState(false);
   const [contextPercent, setContextPercent] = useState<number | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
@@ -123,6 +120,23 @@ export function SessionDetail() {
       setTtydUrl(null);
     };
   }, [useTtyd, sessionId]);
+
+  // Prevent Escape key from blurring the ttyd iframe (needed for vim)
+  useEffect(() => {
+    if (!useTtyd || !ttydUrl) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Re-focus the iframe after a brief delay to override browser's blur
+        setTimeout(() => {
+          iframeRef.current?.focus();
+        }, 0);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [useTtyd, ttydUrl]);
 
   // Initialize terminal (only when NOT using ttyd)
   useEffect(() => {
@@ -356,47 +370,6 @@ export function SessionDetail() {
     }
   }, [session?.context_percent]);
 
-  const handleSendInput = useCallback(() => {
-    if (!inputValue.trim() || !sessionId) return;
-
-    const command = inputValue.trim();
-    sendInput.mutate({ sessionId, text: command });
-
-    // Add to history
-    setInputHistory(prev => [...prev.filter(h => h !== command), command]);
-    setHistoryIndex(-1);
-    setInputValue('');
-
-    // Echo to terminal
-    if (xtermRef.current) {
-      xtermRef.current.writeln(`\x1b[1;32m> ${command}\x1b[0m`);
-    }
-  }, [inputValue, sessionId, sendInput]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendInput();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (inputHistory.length > 0) {
-        const newIndex = historyIndex < inputHistory.length - 1 ? historyIndex + 1 : historyIndex;
-        setHistoryIndex(newIndex);
-        setInputValue(inputHistory[inputHistory.length - 1 - newIndex] || '');
-      }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIndex > 0) {
-        const newIndex = historyIndex - 1;
-        setHistoryIndex(newIndex);
-        setInputValue(inputHistory[inputHistory.length - 1 - newIndex] || '');
-      } else {
-        setHistoryIndex(-1);
-        setInputValue('');
-      }
-    }
-  }, [handleSendInput, inputHistory, historyIndex]);
-
   const handleQuickAction = useCallback((action: QuickAction) => {
     if (!sessionId) return;
     sendInput.mutate({ sessionId, text: action.command });
@@ -453,56 +426,47 @@ export function SessionDetail() {
   const displayContext = contextPercent ?? session.context_percent;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      {/* Header */}
-      <div className="flex-shrink-0 space-y-4 mb-4">
+    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-8rem)]">
+      {/* Header - Compact on mobile */}
+      <div className="flex-shrink-0 space-y-2 md:space-y-4 mb-2 md:mb-4">
         <Link
           to="/sessions"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="hidden md:inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Sessions
         </Link>
 
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className={cn('rounded-lg p-3', statusInfo.bgColor)}>
-              <StatusIcon className={cn('h-6 w-6', statusInfo.color)} />
+        <div className="flex items-center justify-between gap-2 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-4 min-w-0">
+            <div className={cn('rounded-lg p-2 md:p-3 flex-shrink-0', statusInfo.bgColor)}>
+              <StatusIcon className={cn('h-4 w-4 md:h-6 md:w-6', statusInfo.color)} />
             </div>
-            <div>
-              <h1 className="text-xl font-bold font-mono">{session.id.slice(0, 12)}...</h1>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm md:text-xl font-bold font-mono truncate">{session.id.slice(0, 8)}...</h1>
                 <span className={cn(
-                  'px-2 py-0.5 rounded-full text-xs font-medium',
+                  'px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0',
                   statusInfo.bgColor,
                   statusInfo.color
                 )}>
                   {statusInfo.label}
                 </span>
-                {session.ticket_id && (
-                  <Link
-                    to={`/projects/${session.project_id}/tickets/${session.ticket_id}`}
-                    className="hover:text-foreground"
-                  >
-                    Ticket: {session.ticket_id.slice(0, 8)}...
-                  </Link>
-                )}
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 flex-shrink-0">
                   {connectionState === 'connected' ? (
                     <Wifi className="h-3 w-3 text-green-500" />
                   ) : (
                     <WifiOff className="h-3 w-3 text-red-500" />
                   )}
-                  {connectionState}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* Context Meter */}
+          <div className="flex items-center gap-1 md:gap-4 flex-shrink-0">
+            {/* Context Meter - Hidden on mobile */}
             {displayContext !== null && (
-              <div className="flex flex-col items-end gap-1">
+              <div className="hidden md:flex flex-col items-end gap-1">
                 <span className="text-xs text-muted-foreground">Context</span>
                 <div className="flex items-center gap-2">
                   <div className="w-32 h-3 rounded-full bg-gray-200 overflow-hidden">
@@ -526,23 +490,18 @@ export function SessionDetail() {
               </div>
             )}
 
-            {/* Analysis Panel Toggle */}
+            {/* Analysis Panel Toggle - Icon only on mobile */}
             <button
               onClick={() => setShowAnalysis(!showAnalysis)}
               className={cn(
-                'inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'inline-flex items-center gap-2 rounded-md px-2 py-1.5 md:px-3 md:py-2 text-sm font-medium transition-colors',
                 showAnalysis
                   ? 'bg-purple-600 text-white hover:bg-purple-700'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700'
               )}
             >
-              {showAnalysis ? (
-                <PanelRightClose className="h-4 w-4" />
-              ) : (
-                <PanelRightOpen className="h-4 w-4" />
-              )}
               <Sparkles className="h-4 w-4" />
-              AI Analysis
+              <span className="hidden md:inline">AI Analysis</span>
             </button>
 
             {/* Stop Button */}
@@ -550,10 +509,10 @@ export function SessionDetail() {
               <button
                 onClick={handleStopSession}
                 disabled={stopSession.isPending}
-                className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1 md:gap-2 rounded-md bg-red-600 px-2 py-1.5 md:px-4 md:py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
                 <Square className="h-4 w-4" />
-                {stopSession.isPending ? 'Stopping...' : 'Stop'}
+                <span className="hidden md:inline">{stopSession.isPending ? 'Stopping...' : 'Stop'}</span>
               </button>
             )}
           </div>
@@ -561,15 +520,15 @@ export function SessionDetail() {
 
         {/* Waiting Indicator */}
         {isWaiting && (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-100 text-blue-700">
+          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-blue-100 text-blue-700">
             <AlertCircle className="h-4 w-4" />
-            <span className="text-sm font-medium">Waiting for input...</span>
+            <span className="text-xs md:text-sm font-medium">Waiting for input...</span>
           </div>
         )}
 
-        {/* Quick Actions */}
+        {/* Quick Actions - Hidden on mobile */}
         {isActive && (
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="hidden md:flex items-center gap-2 flex-wrap">
             {quickActions.map((action) => (
               <button
                 key={action.label}
@@ -599,6 +558,7 @@ export function SessionDetail() {
           {/* ttyd iframe mode */}
           {useTtyd && ttydUrl && (
             <iframe
+              ref={iframeRef}
               src={ttydUrl}
               className="h-full w-full border-0"
               title="Terminal"
@@ -717,33 +677,6 @@ export function SessionDetail() {
         )}
       </div>
 
-      {/* Input Area */}
-      {isActive && (
-        <div className="flex-shrink-0 mt-4">
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message or command..."
-              disabled={sendInput.isPending}
-              className="flex-1 rounded-md border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-            />
-            <button
-              onClick={handleSendInput}
-              disabled={!inputValue.trim() || sendInput.isPending}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-              Send
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Press Enter to send. Use arrow keys for command history.
-          </p>
-        </div>
-      )}
     </div>
   );
 }

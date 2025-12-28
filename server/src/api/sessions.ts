@@ -563,11 +563,22 @@ router.post(
 
       const instance = await ttydManager.getOrStart(id);
 
+      // Use origin/referer to get the actual client host (Vite proxy changes Host header)
+      const origin = req.get('origin') || req.get('referer');
+      let host = 'localhost';
+      if (origin) {
+        try {
+          host = new URL(origin).hostname;
+        } catch {
+          host = req.get('host')?.split(':')[0] ?? 'localhost';
+        }
+      }
+
       res.json({
         session_id: id,
         port: instance.port,
-        url: `http://localhost:${instance.port}`,
-        ws_url: `ws://localhost:${instance.port}/ws`,
+        url: `http://${host}:${instance.port}`,
+        ws_url: `ws://${host}:${instance.port}/ws`,
       });
     } catch (err) {
       if (err instanceof TtydSessionNotFoundError) {
@@ -600,12 +611,23 @@ router.get(
       return;
     }
 
+    // Use origin/referer to get the actual client host (Vite proxy changes Host header)
+    const origin = req.get('origin') || req.get('referer');
+    let host = 'localhost';
+    if (origin) {
+      try {
+        host = new URL(origin).hostname;
+      } catch {
+        host = req.get('host')?.split(':')[0] ?? 'localhost';
+      }
+    }
+
     res.json({
       session_id: id,
       running: true,
       port: instance.port,
-      url: `http://localhost:${instance.port}`,
-      ws_url: `ws://localhost:${instance.port}/ws`,
+      url: `http://${host}:${instance.port}`,
+      ws_url: `ws://${host}:${instance.port}/ws`,
       created_at: instance.createdAt.toISOString(),
     });
   })
