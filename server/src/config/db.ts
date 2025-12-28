@@ -4,7 +4,6 @@ import { PrismaClient } from '../generated/prisma/index.js';
 // Prevents multiple instances during development with hot reload
 
 declare global {
-  // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
 }
 
@@ -31,14 +30,12 @@ async function disconnect(): Promise<void> {
   await prisma.$disconnect();
 }
 
-process.on('beforeExit', disconnect);
-process.on('SIGINT', async () => {
-  await disconnect();
-  process.exit(0);
+process.on('beforeExit', () => void disconnect());
+process.on('SIGINT', () => {
+  void disconnect().then(() => process.exit(0));
 });
-process.on('SIGTERM', async () => {
-  await disconnect();
-  process.exit(0);
+process.on('SIGTERM', () => {
+  void disconnect().then(() => process.exit(0));
 });
 
 export { PrismaClient };

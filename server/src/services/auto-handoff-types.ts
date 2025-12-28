@@ -3,6 +3,8 @@
  * Type definitions and error classes for the automatic context handoff system
  */
 
+/* global AbortController */
+
 // ============================================================================
 // Configuration
 // ============================================================================

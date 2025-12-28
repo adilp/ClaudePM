@@ -238,7 +238,7 @@ export function parseDiff(diffOutput: string): DiffFile[] {
 
     // Parse file paths from header: diff --git a/path b/path
     const headerMatch = headerLine.match(/^diff --git a\/(.+?) b\/(.+?)$/);
-    if (!headerMatch || !headerMatch[2]) continue;
+    if (!headerMatch?.[2]) continue;
 
     const newPath = headerMatch[2];
 
@@ -340,7 +340,7 @@ export function parseStatus(statusOutput: string): StatusResult {
 
       // Parse branch and upstream
       const aheadBehindMatch = branchPart.match(/\[ahead (\d+)(?:, behind (\d+))?\]/);
-      if (aheadBehindMatch && aheadBehindMatch[1]) {
+      if (aheadBehindMatch?.[1]) {
         result.ahead = parseInt(aheadBehindMatch[1], 10);
         if (aheadBehindMatch[2]) {
           result.behind = parseInt(aheadBehindMatch[2], 10);
@@ -348,7 +348,7 @@ export function parseStatus(statusOutput: string): StatusResult {
       }
 
       const branchUpstreamMatch = branchPart.match(/^([^.[]+)(?:\.\.\.([^\s[]+))?/);
-      if (branchUpstreamMatch && branchUpstreamMatch[1]) {
+      if (branchUpstreamMatch?.[1]) {
         result.branch = branchUpstreamMatch[1];
         if (branchUpstreamMatch[2]) {
           result.upstream = branchUpstreamMatch[2];

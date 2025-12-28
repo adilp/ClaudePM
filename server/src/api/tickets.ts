@@ -39,7 +39,6 @@ import {
   reviewerSubagent,
   ReviewerError,
   ReviewTicketNotFoundError,
-  type ReviewResult,
 } from '../services/reviewer-subagent.js';
 import {
   sessionSupervisor,

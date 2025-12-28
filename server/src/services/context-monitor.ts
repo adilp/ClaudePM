@@ -3,11 +3,13 @@
  * Monitors Claude Code JSONL transcript files to extract context usage
  */
 
+/* global AbortController */
+
 import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import { watch, type FSWatcher } from 'fs';
 import { homedir } from 'os';
-import { join, dirname } from 'path';
+import { join } from 'path';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
 import {
@@ -27,7 +29,6 @@ import {
   SessionNotMonitoredError,
   SessionAlreadyMonitoredError,
   TranscriptDiscoveryError,
-  ContextMonitorError,
 } from './context-monitor-types.js';
 
 // ============================================================================
@@ -411,20 +412,22 @@ export class ContextMonitor extends EventEmitter {
       clearInterval(existingInterval);
     }
 
-    const interval = setInterval(async () => {
+    const interval = setInterval(() => {
       if (session.abortController.signal.aborted) {
         clearInterval(interval);
         return;
       }
 
-      try {
-        const stats = await fs.stat(session.transcriptPath);
-        if (stats.size > session.filePosition) {
-          this.scheduleProcessing(sessionId);
+      void (async () => {
+        try {
+          const stats = await fs.stat(session.transcriptPath);
+          if (stats.size > session.filePosition) {
+            this.scheduleProcessing(sessionId);
+          }
+        } catch {
+          // File might have been deleted or moved
         }
-      } catch {
-        // File might have been deleted or moved
-      }
+      })();
     }, FILE_POLL_INTERVAL);
 
     this.pollingIntervals.set(sessionId, interval);
@@ -563,9 +566,9 @@ export class ContextMonitor extends EventEmitter {
    * Calculate context usage percentage and total tokens from usage data
    */
   private calculateContextUsage(usage: UsageData): { contextPercent: number; totalTokens: number } {
-    const inputTokens = usage.input_tokens || 0;
-    const cacheCreation = usage.cache_creation_input_tokens || 0;
-    const cacheRead = usage.cache_read_input_tokens || 0;
+    const inputTokens = usage.input_tokens ?? 0;
+    const cacheCreation = usage.cache_creation_input_tokens ?? 0;
+    const cacheRead = usage.cache_read_input_tokens ?? 0;
 
     // Total tokens includes all input tokens
     const totalTokens = inputTokens + cacheCreation + cacheRead;

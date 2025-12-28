@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from 'fs/promises';
+import { readdir, readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, relative, basename } from 'path';
 import { prisma } from '../config/db.js';
@@ -83,7 +83,7 @@ export interface UpdateTicketData {
  */
 export function extractTicketId(filename: string): string | null {
   const match = filename.match(/^([A-Z]+-\d+)/);
-  return match && match[1] ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 /**
@@ -92,7 +92,7 @@ export function extractTicketId(filename: string): string | null {
  */
 export function extractTitle(content: string, filename: string): string {
   const titleMatch = content.match(/^#\s+(.+)$/m);
-  if (titleMatch && titleMatch[1]) {
+  if (titleMatch?.[1]) {
     return titleMatch[1].trim();
   }
   // Fallback: use filename without extension

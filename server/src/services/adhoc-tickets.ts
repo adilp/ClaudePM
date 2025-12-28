@@ -132,8 +132,8 @@ export async function createAdhocTicket(
     throw new SlugExistsError(slug, projectId);
   }
 
-  // 3. Generate the display ID
-  const displayId = await generateAdhocDisplayId(projectId);
+  // 3. Generate the display ID (for future use)
+  await generateAdhocDisplayId(projectId);
 
   // 4. Determine file path (relative to repo)
   const adhocDir = 'docs/jira-tickets/adhoc';

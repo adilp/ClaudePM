@@ -54,9 +54,22 @@ vi.mock('../../src/config/db.js', () => ({
       create: vi.fn(),
       findMany: vi.fn(),
     },
+    session: {
+      findFirst: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
+
+// Mock session supervisor
+vi.mock('../../src/services/session-supervisor.js', () => ({
+  sessionSupervisor: {
+    stopSession: vi.fn(),
+  },
+}));
+
+// Import mocked session supervisor
+import { sessionSupervisor } from '../../src/services/session-supervisor.js';
 
 // Import mocked prisma
 import { prisma } from '../../src/config/db.js';
@@ -383,9 +396,14 @@ describe('TicketStateMachine', () => {
     });
 
     describe('approve', () => {
+      beforeEach(() => {
+        vi.mocked(sessionSupervisor.stopSession).mockClear();
+      });
+
       it('should transition from review to done', async () => {
         const reviewTicket = { ...mockTicket, state: 'review' as TicketState };
         vi.mocked(prisma.ticket.findUnique).mockResolvedValue(reviewTicket);
+        vi.mocked(prisma.session.findFirst).mockResolvedValue(null);
         vi.mocked(prisma.$transaction).mockImplementation(async (fn) => {
           return fn({
             ticket: {
@@ -411,6 +429,107 @@ describe('TicketStateMachine', () => {
         expect(result.toState).toBe('done');
         expect(result.reason).toBe('user_approved');
         expect(result.trigger).toBe('manual');
+      });
+
+      it('should stop the running session when approving', async () => {
+        const reviewTicket = { ...mockTicket, state: 'review' as TicketState };
+        const mockSession = { id: 'session-123', ticketId: 'ticket-123', status: 'running' };
+
+        vi.mocked(prisma.ticket.findUnique).mockResolvedValue(reviewTicket);
+        vi.mocked(prisma.session.findFirst).mockResolvedValue(mockSession as any);
+        vi.mocked(prisma.$transaction).mockImplementation(async (fn) => {
+          return fn({
+            ticket: {
+              update: vi.fn().mockResolvedValue({
+                ...reviewTicket,
+                state: 'done',
+                completedAt: new Date(),
+              }),
+            },
+            ticketStateHistory: {
+              create: vi.fn().mockResolvedValue({
+                ...mockHistoryEntry,
+                fromState: 'review',
+                toState: 'done',
+                reason: 'user_approved',
+              }),
+            },
+          } as any);
+        });
+
+        await stateMachine.approve('ticket-123', 'user-123');
+
+        expect(prisma.session.findFirst).toHaveBeenCalledWith({
+          where: {
+            ticketId: 'ticket-123',
+            status: 'running',
+          },
+        });
+        expect(sessionSupervisor.stopSession).toHaveBeenCalledWith('session-123');
+      });
+
+      it('should not call stopSession when no running session exists', async () => {
+        const reviewTicket = { ...mockTicket, state: 'review' as TicketState };
+
+        vi.mocked(prisma.ticket.findUnique).mockResolvedValue(reviewTicket);
+        vi.mocked(prisma.session.findFirst).mockResolvedValue(null);
+        vi.mocked(prisma.$transaction).mockImplementation(async (fn) => {
+          return fn({
+            ticket: {
+              update: vi.fn().mockResolvedValue({
+                ...reviewTicket,
+                state: 'done',
+                completedAt: new Date(),
+              }),
+            },
+            ticketStateHistory: {
+              create: vi.fn().mockResolvedValue({
+                ...mockHistoryEntry,
+                fromState: 'review',
+                toState: 'done',
+                reason: 'user_approved',
+              }),
+            },
+          } as any);
+        });
+
+        await stateMachine.approve('ticket-123', 'user-123');
+
+        expect(sessionSupervisor.stopSession).not.toHaveBeenCalled();
+      });
+
+      it('should not fail approval if stopSession throws', async () => {
+        const reviewTicket = { ...mockTicket, state: 'review' as TicketState };
+        const mockSession = { id: 'session-123', ticketId: 'ticket-123', status: 'running' };
+
+        vi.mocked(prisma.ticket.findUnique).mockResolvedValue(reviewTicket);
+        vi.mocked(prisma.session.findFirst).mockResolvedValue(mockSession as any);
+        vi.mocked(sessionSupervisor.stopSession).mockRejectedValue(new Error('Pane already dead'));
+        vi.mocked(prisma.$transaction).mockImplementation(async (fn) => {
+          return fn({
+            ticket: {
+              update: vi.fn().mockResolvedValue({
+                ...reviewTicket,
+                state: 'done',
+                completedAt: new Date(),
+              }),
+            },
+            ticketStateHistory: {
+              create: vi.fn().mockResolvedValue({
+                ...mockHistoryEntry,
+                fromState: 'review',
+                toState: 'done',
+                reason: 'user_approved',
+              }),
+            },
+          } as any);
+        });
+
+        // Should not throw - approval should succeed even if pane cleanup fails
+        const result = await stateMachine.approve('ticket-123', 'user-123');
+
+        expect(result.toState).toBe('done');
+        expect(sessionSupervisor.stopSession).toHaveBeenCalledWith('session-123');
       });
     });
 

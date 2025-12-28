@@ -3,6 +3,8 @@
  * Automatically handles context handoff when sessions are running low on context
  */
 
+/* global AbortController, AbortSignal */
+
 import { EventEmitter } from 'events';
 import { promises as fs } from 'fs';
 import { join } from 'path';
@@ -26,7 +28,6 @@ import {
   HandoffTimeoutError,
   HandoffCancelledError,
   HandoffProjectNotFoundError,
-  AutoHandoffError,
   buildContinuationPrompt,
 } from './auto-handoff-types.js';
 
@@ -96,7 +97,9 @@ export class AutoHandoff extends EventEmitter {
     this.running = true;
 
     // Subscribe to context threshold events
-    this.handleThreshold = this.onContextThreshold.bind(this);
+    this.handleThreshold = (event: ContextThresholdEvent) => {
+      void this.onContextThreshold(event);
+    };
     contextMonitor.on('context:threshold', this.handleThreshold);
   }
 

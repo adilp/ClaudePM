@@ -526,11 +526,11 @@ export class SessionSupervisor extends EventEmitter {
 
     // Set pane title for identification
     let paneTitle: string;
-    if (ticket && ticket.isAdhoc) {
+    if (ticket?.isAdhoc) {
       // For adhoc tickets: extract slug from filePath (e.g., "docs/adhoc/my-feature.md" -> "my-feature")
       const fileName = path.basename(ticket.filePath, path.extname(ticket.filePath));
       paneTitle = fileName;
-    } else if (ticket && ticket.externalId) {
+    } else if (ticket?.externalId) {
       // Regular ticket: use externalId
       paneTitle = ticket.externalId;
     } else {

@@ -5,7 +5,7 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { GitService, gitService } from '../services/git.js';
+import { gitService } from '../services/git.js';
 import {
   NotAGitRepositoryError,
   GitCommandError,

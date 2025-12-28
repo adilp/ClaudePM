@@ -3,6 +3,8 @@
  * Type definitions and error classes for the JSONL transcript context monitor
  */
 
+/* global AbortController */
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================

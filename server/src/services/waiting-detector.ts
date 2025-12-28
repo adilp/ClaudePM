@@ -17,7 +17,6 @@ import {
   type ClaudeHookPayload,
   DEFAULT_WAITING_DETECTOR_CONFIG,
   SessionNotWatchedError,
-  WaitingDetectorError,
 } from './waiting-detector-types.js';
 import { contextMonitor } from './context-monitor.js';
 import type { ClaudeStateChangeEvent } from './context-monitor-types.js';
@@ -247,7 +246,7 @@ export class WaitingDetector extends EventEmitter {
     if (!this.config.enableHooks || !this.running) return;
 
     // Get event name (support both new and legacy field names)
-    const eventName = payload.hook_event_name || payload.event;
+    const eventName = payload.hook_event_name ?? payload.event;
 
     // Resolve session async
     this.resolveSessionFromHook(payload)
@@ -285,7 +284,7 @@ export class WaitingDetector extends EventEmitter {
           let reason: WaitingReason = 'unknown';
 
           // Check notification_type (new format) or matcher (legacy format)
-          const notificationType = payload.notification_type || payload.matcher;
+          const notificationType = payload.notification_type ?? payload.matcher;
 
           if (notificationType?.includes('permission_prompt')) {
             reason = 'permission_prompt';

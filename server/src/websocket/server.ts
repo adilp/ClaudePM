@@ -122,11 +122,17 @@ export class WebSocketManager {
     }
 
     // Remove session supervisor and waiting detector listeners
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     sessionSupervisor.removeListener('session:output', this.handleSessionOutput);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     sessionSupervisor.removeListener('session:stateChange', this.handleSessionStateChange);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     waitingDetector.removeListener('waiting:stateChange', this.handleWaitingStateChange);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     ticketStateMachine.removeListener('ticket:stateChange', this.handleTicketStateChange);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     ptyManager.removeListener('pty:data', this.handlePtyData);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     ptyManager.removeListener('pty:exit', this.handlePtyExit);
 
     // Detach all PTY connections
@@ -191,11 +197,17 @@ export class WebSocketManager {
     this.handlePtyData = this.handlePtyData.bind(this);
     this.handlePtyExit = this.handlePtyExit.bind(this);
 
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     sessionSupervisor.on('session:output', this.handleSessionOutput);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     sessionSupervisor.on('session:stateChange', this.handleSessionStateChange);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     waitingDetector.on('waiting:stateChange', this.handleWaitingStateChange);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     ticketStateMachine.on('ticket:stateChange', this.handleTicketStateChange);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     ptyManager.on('pty:data', this.handlePtyData);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     ptyManager.on('pty:exit', this.handlePtyExit);
   }
 
@@ -311,7 +323,10 @@ export class WebSocketManager {
     // Parse message
     let message: ClientMessage;
     try {
-      const raw = JSON.parse(data.toString()) as unknown;
+      // Convert RawData (Buffer/ArrayBuffer) to string for JSON parsing
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string
+      const dataStr = Buffer.isBuffer(data) ? data.toString('utf8') : String(data);
+      const raw = JSON.parse(dataStr) as unknown;
       message = clientMessageSchema.parse(raw);
     } catch (error) {
       if (error instanceof ZodError) {
@@ -329,7 +344,7 @@ export class WebSocketManager {
     // Route message to handler
     switch (message.type) {
       case 'session:subscribe':
-        this.handleSubscribe(ws, message.payload.sessionId);
+        void this.handleSubscribe(ws, message.payload.sessionId);
         break;
       case 'session:unsubscribe':
         this.handleUnsubscribe(ws, message.payload.sessionId);
@@ -542,7 +557,7 @@ export class WebSocketManager {
 
     // Check if PTY is available on this system
     if (!ptyManager.isAvailable()) {
-      const reason = ptyManager.getUnavailableReason() || 'PTY not available';
+      const reason = ptyManager.getUnavailableReason() ?? 'PTY not available';
       this.sendError(ws, WS_ERROR_CODES.PTY_ATTACH_FAILED,
         `PTY not available on this system: ${reason}. ` +
         'This often happens when Node.js runs under Rosetta on Apple Silicon. ' +

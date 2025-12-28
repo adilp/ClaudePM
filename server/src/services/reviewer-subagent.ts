@@ -3,6 +3,8 @@
  * Short-lived Claude process for ticket completion detection
  */
 
+/* global AbortController, AbortSignal */
+
 import { EventEmitter } from 'events';
 import { exec, spawn, type ExecException } from 'child_process';
 import { promisify } from 'util';
@@ -14,7 +16,6 @@ import { sessionSupervisor } from './session-supervisor.js';
 import { ticketStateMachine } from './ticket-state-machine.js';
 import { waitingDetector } from './waiting-detector.js';
 import {
-  type ReviewDecision,
   type ReviewResult,
   type ReviewInput,
   type ReviewRequest,
@@ -30,10 +31,7 @@ import {
   ReviewerError,
   ClaudeCliNotFoundError,
   ReviewTimeoutError,
-  ReviewParseError,
   ReviewTicketNotFoundError,
-  ReviewSessionNotFoundError,
-  GitOperationError,
 } from './reviewer-subagent-types.js';
 
 const execAsync = promisify(exec);
@@ -102,12 +100,14 @@ export class ReviewerSubagent extends TypedEventEmitter {
     // Subscribe to waiting detector for stop events
     if (this.config.enableStopHookReview) {
       this.handleStopHook = this.onStopHook.bind(this);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       waitingDetector.on('waiting:stateChange', this.handleStopHook as any);
     }
 
     // Subscribe to session output for idle detection
     if (this.config.enableIdleReview) {
       this.handleSessionOutput = this.onSessionOutput.bind(this);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       sessionSupervisor.on('session:output', this.handleSessionOutput as any);
     }
   }
@@ -121,11 +121,13 @@ export class ReviewerSubagent extends TypedEventEmitter {
 
     // Remove event listeners
     if (this.handleStopHook) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       waitingDetector.removeListener('waiting:stateChange', this.handleStopHook as any);
       this.handleStopHook = null;
     }
 
     if (this.handleSessionOutput) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       sessionSupervisor.removeListener('session:output', this.handleSessionOutput as any);
       this.handleSessionOutput = null;
     }

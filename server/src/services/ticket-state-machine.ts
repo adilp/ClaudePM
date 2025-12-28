@@ -6,6 +6,7 @@
 import { EventEmitter } from 'events';
 import { prisma } from '../config/db.js';
 import type { TicketStateHistory } from '../generated/prisma/index.js';
+import { sessionSupervisor } from './session-supervisor.js';
 import {
   type TicketState,
   type TransitionTrigger,
@@ -240,6 +241,7 @@ export class TicketStateMachine extends TypedEventEmitter {
 
   /**
    * Approve a ticket (move from review to done)
+   * Also kills the associated tmux pane if one is running
    */
   async approve(ticketId: string, approvedBy?: string): Promise<TransitionResult> {
     const request: TransitionRequest = {
@@ -253,7 +255,29 @@ export class TicketStateMachine extends TypedEventEmitter {
       request.triggeredBy = approvedBy;
     }
 
-    return this.transition(request);
+    const result = await this.transition(request);
+
+    // Kill the associated tmux pane if there's a running session
+    try {
+      const runningSession = await prisma.session.findFirst({
+        where: {
+          ticketId,
+          status: 'running',
+        },
+      });
+
+      if (runningSession) {
+        await sessionSupervisor.stopSession(runningSession.id);
+      }
+    } catch (error) {
+      // Log but don't fail the approval if pane cleanup fails
+      console.warn(
+        `Failed to stop session for ticket ${ticketId}:`,
+        error instanceof Error ? error.message : error
+      );
+    }
+
+    return result;
   }
 
   /**

@@ -22,6 +22,7 @@ import {
 const execAsync = promisify(exec);
 
 // ANSI escape code regex pattern
+// eslint-disable-next-line no-control-regex
 const ANSI_REGEX = /\x1b\[[0-9;]*[a-zA-Z]/g;
 
 /**
@@ -322,7 +323,7 @@ export async function createPane(session: string, options: CreatePaneOptions = {
   const output = await execTmux(args);
   const paneId = output.trim();
 
-  if (!paneId || !paneId.startsWith('%')) {
+  if (!paneId?.startsWith('%')) {
     throw new TmuxError(`Failed to create pane: unexpected output "${output}"`);
   }
 

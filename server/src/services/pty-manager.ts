@@ -218,7 +218,7 @@ export class PtyManager extends EventEmitter {
     // Spawn tmux attach targeting the specific pane
     // Using -t with pane ID directly attaches to that pane
     // Use full path to tmux to avoid PATH issues in spawned processes
-    const tmuxPath = process.env.TMUX_PATH || '/usr/local/bin/tmux';
+    const tmuxPath = process.env.TMUX_PATH ?? '/usr/local/bin/tmux';
     const ptyProcess = pty.spawn(tmuxPath, ['attach-session', '-t', paneId], {
       name: 'xterm-256color',
       cols,
@@ -229,7 +229,7 @@ export class PtyManager extends EventEmitter {
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
         // Ensure common paths are in PATH
-        PATH: `${process.env.PATH || ''}:/usr/local/bin:/usr/bin:/bin`,
+        PATH: `${process.env.PATH ?? ''}:/usr/local/bin:/usr/bin:/bin`,
       },
     });
 

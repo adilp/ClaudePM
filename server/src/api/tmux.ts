@@ -37,9 +37,8 @@ interface ErrorResponse {
  * GET /api/tmux/sessions
  * List all tmux sessions on the system
  */
-router.get(
-  '/sessions',
-  async (_req, res: Response<TmuxSessionResponse[] | ErrorResponse>) => {
+router.get('/sessions', (_req, res: Response<TmuxSessionResponse[] | ErrorResponse>): void => {
+  void (async () => {
     try {
       const sessions = await listSessions();
 
@@ -55,16 +54,15 @@ router.get(
       console.error('Failed to list tmux sessions:', err);
       res.status(500).json({ error: 'Failed to list tmux sessions' });
     }
-  }
-);
+  })();
+});
 
 /**
  * GET /api/tmux/sessions/:name
  * Get detailed info about a specific tmux session
  */
-router.get(
-  '/sessions/:name',
-  async (req, res: Response<TmuxSessionDetailResponse | ErrorResponse>) => {
+router.get('/sessions/:name', (req, res: Response<TmuxSessionDetailResponse | ErrorResponse>): void => {
+  void (async () => {
     try {
       const { name } = req.params;
       const sessions = await listSessions();
@@ -107,7 +105,7 @@ router.get(
       console.error('Failed to get tmux session details:', err);
       res.status(500).json({ error: 'Failed to get tmux session details' });
     }
-  }
-);
+  })();
+});
 
 export default router;

@@ -74,7 +74,7 @@ interface HookResponse {
 router.post('/claude', (req: Request, res: Response<HookResponse>): void => {
   try {
     // Log raw payload for debugging
-    console.log('[Hooks] Received payload:', JSON.stringify(req.body, null, 2));
+    console.warn('[Hooks] Received payload:', JSON.stringify(req.body, null, 2));
 
     const result = hookPayloadSchema.safeParse(req.body);
 
@@ -89,9 +89,9 @@ router.post('/claude', (req: Request, res: Response<HookResponse>): void => {
     }
 
     const payload = result.data as ClaudeHookPayload;
-    console.log('[Hooks] Parsed payload:', {
-      event: payload.hook_event_name || payload.event,
-      type: payload.notification_type || payload.matcher,
+    console.warn('[Hooks] Parsed payload:', {
+      event: payload.hook_event_name ?? payload.event,
+      type: payload.notification_type ?? payload.matcher,
       cwd: payload.cwd,
       session_id: payload.session_id,
     });
@@ -117,9 +117,10 @@ router.post('/claude', (req: Request, res: Response<HookResponse>): void => {
  * Called when Claude Code starts via SessionStart hook.
  * Creates or updates a session record with Claude's session_id.
  */
-router.post('/session-start', async (req: Request, res: Response<HookResponse>): Promise<void> => {
-  try {
-    console.log('[Hooks] SessionStart payload:', JSON.stringify(req.body, null, 2));
+router.post('/session-start', (req: Request, res: Response<HookResponse>): void => {
+  void (async () => {
+    try {
+      console.warn('[Hooks] SessionStart payload:', JSON.stringify(req.body, null, 2));
 
     const result = sessionStartSchema.safeParse(req.body);
 
@@ -148,7 +149,7 @@ router.post('/session-start', async (req: Request, res: Response<HookResponse>):
     }
 
     if (!matchingProject) {
-      console.log('[Hooks] No matching project found for cwd:', cwd);
+      console.warn('[Hooks] No matching project found for cwd:', cwd);
       res.status(200).json({
         received: true,
         warning: 'No matching project found',
@@ -156,7 +157,7 @@ router.post('/session-start', async (req: Request, res: Response<HookResponse>):
       return;
     }
 
-    console.log('[Hooks] Matched project:', matchingProject.name);
+    console.warn('[Hooks] Matched project:', matchingProject.name);
 
     // Check if session with this Claude session_id already exists (e.g., on resume)
     const existingByClaudeId = await prisma.session.findUnique({
@@ -173,7 +174,7 @@ router.post('/session-start', async (req: Request, res: Response<HookResponse>):
           updatedAt: new Date(),
         },
       });
-      console.log('[Hooks] Updated existing session (resume):', existingByClaudeId.id, 'source:', source);
+      console.warn('[Hooks] Updated existing session (resume):', existingByClaudeId.id, 'source:', source);
     } else {
       // Check if there's a recent session for this project without a claudeSessionId
       // This handles sessions started from the web UI before Claude Code reported its session_id
@@ -197,7 +198,7 @@ router.post('/session-start', async (req: Request, res: Response<HookResponse>):
             updatedAt: new Date(),
           },
         });
-        console.log('[Hooks] Linked claude_session_id to existing session:', pendingSession.id, 'claude_session_id:', session_id);
+        console.warn('[Hooks] Linked claude_session_id to existing session:', pendingSession.id, 'claude_session_id:', session_id);
       } else {
         // Create new session (ad-hoc Claude Code session not started from web UI)
         const newSession = await prisma.session.create({
@@ -211,7 +212,7 @@ router.post('/session-start', async (req: Request, res: Response<HookResponse>):
             startedAt: new Date(),
           },
         });
-        console.log('[Hooks] Created new session:', newSession.id, 'claude_session_id:', session_id);
+        console.warn('[Hooks] Created new session:', newSession.id, 'claude_session_id:', session_id);
 
         // Auto-watch the session for waiting detection
         waitingDetector.watchSession(newSession.id);
@@ -226,6 +227,7 @@ router.post('/session-start', async (req: Request, res: Response<HookResponse>):
       warning: 'Processing error',
     });
   }
+  })();
 });
 
 /**
