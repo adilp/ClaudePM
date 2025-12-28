@@ -124,3 +124,19 @@ export function useUpdateTicketContent() {
     },
   });
 }
+
+export function useStartTicket() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ticketId: string) => api.startTicket(ticketId),
+    onSuccess: (result) => {
+      // Invalidate ticket queries (state changed to in_progress)
+      queryClient.invalidateQueries({ queryKey: ticketKeys.all });
+      // Invalidate session queries (new session created)
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      // Cache the new session
+      queryClient.setQueryData(['sessions', 'detail', result.session.id], result.session);
+    },
+  });
+}

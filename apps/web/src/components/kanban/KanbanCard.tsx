@@ -5,16 +5,19 @@
 
 import { useDraggable } from '@dnd-kit/core';
 import { useNavigate } from 'react-router-dom';
-import { GripVertical, FileText } from 'lucide-react';
+import { GripVertical, FileText, Play } from 'lucide-react';
+import { useStartTicket } from '@/hooks/useTickets';
 import type { Ticket } from '@/types/api';
 
 interface KanbanCardProps {
   ticket: Ticket;
   projectId: string;
+  hasRunningSession: boolean;
 }
 
-export function KanbanCard({ ticket, projectId }: KanbanCardProps) {
+export function KanbanCard({ ticket, projectId, hasRunningSession }: KanbanCardProps) {
   const navigate = useNavigate();
+  const startTicket = useStartTicket();
   const {
     attributes,
     listeners,
@@ -40,6 +43,18 @@ export function KanbanCard({ ticket, projectId }: KanbanCardProps) {
     }
   };
 
+  const handleStart = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    startTicket.mutate(ticket.id, {
+      onSuccess: (result) => {
+        navigate(`/sessions/${result.session.id}`);
+      },
+    });
+  };
+
+  // Show Start button if ticket doesn't have a running session and is not done
+  const showStartButton = !hasRunningSession && ticket.state !== 'done';
+
   return (
     <div
       ref={setNodeRef}
@@ -58,8 +73,20 @@ export function KanbanCard({ ticket, projectId }: KanbanCardProps) {
         <GripVertical className="h-4 w-4" />
       </div>
 
+      {/* Start Button */}
+      {showStartButton && (
+        <button
+          onClick={handleStart}
+          disabled={startTicket.isPending}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/80 transition-colors disabled:opacity-50"
+          title="Start session"
+        >
+          <Play className="h-4 w-4" />
+        </button>
+      )}
+
       {/* Card Content */}
-      <div className="block pl-5">
+      <div className="block pl-5 pr-6">
         <div className="flex items-start gap-2">
           <FileText className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <div className="min-w-0 flex-1">

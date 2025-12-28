@@ -99,6 +99,11 @@ export interface StateHistoryEntry {
   created_at: string;
 }
 
+export interface StartTicketResponse {
+  ticket: Ticket;
+  session: Session;
+}
+
 // ============================================================================
 // Session Types
 // ============================================================================

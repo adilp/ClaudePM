@@ -16,6 +16,7 @@ import {
   type StateHistoryEntryResponse,
   type HistoryResponse,
   type ReviewResultResponse,
+  type StartTicketResponse,
 } from './tickets-schemas.js';
 import {
   syncTicketsFromFilesystem,
@@ -40,6 +41,10 @@ import {
   ReviewTicketNotFoundError,
   type ReviewResult,
 } from '../services/reviewer-subagent.js';
+import {
+  sessionSupervisor,
+  SessionAlreadyRunningError,
+} from '../services/session-supervisor.js';
 import { prisma } from '../config/db.js';
 import type { Ticket } from '../generated/prisma/index.js';
 
@@ -148,6 +153,11 @@ function handleTicketError(
 
   if (err instanceof ReviewerError) {
     res.status(400).json({ error: err.message });
+    return;
+  }
+
+  if (err instanceof SessionAlreadyRunningError) {
+    res.status(409).json({ error: err.message });
     return;
   }
 
@@ -377,6 +387,79 @@ router.post(
       decision: result.decision,
       reasoning: result.reasoning,
       timestamp: result.timestamp.toISOString(),
+    });
+  })
+);
+
+/**
+ * POST /api/tickets/:id/start
+ * Start working on a ticket - moves to in_progress and creates a session
+ * Returns 409 if ticket already has a running session
+ */
+router.post(
+  '/tickets/:id/start',
+  asyncHandler<StartTicketResponse | ErrorResponse>(async (req, res) => {
+    const { id } = ticketIdParamSchema.parse(req.params);
+
+    // Find the ticket with its project info
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: {
+        project: true,
+        sessions: {
+          where: { status: 'running' },
+          take: 1,
+        },
+      },
+    });
+
+    if (!ticket) {
+      res.status(404).json({ error: `Ticket not found: ${id}` });
+      return;
+    }
+
+    // Check if ticket already has a running session
+    const runningSession = ticket.sessions[0];
+    if (runningSession) {
+      res.status(409).json({
+        error: `Ticket already has a running session: ${runningSession.id}`,
+      });
+      return;
+    }
+
+    // If ticket is in backlog, transition to in_progress
+    if (ticket.state === 'backlog') {
+      await ticketStateMachine.transition({
+        ticketId: id,
+        targetState: 'in_progress',
+        trigger: 'auto',
+        reason: 'session_started',
+      });
+    }
+
+    // Start a session for the ticket
+    const session = await sessionSupervisor.startTicketSession({
+      projectId: ticket.projectId,
+      ticketId: id,
+    });
+
+    // Refetch the updated ticket
+    const updatedTicket = await prisma.ticket.findUniqueOrThrow({
+      where: { id },
+    });
+
+    res.json({
+      ticket: toTicketSummaryResponse(updatedTicket),
+      session: {
+        id: session.id,
+        project_id: session.projectId,
+        ticket_id: session.ticketId!,
+        type: 'ticket' as const,
+        status: 'running' as const,
+        pane_id: session.tmuxPaneId,
+        started_at: session.startedAt?.toISOString() ?? new Date().toISOString(),
+        created_at: session.createdAt.toISOString(),
+      },
     });
   })
 );

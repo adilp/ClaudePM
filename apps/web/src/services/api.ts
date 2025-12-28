@@ -22,6 +22,7 @@ import type {
   ApiError,
   AdhocTicketCreate,
   AdhocTicketResponse,
+  StartTicketResponse,
 } from '@/types/api';
 
 // ============================================================================
@@ -146,6 +147,10 @@ class ApiClient {
       method: 'PUT',
       body: JSON.stringify({ content }),
     });
+  }
+
+  async startTicket(ticketId: string): Promise<StartTicketResponse> {
+    return this.request(`/tickets/${ticketId}/start`, { method: 'POST' });
   }
 
   // Sessions

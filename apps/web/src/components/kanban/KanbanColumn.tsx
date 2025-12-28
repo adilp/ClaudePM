@@ -13,6 +13,7 @@ interface KanbanColumnProps {
   state: TicketState;
   tickets: Ticket[];
   projectId: string;
+  ticketsWithRunningSession: Set<string>;
 }
 
 const columnConfig: Record<TicketState, {
@@ -52,7 +53,7 @@ const columnConfig: Record<TicketState, {
   },
 };
 
-export function KanbanColumn({ state, tickets, projectId }: KanbanColumnProps) {
+export function KanbanColumn({ state, tickets, projectId, ticketsWithRunningSession }: KanbanColumnProps) {
   const config = columnConfig[state];
   const Icon = config.icon;
 
@@ -104,6 +105,7 @@ export function KanbanColumn({ state, tickets, projectId }: KanbanColumnProps) {
             key={ticket.id}
             ticket={ticket}
             projectId={projectId}
+            hasRunningSession={ticketsWithRunningSession.has(ticket.id)}
           />
         ))}
 

@@ -5,8 +5,8 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
-import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent } from '@/hooks/useTickets';
-import { useStartSession } from '@/hooks/useSessions';
+import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent, useStartTicket } from '@/hooks/useTickets';
+import { useSessions } from '@/hooks/useSessions';
 import { cn } from '@/lib/utils';
 import type { TicketState } from '@/types/api';
 import {
@@ -34,10 +34,16 @@ export function TicketDetail() {
   const { projectId, ticketId } = useParams<{ projectId: string; ticketId: string }>();
   const navigate = useNavigate();
   const { data: ticket, isLoading, error } = useTicket(projectId!, ticketId!);
-  const startSession = useStartSession();
+  const { data: sessions } = useSessions(projectId);
+  const startTicket = useStartTicket();
   const approveTicket = useApproveTicket();
   const rejectTicket = useRejectTicket();
   const updateState = useUpdateTicketState();
+
+  // Check if this ticket has a running session
+  const hasRunningSession = sessions?.some(
+    (s) => s.ticket_id === ticketId && s.status === 'running'
+  ) ?? false;
 
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectFeedback, setRejectFeedback] = useState('');
@@ -83,14 +89,11 @@ export function TicketDetail() {
   const StateIcon = stateInfo.icon;
 
   const handleStartSession = () => {
-    startSession.mutate(
-      { project_id: projectId!, ticket_id: ticketId! },
-      {
-        onSuccess: (session) => {
-          navigate(`/sessions/${session.id}`);
-        },
-      }
-    );
+    startTicket.mutate(ticketId!, {
+      onSuccess: (result) => {
+        navigate(`/sessions/${result.session.id}`);
+      },
+    });
   };
 
   const handleApprove = () => {
@@ -167,18 +170,20 @@ export function TicketDetail() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {ticket.state === 'backlog' && (
+          {/* Show Start Session button if no running session */}
+          {!hasRunningSession && ticket.state !== 'done' && (
             <button
               onClick={handleStartSession}
-              disabled={startSession.isPending}
+              disabled={startTicket.isPending}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               <Play className="h-4 w-4" />
-              {startSession.isPending ? 'Starting...' : 'Start Session'}
+              {startTicket.isPending ? 'Starting...' : 'Start Session'}
             </button>
           )}
 
-          {ticket.state === 'in_progress' && (
+          {/* Show View Sessions link if there's a running session */}
+          {hasRunningSession && (
             <Link
               to={`/sessions`}
               className="inline-flex items-center gap-2 rounded-md bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600"

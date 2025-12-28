@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/core';
 import { KanbanColumn } from './KanbanColumn';
 import { useUpdateTicketState } from '@/hooks/useTickets';
+import { useSessions } from '@/hooks/useSessions';
 import type { Ticket, TicketState } from '@/types/api';
 import { FileText } from 'lucide-react';
 
@@ -29,7 +30,15 @@ const STATES: TicketState[] = ['backlog', 'in_progress', 'review', 'done'];
 
 export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
   const updateTicketState = useUpdateTicketState();
+  const { data: sessions } = useSessions(projectId);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
+
+  // Get set of ticket IDs that have a running session
+  const ticketsWithRunningSession = new Set(
+    sessions
+      ?.filter((s) => s.status === 'running' && s.ticket_id)
+      .map((s) => s.ticket_id!) ?? []
+  );
 
   // Group tickets by state
   const ticketsByState = STATES.reduce(
@@ -110,6 +119,7 @@ export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
             state={state}
             tickets={ticketsByState[state]}
             projectId={projectId}
+            ticketsWithRunningSession={ticketsWithRunningSession}
           />
         ))}
       </div>

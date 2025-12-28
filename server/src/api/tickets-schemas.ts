@@ -141,3 +141,18 @@ export interface ReviewResultResponse {
   reasoning: string;
   timestamp: string;
 }
+
+// Start ticket response - combines ticket state transition with session creation
+export interface StartTicketResponse {
+  ticket: TicketSummaryResponse;
+  session: {
+    id: string;
+    project_id: string;
+    ticket_id: string;
+    type: 'ticket';
+    status: 'running';
+    pane_id: string;
+    started_at: string;
+    created_at: string;
+  };
+}
