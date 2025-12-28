@@ -228,7 +228,8 @@ export class PtyManager extends EventEmitter {
     const tmuxPath = process.env.TMUX_PATH ?? '/usr/local/bin/tmux';
 
     // Select the pane first, then attach - ensures we're viewing the right pane
-    const ptyProcess = pty.spawn('/bin/bash', ['-c', `${tmuxPath} select-pane -t ${paneId} \\; attach-session -t ${paneId}`], {
+    // Note: attach-session requires session name, not pane ID
+    const ptyProcess = pty.spawn('/bin/bash', ['-c', `${tmuxPath} select-pane -t ${paneId} \\; attach-session -t ${paneInfo.session}`], {
       name: 'xterm-256color',
       cols,
       rows,

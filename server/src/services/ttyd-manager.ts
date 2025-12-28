@@ -126,6 +126,12 @@ export class TtydManager extends EventEmitter {
       throw new TtydError(`Pane ${paneId} is not alive`);
     }
 
+    // Get pane info to find the session name
+    const paneInfo = await tmux.getPane(paneId);
+    if (!paneInfo) {
+      throw new TtydError(`Could not get pane info for ${paneId}`);
+    }
+
     // Allocate port
     const port = options.port ?? this.allocatePort();
     this.usedPorts.add(port);
@@ -133,15 +139,18 @@ export class TtydManager extends EventEmitter {
     // Spawn ttyd process
     // -W: writable (allow input)
     // -p: port
-    // Command: tmux attach to the specific pane
+    // Command: Select the specific pane first, then attach to its session
+    // Note: attach-session requires session name, not pane ID
+    // We use bash -c to run the tmux command with semicolon separator
+    const tmuxCmd = `${this.tmuxPath} select-pane -t '${paneId}' \\; attach-session -t '${paneInfo.session}'`;
     const args = [
       '-W',                           // Writable mode
       '-p', String(port),             // Port
       '-t', 'disableLeaveAlert=true', // Disable leave confirmation
       '-t', 'enableSixel=false',      // Disable sixel (not needed)
-      this.tmuxPath,
-      'attach-session',
-      '-t', paneId,
+      '/bin/bash',
+      '-c',
+      tmuxCmd,
     ];
 
     console.log(`[TtydManager] Starting ttyd for session ${sessionId}: ${this.ttydPath} ${args.join(' ')}`);
