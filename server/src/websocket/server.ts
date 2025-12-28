@@ -773,6 +773,7 @@ export class WebSocketManager {
 
   /**
    * Handle session output event
+   * Note: PTY-attached connections receive pty:output instead, so we skip them here
    */
   private handleSessionOutput(event: SessionOutputEvent): void {
     const message: SessionOutputMessage = {
@@ -784,7 +785,40 @@ export class WebSocketManager {
       },
     };
 
-    this.broadcastToSession(event.sessionId, message);
+    // Broadcast to session subscribers, but skip PTY-attached connections
+    // (they get real-time output via pty:output instead)
+    this.broadcastToSessionExceptPty(event.sessionId, message);
+  }
+
+  /**
+   * Broadcast a message to session subscribers, excluding PTY-attached connections
+   */
+  private broadcastToSessionExceptPty(sessionId: string, message: ServerMessage): void {
+    const subscribers = this.sessionSubscriptions.get(sessionId);
+    if (!subscribers) {
+      console.log(`[WebSocket] No subscribers for session ${sessionId}`);
+      return;
+    }
+
+    const data = JSON.stringify(message);
+    let sentCount = 0;
+    let skippedPty = 0;
+
+    for (const ws of subscribers) {
+      // Skip connections that have PTY attached - they get pty:output instead
+      if (ptyManager.isAttached(ws.connectionInfo.id)) {
+        skippedPty++;
+        continue;
+      }
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+        sentCount++;
+      }
+    }
+
+    if (skippedPty > 0) {
+      console.log(`[WebSocket] Broadcast ${message.type} to ${sentCount} subscribers, skipped ${skippedPty} PTY connections`);
+    }
   }
 
   /**

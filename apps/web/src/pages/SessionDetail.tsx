@@ -59,7 +59,7 @@ export function SessionDetail() {
   const { data: session, isLoading, error, refetch } = useSession(sessionId!);
   const stopSession = useStopSession();
   const sendInput = useSendInput();
-  const { connectionState, subscribe, unsubscribe, lastMessage, sendMessage, ptyAttach, ptyDetach, ptyWrite, ptyResize, ptySelectPane } = useWebSocket();
+  const { connectionState, unsubscribe, lastMessage, sendMessage, ptyAttach, ptyDetach, ptyWrite, ptyResize, ptySelectPane } = useWebSocket();
   const [isPtyAttached, setIsPtyAttached] = useState(false);
   const [useLegacyMode, setUseLegacyMode] = useState(false);
   const [isTerminalReady, setIsTerminalReady] = useState(false);
@@ -156,20 +156,20 @@ export function SessionDetail() {
 
       console.log('[Terminal] Attaching PTY:', { sessionId, cols, rows, connectionState, isTerminalReady });
 
-      // Attach via PTY
+      // Attach via PTY - this also subscribes to session updates internally
+      // Note: Don't call subscribe() separately as that sends initial buffer output
+      // which conflicts with PTY real-time output
       ptyAttach(sessionId, cols, rows);
-
-      // Also subscribe for status updates
-      subscribe(sessionId);
 
       return () => {
         console.log('[Terminal] Detaching PTY:', { sessionId });
         ptyDetach(sessionId);
+        // Unsubscribe to clean up session subscription (ptyAttach added it, ptyDetach doesn't remove it)
         unsubscribe(sessionId);
         setIsPtyAttached(false);
       };
     }
-  }, [sessionId, connectionState, isTerminalReady, ptyAttach, ptyDetach, subscribe, unsubscribe]);
+  }, [sessionId, connectionState, isTerminalReady, ptyAttach, ptyDetach, unsubscribe]);
 
   // Handle terminal keyboard input - send to PTY or legacy mode
   useEffect(() => {
