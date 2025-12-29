@@ -31,7 +31,14 @@ const navigation = [
 
 export function AppLayout() {
   const location = useLocation();
-  const { sidebarOpen, toggleSidebar, isSectionExpanded, toggleSection } = useUIStore();
+  const { sidebarOpen, setSidebarOpen, toggleSidebar, isSectionExpanded, toggleSection } = useUIStore();
+
+  // Close sidebar on mobile when navigating
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
   const { connectionState } = useWebSocket();
   const isProjectsExpanded = isSectionExpanded('projects');
 
@@ -55,7 +62,7 @@ export function AppLayout() {
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-4 border-b">
-            <Link to="/" className="flex items-center gap-2">
+            <Link to="/" className="flex items-center gap-2" onClick={closeSidebarOnMobile}>
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">CS</span>
               </div>
@@ -93,6 +100,7 @@ export function AppLayout() {
                       </button>
                       <Link
                         to={item.href}
+                        onClick={closeSidebarOnMobile}
                         className={cn(
                           'flex-1 flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors',
                           isActive
@@ -117,6 +125,7 @@ export function AppLayout() {
                 <Link
                   key={item.name}
                   to={item.href}
+                  onClick={closeSidebarOnMobile}
                   className={cn(
                     'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                     isActive

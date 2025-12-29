@@ -404,44 +404,40 @@ export function SessionDetail() {
     ptySelectPane(sessionId);
   }, [sessionId, ptySelectPane]);
 
-  // Send tmux key sequences via API (for mobile scroll controls)
-  const sendTmuxKeys = useCallback(async (keys: string) => {
+  // Send scroll action via API (uses tmux copy-mode commands)
+  const sendScrollAction = useCallback(async (action: 'up' | 'down' | 'enter' | 'exit') => {
     if (!sessionId) return;
     try {
-      await fetch(`/api/sessions/${sessionId}/keys`, {
+      const response = await fetch(`/api/sessions/${sessionId}/scroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keys }),
+        body: JSON.stringify({ action }),
       });
+      const data = await response.json();
+      console.log('[Terminal] Scroll action:', action, data.message);
+      return response.ok;
     } catch (err) {
-      console.error('[Terminal] Failed to send tmux keys:', err);
+      console.error('[Terminal] Failed to send scroll action:', err);
+      return false;
     }
   }, [sessionId]);
 
   // Scroll control handlers
-  const handleScrollUp = useCallback(() => {
-    if (!isScrollMode) {
-      // Enter copy mode and scroll up
-      sendTmuxKeys('C-b [');
-      setIsScrollMode(true);
-      // Small delay then scroll up
-      setTimeout(() => sendTmuxKeys('C-u'), 100);
-    } else {
-      // Already in copy mode, just scroll up
-      sendTmuxKeys('C-u');
-    }
-  }, [isScrollMode, sendTmuxKeys]);
+  // Both up and down auto-enter copy mode on the server if needed
+  const handleScrollUp = useCallback(async () => {
+    const success = await sendScrollAction('up');
+    if (success) setIsScrollMode(true);
+  }, [sendScrollAction]);
 
-  const handleScrollDown = useCallback(() => {
-    if (isScrollMode) {
-      sendTmuxKeys('C-d');
-    }
-  }, [isScrollMode, sendTmuxKeys]);
+  const handleScrollDown = useCallback(async () => {
+    const success = await sendScrollAction('down');
+    if (success) setIsScrollMode(true);
+  }, [sendScrollAction]);
 
-  const handleExitScrollMode = useCallback(() => {
-    sendTmuxKeys('q');
+  const handleExitScrollMode = useCallback(async () => {
+    await sendScrollAction('exit');
     setIsScrollMode(false);
-  }, [sendTmuxKeys]);
+  }, [sendScrollAction]);
 
   if (isLoading) {
     return (

@@ -273,10 +273,11 @@ router.post(
 
 /**
  * POST /api/sessions/:id/keys
- * Send raw tmux keys to a session (for mobile scroll controls, special keys, etc.)
+ * Send keys to a session (for mobile scroll controls, special keys, etc.)
+ * Uses ttyd WebSocket if available, falls back to tmux send-keys
  *
  * Body:
- * - keys: Tmux key sequence to send (e.g., "C-b PgUp", "PgDn", "q")
+ * - keys: Key sequence to send (e.g., "C-a [", "C-u", "q")
  */
 router.post(
   '/sessions/:id/keys',
@@ -284,9 +285,20 @@ router.post(
     const { id } = sessionIdSchema.parse(req.params);
     const { keys } = sendKeysSchema.parse(req.body);
 
-    await sessionSupervisor.sendKeys(id, keys);
+    // Try ttyd first (sends directly to terminal via WebSocket)
+    if (ttydManager.isRunning(id)) {
+      try {
+        await ttydManager.sendKeys(id, keys);
+        res.json({ message: 'Keys sent via ttyd' });
+        return;
+      } catch (err) {
+        console.warn(`[Sessions API] ttyd sendKeys failed, falling back to tmux:`, err);
+      }
+    }
 
-    res.json({ message: 'Keys sent successfully' });
+    // Fallback to tmux send-keys
+    await sessionSupervisor.sendKeys(id, keys);
+    res.json({ message: 'Keys sent via tmux' });
   })
 );
 
@@ -734,6 +746,69 @@ router.post(
     } catch (e) {
       console.error(`[Sessions API] Failed to zoom pane ${paneId}:`, e);
       res.status(500).json({ error: 'Failed to zoom pane' });
+    }
+  })
+);
+
+/**
+ * POST /api/sessions/:id/scroll
+ * Control terminal scrolling (mobile-friendly)
+ *
+ * Body:
+ * - action: "up" | "down" | "enter" | "exit"
+ */
+router.post(
+  '/sessions/:id/scroll',
+  asyncHandler<MessageResponse | ErrorResponse>(async (req, res) => {
+    const { id } = sessionIdSchema.parse(req.params);
+    const action = req.body.action as string;
+
+    if (!['up', 'down', 'enter', 'exit'].includes(action)) {
+      res.status(400).json({ error: 'Invalid action. Use: up, down, enter, exit' });
+      return;
+    }
+
+    // Get session to find pane ID
+    const { prisma } = await import('../config/db.js');
+    const session = await prisma.session.findUnique({ where: { id } });
+    if (!session?.tmuxPaneId) {
+      res.status(404).json({ error: 'Session or pane not found' });
+      return;
+    }
+
+    const paneId = session.tmuxPaneId;
+    const { enterCopyMode, exitCopyMode, scrollUp, scrollDown, isInCopyMode } = await import('../services/tmux.js');
+
+    try {
+      switch (action) {
+        case 'enter':
+          await enterCopyMode(paneId);
+          res.json({ message: 'Entered copy mode' });
+          break;
+        case 'exit':
+          await exitCopyMode(paneId);
+          res.json({ message: 'Exited copy mode' });
+          break;
+        case 'up':
+          // Auto-enter copy mode if not already in it
+          if (!(await isInCopyMode(paneId))) {
+            await enterCopyMode(paneId);
+          }
+          await scrollUp(paneId);
+          res.json({ message: 'Scrolled up' });
+          break;
+        case 'down':
+          // Auto-enter copy mode if not already in it (same as 'up')
+          if (!(await isInCopyMode(paneId))) {
+            await enterCopyMode(paneId);
+          }
+          await scrollDown(paneId);
+          res.json({ message: 'Scrolled down' });
+          break;
+      }
+    } catch (err) {
+      console.error('[Scroll API] Error:', err);
+      res.status(500).json({ error: 'Failed to execute scroll action' });
     }
   })
 );

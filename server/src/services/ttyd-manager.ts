@@ -11,6 +11,7 @@
 
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+import WebSocket from 'ws';
 import { prisma } from '../config/db.js';
 import * as tmux from './tmux.js';
 
@@ -293,6 +294,115 @@ export class TtydManager extends EventEmitter {
       return null;
     }
     return `ws://localhost:${instance.port}/ws`;
+  }
+
+  /**
+   * Send raw bytes directly to ttyd via WebSocket
+   */
+  async sendRawInput(sessionId: string, data: Buffer): Promise<void> {
+    const instance = this.instances.get(sessionId);
+    if (!instance) {
+      throw new TtydError(`No ttyd instance for session ${sessionId}`);
+    }
+
+    const wsUrl = `ws://localhost:${instance.port}/ws`;
+
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(wsUrl);
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new TtydError('Timeout connecting to ttyd WebSocket'));
+      }, 5000);
+
+      ws.on('open', () => {
+        clearTimeout(timeout);
+        // ttyd protocol: first byte is message type (0 = input)
+        const buffer = Buffer.alloc(1 + data.length);
+        buffer[0] = 0; // Input message type
+        data.copy(buffer, 1);
+        ws.send(buffer, (err) => {
+          if (err) {
+            ws.close();
+            reject(new TtydError(`Failed to send: ${err.message}`));
+          } else {
+            // Wait a bit before closing to ensure data is flushed
+            setTimeout(() => {
+              ws.close();
+              resolve();
+            }, 50);
+          }
+        });
+      });
+
+      ws.on('error', (err) => {
+        clearTimeout(timeout);
+        reject(new TtydError(`Failed to send input to ttyd: ${err.message}`));
+      });
+
+      ws.on('close', () => {
+        // Connection closed
+      });
+    });
+  }
+
+  /**
+   * Convert a single key name to bytes
+   */
+  private keyToBytes(key: string): number[] {
+    // Handle Ctrl+key (C-x format)
+    if (key.startsWith('C-') && key.length === 3) {
+      const char = key.charAt(2).toLowerCase();
+      const code = char.charCodeAt(0) - 'a'.charCodeAt(0) + 1;
+      return [code];
+    }
+    // Handle special keys
+    if (key === 'PgUp' || key === 'PageUp') {
+      return [0x1b, 0x5b, 0x35, 0x7e]; // ESC [ 5 ~
+    }
+    if (key === 'PgDn' || key === 'PageDown') {
+      return [0x1b, 0x5b, 0x36, 0x7e]; // ESC [ 6 ~
+    }
+    if (key === 'Up') {
+      return [0x1b, 0x5b, 0x41]; // ESC [ A
+    }
+    if (key === 'Down') {
+      return [0x1b, 0x5b, 0x42]; // ESC [ B
+    }
+    if (key === 'Enter') {
+      return [0x0d];
+    }
+    if (key === 'Escape' || key === 'Esc') {
+      return [0x1b];
+    }
+    // Single character
+    if (key.length === 1) {
+      return [key.charCodeAt(0)];
+    }
+    return [];
+  }
+
+  /**
+   * Send tmux keys to ttyd (converts key names to actual bytes)
+   * Sends each key separately with a small delay for tmux to process
+   */
+  async sendKeys(sessionId: string, keys: string): Promise<void> {
+    // Parse key sequence (space-separated)
+    const keyParts = keys.split(' ').filter(k => k.length > 0);
+
+    // Send each key separately with a delay
+    for (let i = 0; i < keyParts.length; i++) {
+      const key = keyParts[i]!;
+      const bytes = this.keyToBytes(key);
+
+      if (bytes.length === 0) continue;
+
+      await this.sendRawInput(sessionId, Buffer.from(bytes));
+
+      // Small delay between keys for tmux to process (especially after prefix)
+      if (i < keyParts.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
   }
 
   // ==========================================================================

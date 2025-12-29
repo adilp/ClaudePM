@@ -549,6 +549,7 @@ export async function captureVisiblePane(paneId: string, stripAnsi = true): Prom
  * Send keys to a pane
  * @param paneId - The target pane ID
  * @param keys - Keys to send (can include special keys like Enter, C-c, etc.)
+ *               Multiple keys should be space-separated (e.g., "C-a [" or "C-u")
  * @param literal - If true, send keys literally without key name lookup (default: false)
  */
 export async function sendKeys(paneId: string, keys: string, literal: boolean = false): Promise<void> {
@@ -560,7 +561,20 @@ export async function sendKeys(paneId: string, keys: string, literal: boolean = 
   if (literal) {
     args.push('-l');
   }
-  args.push(escapeShellArg(keys));
+
+  // Split keys by space and add each as a separate argument
+  // Don't quote key names - tmux needs them unquoted to interpret them
+  // Key names like C-a, PgUp, etc. are safe (alphanumeric + dash)
+  const keyParts = keys.split(' ').filter(k => k.length > 0);
+  for (const key of keyParts) {
+    // Only allow safe tmux key names (alphanumeric, dash, brackets)
+    if (/^[a-zA-Z0-9\-\[\]]+$/.test(key)) {
+      args.push(key);
+    } else {
+      // For other characters, escape them
+      args.push(escapeShellArg(key));
+    }
+  }
 
   await execTmux(args);
 }
@@ -634,6 +648,70 @@ export async function sendSuspend(paneId: string): Promise<void> {
   }
 
   await execTmux(['send-keys', '-t', escapeShellArg(paneId), 'C-z']);
+}
+
+// ============================================================================
+// Copy Mode / Scrolling (for mobile scroll controls)
+// ============================================================================
+
+/**
+ * Enter copy mode for a pane (enables scrolling)
+ */
+export async function enterCopyMode(paneId: string): Promise<void> {
+  if (!(await isPaneAlive(paneId))) {
+    throw new TmuxPaneNotFoundError(paneId);
+  }
+
+  await execTmux(['copy-mode', '-t', escapeShellArg(paneId)]);
+}
+
+/**
+ * Exit copy mode for a pane
+ */
+export async function exitCopyMode(paneId: string): Promise<void> {
+  if (!(await isPaneAlive(paneId))) {
+    throw new TmuxPaneNotFoundError(paneId);
+  }
+
+  // Send 'q' to exit copy mode
+  await execTmux(['send-keys', '-t', escapeShellArg(paneId), '-X', 'cancel']);
+}
+
+/**
+ * Scroll up in copy mode (half page)
+ */
+export async function scrollUp(paneId: string): Promise<void> {
+  if (!(await isPaneAlive(paneId))) {
+    throw new TmuxPaneNotFoundError(paneId);
+  }
+
+  // -X sends a copy-mode command, halfpage-up scrolls half a page
+  await execTmux(['send-keys', '-t', escapeShellArg(paneId), '-X', 'halfpage-up']);
+}
+
+/**
+ * Scroll down in copy mode (half page)
+ */
+export async function scrollDown(paneId: string): Promise<void> {
+  if (!(await isPaneAlive(paneId))) {
+    throw new TmuxPaneNotFoundError(paneId);
+  }
+
+  await execTmux(['send-keys', '-t', escapeShellArg(paneId), '-X', 'halfpage-down']);
+}
+
+/**
+ * Check if pane is in copy mode
+ */
+export async function isInCopyMode(paneId: string): Promise<boolean> {
+  if (!(await isPaneAlive(paneId))) {
+    throw new TmuxPaneNotFoundError(paneId);
+  }
+
+  const result = await execTmux([
+    'display-message', '-t', escapeShellArg(paneId), '-p', '#{pane_in_mode}'
+  ]);
+  return result.trim() === '1';
 }
 
 // ============================================================================

@@ -266,12 +266,11 @@ export class SessionSupervisor extends EventEmitter {
 
   /**
    * Send tmux key sequences to a session (for scroll controls, special keys, etc.)
-   * Unlike sendRawKeys, this interprets tmux key names like "C-b", "PgUp", etc.
+   * Unlike sendRawKeys, this interprets tmux key names like "C-a", "PgUp", etc.
    */
   async sendKeys(sessionId: string, keys: string): Promise<void> {
     const paneId = await this.getValidPaneId(sessionId);
     try {
-      // Use sendKeys which interprets tmux key names
       await tmux.sendKeys(paneId, keys, false);
     } catch (error) {
       throw new SessionInputError(

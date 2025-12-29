@@ -63,7 +63,7 @@ const getInitialExpandedSections = (): string[] => {
 
 export const useUIStore = create<UIState>((set, get) => ({
   // Sidebar
-  sidebarOpen: true,
+  sidebarOpen: false,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 

@@ -122,6 +122,50 @@ See `docs/jira-tickets/README.md` for full roadmap.
 | `server/src/services/tmux.ts` | tmux integration service |
 | `server/prisma/schema.prisma` | Database schema |
 
+## Terminal Architecture
+
+The web UI displays terminal sessions via **ttyd** (embedded in an iframe). User uses `C-a` as tmux prefix (not default `C-b`).
+
+### Key Components
+
+| File | Purpose |
+|------|---------|
+| `server/src/services/ttyd-manager.ts` | Spawns/manages ttyd instances per session |
+| `server/src/services/tmux.ts` | tmux commands including copy-mode scrolling |
+| `apps/web/src/pages/SessionDetail.tsx` | Terminal UI with scroll controls |
+
+### How ttyd Works
+
+1. `POST /api/sessions/:id/ttyd` starts a ttyd instance on port 7681+
+2. ttyd runs: `tmux select-pane -t {paneId}; attach-session -t {session}`
+3. Frontend embeds ttyd in iframe: `<iframe src="http://host:7681" />`
+4. User keystrokes go through ttyd's WebSocket directly to tmux
+
+### Sending Keys to Terminal
+
+**DO NOT use `tmux send-keys` for tmux prefix commands** - it sends keys to the *program* in the pane, bypassing tmux's prefix handling.
+
+For scrolling/copy-mode, use tmux commands directly:
+```typescript
+// In server/src/services/tmux.ts
+await execTmux(['copy-mode', '-t', paneId]);           // Enter copy mode
+await execTmux(['send-keys', '-t', paneId, '-X', 'halfpage-up']);   // Scroll up
+await execTmux(['send-keys', '-t', paneId, '-X', 'halfpage-down']); // Scroll down
+await execTmux(['send-keys', '-t', paneId, '-X', 'cancel']);        // Exit copy mode
+```
+
+The `-X` flag sends copy-mode commands, not literal keys.
+
+### Mobile Scroll Controls
+
+`POST /api/sessions/:id/scroll` with `{ action: "up" | "down" | "exit" }`
+
+Floating buttons in `SessionDetail.tsx` call this endpoint. The `up` action auto-enters copy mode if not already in it.
+
+### PTY Fallback Mode
+
+If ttyd fails, falls back to node-pty (`server/src/services/pty-manager.ts`) with xterm.js in the browser. Toggle button in UI switches modes.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` and configure:

@@ -6,11 +6,20 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useProjects } from '@/hooks/useProjects';
+import { useUIStore } from '@/store/ui';
 import { Loader2 } from 'lucide-react';
 
 export function SidebarProjectsList() {
   const location = useLocation();
   const { data, isLoading, isError } = useProjects(1, 50);
+  const { setSidebarOpen } = useUIStore();
+
+  // Close sidebar on mobile when navigating
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -40,6 +49,7 @@ export function SidebarProjectsList() {
           <Link
             key={project.id}
             to={projectPath}
+            onClick={closeSidebarOnMobile}
             className={cn(
               'flex items-center gap-2 pl-9 pr-3 py-1.5 text-sm transition-colors rounded-md',
               isActive
