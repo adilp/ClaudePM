@@ -3,9 +3,13 @@
  * Overview of all projects and active sessions
  */
 
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProjects } from '@/hooks/useProjects';
 import { useSessions } from '@/hooks/useSessions';
+import { useNotificationCount, useNotifications } from '@/hooks/useNotifications';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { NotificationsPanel } from '@/components/notifications';
 import {
   FolderKanban,
   Play,
@@ -13,13 +17,65 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowRight,
+  Bell,
+  MessageCircleQuestion,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function Dashboard() {
   const { data: projectsData, isLoading: projectsLoading } = useProjects();
   const { data: sessions, isLoading: sessionsLoading } = useSessions();
+  const { data: notificationCount, refetch: refetchNotificationCount } = useNotificationCount();
+  const { data: notifications, refetch: refetchNotifications } = useNotifications();
+  const { lastMessage, subscribe, unsubscribe } = useWebSocket();
+
+  // Track waiting state for each session
+  const [waitingSessions, setWaitingSessions] = useState<Set<string>>(new Set());
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const activeSessions = sessions?.filter((s) => s.status === 'running' || s.status === 'paused') ?? [];
+
+  // Initialize waiting sessions from notifications API on load
+  useEffect(() => {
+    if (notifications?.data) {
+      const waitingSessionIds = notifications.data
+        .filter((n) => n.type === 'waiting_input' && n.session?.id)
+        .map((n) => n.session!.id);
+
+      if (waitingSessionIds.length > 0) {
+        setWaitingSessions(new Set(waitingSessionIds));
+      }
+    }
+  }, [notifications?.data]);
+
+  // Subscribe to all active sessions for waiting state updates
+  useEffect(() => {
+    activeSessions.forEach((session) => {
+      subscribe(session.id);
+    });
+
+    return () => {
+      activeSessions.forEach((session) => {
+        unsubscribe(session.id);
+      });
+    };
+  }, [activeSessions.map(s => s.id).join(','), subscribe, unsubscribe]);
+
+  // Handle WebSocket messages for waiting state
+  useEffect(() => {
+    if (lastMessage?.type === 'session:waiting') {
+      const payload = lastMessage.payload as { sessionId: string; waiting: boolean };
+      setWaitingSessions((prev) => {
+        const next = new Set(prev);
+        if (payload.waiting) {
+          next.add(payload.sessionId);
+        } else {
+          next.delete(payload.sessionId);
+        }
+        return next;
+      });
+    }
+  }, [lastMessage]);
 
   if (projectsLoading || sessionsLoading) {
     return (
@@ -28,6 +84,9 @@ export function Dashboard() {
       </div>
     );
   }
+
+  const unreadCount = notificationCount?.count ?? 0;
+  const waitingCount = waitingSessions.size;
 
   return (
     <div className="space-y-8">
@@ -40,7 +99,7 @@ export function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-center gap-4">
             <div className="rounded-full bg-primary/10 p-3">
@@ -67,17 +126,54 @@ export function Dashboard() {
 
         <div className="rounded-lg border bg-card p-6">
           <div className="flex items-center gap-4">
-            <div className="rounded-full bg-yellow-500/10 p-3">
-              <Clock className="h-6 w-6 text-yellow-500" />
+            <div className={cn(
+              "rounded-full p-3",
+              waitingCount > 0 ? "bg-orange-500/10" : "bg-yellow-500/10"
+            )}>
+              {waitingCount > 0 ? (
+                <MessageCircleQuestion className="h-6 w-6 text-orange-500" />
+              ) : (
+                <Clock className="h-6 w-6 text-yellow-500" />
+              )}
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Paused</p>
+              <p className="text-sm text-muted-foreground">
+                {waitingCount > 0 ? 'Waiting for Input' : 'Paused'}
+              </p>
               <p className="text-2xl font-bold">
-                {activeSessions.filter((s) => s.status === 'paused').length}
+                {waitingCount > 0
+                  ? waitingCount
+                  : activeSessions.filter((s) => s.status === 'paused').length}
               </p>
             </div>
           </div>
         </div>
+
+        <button
+          onClick={() => setShowNotifications(true)}
+          className="rounded-lg border bg-card p-6 hover:bg-accent/50 transition-colors text-left w-full"
+        >
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "rounded-full p-3 relative",
+              unreadCount > 0 ? "bg-red-500/10" : "bg-muted"
+            )}>
+              <Bell className={cn(
+                "h-6 w-6",
+                unreadCount > 0 ? "text-red-500" : "text-muted-foreground"
+              )} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Notifications</p>
+              <p className="text-2xl font-bold">{unreadCount}</p>
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Active Sessions */}
@@ -85,28 +181,54 @@ export function Dashboard() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Active Sessions</h2>
           <div className="space-y-3">
-            {activeSessions.map((session) => (
-              <Link
-                key={session.id}
-                to={`/sessions/${session.id}`}
-                className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <SessionStatusIcon status={session.status} />
-                  <div>
-                    <p className="font-medium">
-                      {session.ticket_id ? `Ticket Session` : 'Ad-hoc Session'}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {session.context_percent !== null
-                        ? `Context: ${session.context_percent}%`
-                        : 'Starting...'}
-                    </p>
+            {activeSessions.map((session) => {
+              const isWaiting = waitingSessions.has(session.id);
+              const sessionTitle = session.ticket
+                ? session.ticket.title || session.ticket.external_id || 'Ticket Session'
+                : 'Ad-hoc Session';
+              const projectName = session.project?.name;
+
+              return (
+                <Link
+                  key={session.id}
+                  to={`/sessions/${session.id}`}
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors",
+                    isWaiting && "border-orange-500/50 bg-orange-500/5"
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <SessionStatusIcon status={session.status} isWaiting={isWaiting} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium truncate max-w-[300px]" title={sessionTitle}>
+                          {sessionTitle}
+                        </p>
+                        {isWaiting && (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-500/10 text-orange-600 flex-shrink-0">
+                            Waiting for Input
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {projectName && (
+                          <>
+                            <span className="truncate max-w-[200px]">{projectName}</span>
+                            <span>•</span>
+                          </>
+                        )}
+                        <span>
+                          {session.context_percent !== null
+                            ? `Context: ${session.context_percent}%`
+                            : 'Starting...'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </Link>
-            ))}
+                  <ArrowRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
@@ -154,11 +276,25 @@ export function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Notifications Panel */}
+      <NotificationsPanel
+        isOpen={showNotifications}
+        onClose={() => {
+          setShowNotifications(false);
+          refetchNotificationCount();
+          refetchNotifications();
+        }}
+      />
     </div>
   );
 }
 
-function SessionStatusIcon({ status }: { status: string }) {
+function SessionStatusIcon({ status, isWaiting }: { status: string; isWaiting?: boolean }) {
+  if (isWaiting) {
+    return <MessageCircleQuestion className="h-5 w-5 text-orange-500 animate-pulse" />;
+  }
+
   switch (status) {
     case 'running':
       return <Play className="h-5 w-5 text-green-500" />;

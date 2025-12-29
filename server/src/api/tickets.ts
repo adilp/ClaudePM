@@ -60,6 +60,7 @@ function toTicketSummaryResponse(ticket: Ticket): TicketSummaryResponse {
     state: ticket.state as TicketState,
     file_path: ticket.filePath,
     is_adhoc: ticket.isAdhoc,
+    is_explore: ticket.isExplore,
     started_at: ticket.startedAt?.toISOString() ?? null,
     completed_at: ticket.completedAt?.toISOString() ?? null,
     created_at: ticket.createdAt.toISOString(),
@@ -271,6 +272,7 @@ router.get(
       state: ticket.state as TicketState,
       file_path: ticket.filePath,
       is_adhoc: ticket.isAdhoc,
+      is_explore: ticket.isExplore,
       content: ticket.content,
       project_id: ticket.projectId,
       started_at: ticket.startedAt?.toISOString() ?? null,
@@ -328,6 +330,11 @@ router.post(
 
     const result = await ticketStateMachine.approve(id);
 
+    // Clean up any notifications for this ticket
+    await prisma.notification.deleteMany({
+      where: { ticketId: id },
+    });
+
     res.json(toTransitionResultResponse(result));
   })
 );
@@ -366,6 +373,14 @@ Please address the feedback above and continue working on the ticket.
         console.error('[Reject] Failed to send feedback to session:', err);
       }
     }
+
+    // Clean up the review_ready notification since ticket is going back to work
+    await prisma.notification.deleteMany({
+      where: {
+        ticketId: id,
+        type: 'review_ready',
+      },
+    });
 
     res.json(toTransitionResultResponse(result));
   })

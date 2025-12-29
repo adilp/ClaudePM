@@ -101,6 +101,16 @@ export interface SessionResponse {
   ended_at: string | null;
   created_at: string;
   updated_at: string;
+  // Related data
+  project?: {
+    id: string;
+    name: string;
+  } | null;
+  ticket?: {
+    id: string;
+    external_id: string | null;
+    title: string;
+  } | null;
 }
 
 /**

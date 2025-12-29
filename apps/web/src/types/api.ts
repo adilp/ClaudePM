@@ -49,6 +49,7 @@ export interface Ticket {
   file_path: string;
   content_hash: string;
   is_adhoc: boolean;
+  is_explore: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -56,6 +57,7 @@ export interface Ticket {
 export interface AdhocTicketCreate {
   title: string;
   slug: string;
+  isExplore?: boolean;
 }
 
 export interface AdhocTicketResponse {
@@ -67,6 +69,7 @@ export interface AdhocTicketResponse {
   file_path: string;
   content_hash: string;
   is_adhoc: boolean;
+  is_explore: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -123,6 +126,16 @@ export interface Session {
   ended_at: string | null;
   created_at: string;
   updated_at: string;
+  // Related data
+  project?: {
+    id: string;
+    name: string;
+  } | null;
+  ticket?: {
+    id: string;
+    external_id: string | null;
+    title: string;
+  } | null;
 }
 
 export interface SyncSessionsResult {
@@ -291,6 +304,38 @@ export interface SessionActivity {
   session_id: string;
   events: ActivityEvent[];
   line_count: number;
+}
+
+// ============================================================================
+// Notification Types
+// ============================================================================
+
+export type NotificationType = 'review_ready' | 'context_low' | 'handoff_complete' | 'error' | 'waiting_input';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  message: string;
+  created_at: string;
+  session: {
+    id: string;
+    type: SessionType;
+    status: SessionStatus;
+  } | null;
+  ticket: {
+    id: string;
+    external_id: string | null;
+    title: string;
+  } | null;
+}
+
+export interface NotificationsResponse {
+  data: Notification[];
+  count: number;
+}
+
+export interface NotificationCountResponse {
+  count: number;
 }
 
 // ============================================================================

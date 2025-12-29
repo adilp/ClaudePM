@@ -44,6 +44,7 @@ function toAdhocTicketResponse(ticket: Ticket): AdhocTicketResponse {
     state: ticket.state,
     file_path: ticket.filePath,
     is_adhoc: ticket.isAdhoc,
+    is_explore: ticket.isExplore,
     rejection_feedback: ticket.rejectionFeedback,
     started_at: ticket.startedAt?.toISOString() ?? null,
     completed_at: ticket.completedAt?.toISOString() ?? null,
@@ -141,9 +142,9 @@ router.post(
   '/projects/:projectId/adhoc-tickets',
   asyncHandler<AdhocTicketResponse | ErrorResponse>(async (req, res) => {
     const { projectId } = projectIdSchema.parse(req.params);
-    const { title, slug } = createAdhocTicketSchema.parse(req.body);
+    const { title, slug, isExplore } = createAdhocTicketSchema.parse(req.body);
 
-    const ticket = await adhocTicketsService.createAdhocTicket(projectId, title, slug);
+    const ticket = await adhocTicketsService.createAdhocTicket(projectId, title, slug, isExplore);
 
     res.status(201).json(toAdhocTicketResponse(ticket));
   })

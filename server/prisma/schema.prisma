@@ -80,6 +80,7 @@ model Ticket {
   state             TicketState @default(backlog)
   filePath          String      @map("file_path") @db.VarChar(500)
   isAdhoc           Boolean     @default(false) @map("is_adhoc")
+  isExplore         Boolean     @default(false) @map("is_explore")
   rejectionFeedback String?     @map("rejection_feedback") @db.Text
   startedAt         DateTime?   @map("started_at")
   completedAt       DateTime?   @map("completed_at")

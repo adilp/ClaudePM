@@ -42,6 +42,7 @@ export const createAdhocTicketSchema = z.object({
       /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
       'Slug must be lowercase alphanumeric with hyphens (e.g., my-feature-name)'
     ),
+  isExplore: z.boolean().optional().default(false),
 });
 
 /**
@@ -90,6 +91,7 @@ export interface AdhocTicketResponse {
   state: TicketState;
   file_path: string;
   is_adhoc: boolean;
+  is_explore: boolean;
   rejection_feedback: string | null;
   started_at: string | null;
   completed_at: string | null;

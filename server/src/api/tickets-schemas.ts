@@ -74,6 +74,7 @@ export interface TicketSummaryResponse {
   state: TicketState;
   file_path: string;
   is_adhoc: boolean;
+  is_explore: boolean;
   started_at: string | null;
   completed_at: string | null;
   created_at: string;

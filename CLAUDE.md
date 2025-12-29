@@ -122,6 +122,21 @@ See `docs/jira-tickets/README.md` for full roadmap.
 | `server/src/services/tmux.ts` | tmux integration service |
 | `server/prisma/schema.prisma` | Database schema |
 
+## Claude Session Spawning
+
+Sessions are started in `server/src/services/session-supervisor.ts` via tmux:
+
+```typescript
+claudeCommand = `claude "${escapedPrompt}" --allowedTools Edit Read Write Bash Grep Glob`;
+// Executed via: tmux split-window -t <target> -c <projectRepoPath> <claudeCommand>
+```
+
+**Key points:**
+- Prompt MUST come BEFORE `--allowedTools` flag
+- Working directory set to project's `repoPath` (CLAUDE.md loads from here)
+- Escape `\` and `"` in prompts for shell safety
+- Ticket sessions include `---TASK_COMPLETE---` marker instruction
+
 ## Terminal Architecture
 
 The web UI displays terminal sessions via **ttyd** (embedded in an iframe). User uses `C-a` as tmux prefix (not default `C-b`).

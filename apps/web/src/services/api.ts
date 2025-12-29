@@ -28,6 +28,8 @@ import type {
   CommitMessage,
   PrDescription,
   SessionActivity,
+  NotificationsResponse,
+  NotificationCountResponse,
 } from '@/types/api';
 
 // ============================================================================
@@ -273,6 +275,23 @@ class ApiClient {
 
   async getTmuxSessionDetail(name: string): Promise<TmuxSessionDetail> {
     return this.request(`/tmux/sessions/${encodeURIComponent(name)}`);
+  }
+
+  // Notifications
+  async getNotifications(): Promise<NotificationsResponse> {
+    return this.request('/notifications');
+  }
+
+  async getNotificationCount(): Promise<NotificationCountResponse> {
+    return this.request('/notifications/count');
+  }
+
+  async dismissNotification(id: string): Promise<{ success: boolean }> {
+    return this.request(`/notifications/${id}`, { method: 'DELETE' });
+  }
+
+  async dismissAllNotifications(): Promise<{ dismissed: number }> {
+    return this.request('/notifications', { method: 'DELETE' });
   }
 }
 

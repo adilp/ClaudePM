@@ -446,11 +446,11 @@ export class SessionSupervisor extends EventEmitter {
     let paneId: string;
 
     // Query ticket if this is a ticket session to determine command
-    let ticket: { isAdhoc: boolean; filePath: string; title: string; externalId: string | null } | null = null;
+    let ticket: { isAdhoc: boolean; isExplore: boolean; filePath: string; title: string; externalId: string | null } | null = null;
     if (options.ticketId) {
       ticket = await prisma.ticket.findUnique({
         where: { id: options.ticketId },
-        select: { isAdhoc: true, filePath: true, title: true, externalId: true },
+        select: { isAdhoc: true, isExplore: true, filePath: true, title: true, externalId: true },
       });
     }
 
@@ -461,7 +461,23 @@ export class SessionSupervisor extends EventEmitter {
       // Use relative path since cwd is set to project.repoPath
       const ticketPath = ticket.filePath;
 
-      if (ticket.isAdhoc) {
+      if (ticket.isExplore) {
+        // Explore mode: research and understand, do NOT implement
+        // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
+        claudeCommand = `claude "Read the ticket at ${ticketPath} and help me understand:
+
+1. Research the problem - understand what's being asked
+2. Find relevant files and code in the codebase
+3. If web research would help, use it to find documentation or solutions
+4. Summarize your findings and any implementation considerations
+
+IMPORTANT: Do NOT implement anything. This is a research/exploration session only.
+Ask clarifying questions if the requirements are unclear.
+
+When you've completed your research and summarized findings, output exactly on its own line:
+---TASK_COMPLETE---
+Followed by a brief summary of what you learned." --allowedTools Edit Read Write Bash Grep Glob`;
+      } else if (ticket.isAdhoc) {
         // Adhoc tickets: summarize and wait for confirmation
         // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
         claudeCommand = `claude "Read the ticket at ${ticketPath} Explore the the codebase, come up with a solution, and summarize what's being requested. Ask any clarifying questions. Then propose next steps and wait for my confirmation before implementing.

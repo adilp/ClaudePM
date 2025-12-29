@@ -5,7 +5,7 @@
 
 import { useDraggable } from '@dnd-kit/core';
 import { useNavigate } from 'react-router-dom';
-import { GripVertical, FileText, Play } from 'lucide-react';
+import { GripVertical, FileText, Play, Search } from 'lucide-react';
 import { useStartTicket } from '@/hooks/useTickets';
 import type { Ticket } from '@/types/api';
 
@@ -63,8 +63,9 @@ export function KanbanCard({ ticket, projectId, hasRunningSession }: KanbanCardP
       {...listeners}
       onClick={handleClick}
       className={`
-        group relative rounded-lg border bg-card p-3 shadow-sm cursor-grab active:cursor-grabbing
+        group relative rounded-lg border p-3 shadow-sm cursor-grab active:cursor-grabbing
         hover:border-primary/50 hover:shadow-md transition-colors transition-shadow
+        ${ticket.is_explore ? 'bg-indigo-50 border-indigo-200' : 'bg-card'}
         ${isDragging ? 'shadow-lg ring-2 ring-primary z-50' : ''}
       `}
     >
@@ -88,7 +89,11 @@ export function KanbanCard({ ticket, projectId, hasRunningSession }: KanbanCardP
       {/* Card Content */}
       <div className="block pl-5 pr-6">
         <div className="flex items-start gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+          {ticket.is_explore ? (
+            <Search className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+          ) : (
+            <FileText className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+          )}
           <div className="min-w-0 flex-1">
             <p className="font-medium text-sm leading-tight line-clamp-2">
               {ticket.title}

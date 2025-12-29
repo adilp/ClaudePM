@@ -580,7 +580,7 @@ export class ReviewerSubagent extends TypedEventEmitter {
   }
 
   /**
-   * Create a notification for completed ticket
+   * Upsert a notification for completed ticket (one per ticket)
    */
   private async createNotification(ticketId: string, result: ReviewResult): Promise<void> {
     const ticket = await prisma.ticket.findUnique({
@@ -589,17 +589,36 @@ export class ReviewerSubagent extends TypedEventEmitter {
 
     if (!ticket) return;
 
-    await prisma.notification.create({
-      data: {
-        type: 'review_ready',
-        ticketId,
-        message: `Ticket ${ticket.externalId} is ready for review. ${result.reasoning}`,
-      },
+    // Find existing notification for this ticket
+    const existing = await prisma.notification.findFirst({
+      where: { ticketId },
     });
+
+    const message = `Ticket ${ticket.externalId} is ready for review. ${result.reasoning}`;
+
+    if (existing) {
+      await prisma.notification.update({
+        where: { id: existing.id },
+        data: {
+          type: 'review_ready',
+          message,
+          read: false,
+          createdAt: new Date(),
+        },
+      });
+    } else {
+      await prisma.notification.create({
+        data: {
+          type: 'review_ready',
+          ticketId,
+          message,
+        },
+      });
+    }
   }
 
   /**
-   * Create a notification when clarification is needed
+   * Upsert a notification when clarification is needed (one per ticket)
    */
   private async createClarificationNotification(ticketId: string, result: ReviewResult): Promise<void> {
     const ticket = await prisma.ticket.findUnique({
@@ -608,13 +627,32 @@ export class ReviewerSubagent extends TypedEventEmitter {
 
     if (!ticket) return;
 
-    await prisma.notification.create({
-      data: {
-        type: 'waiting_input',
-        ticketId,
-        message: `Ticket ${ticket.externalId} needs clarification: ${result.reasoning}`,
-      },
+    // Find existing notification for this ticket
+    const existing = await prisma.notification.findFirst({
+      where: { ticketId },
     });
+
+    const message = `Ticket ${ticket.externalId} needs clarification: ${result.reasoning}`;
+
+    if (existing) {
+      await prisma.notification.update({
+        where: { id: existing.id },
+        data: {
+          type: 'waiting_input',
+          message,
+          read: false,
+          createdAt: new Date(),
+        },
+      });
+    } else {
+      await prisma.notification.create({
+        data: {
+          type: 'waiting_input',
+          ticketId,
+          message,
+        },
+      });
+    }
   }
 
   // ==========================================================================

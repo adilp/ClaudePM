@@ -154,12 +154,46 @@ function asyncHandler<T>(
  */
 router.get(
   '/sessions',
-  asyncHandler<SessionResponse[] | ErrorResponse>(async (req, res) => {
+  asyncHandler(async (req, res) => {
     const projectId = req.query.project_id as string | undefined;
 
-    const sessions = await sessionSupervisor.listSessions(projectId);
+    // Fetch sessions with related project and ticket data
+    const { prisma } = await import('../config/db.js');
+    const sessions = await prisma.session.findMany({
+      where: projectId ? { projectId } : {},
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        ticket: {
+          select: {
+            id: true,
+            externalId: true,
+            title: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-    res.json(sessions.map(toSessionResponse));
+    const response: SessionResponse[] = sessions.map((session) => ({
+      ...toSessionResponse(session),
+      project: session.project
+        ? { id: session.project.id, name: session.project.name }
+        : null,
+      ticket: session.ticket
+        ? {
+            id: session.ticket.id,
+            external_id: session.ticket.externalId,
+            title: session.ticket.title,
+          }
+        : null,
+    }));
+
+    res.json(response);
   })
 );
 

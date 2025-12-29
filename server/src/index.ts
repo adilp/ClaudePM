@@ -9,6 +9,7 @@ import adhocTicketsRouter from './api/adhoc-tickets.js';
 import hooksRouter from './api/hooks.js';
 import gitRouter from './api/git.js';
 import tmuxRouter from './api/tmux.js';
+import notificationsRouter from './api/notifications.js';
 import { sessionSupervisor } from './services/session-supervisor.js';
 import { waitingDetector } from './services/waiting-detector.js';
 import { ticketStateMachine } from './services/ticket-state-machine.js';
@@ -33,6 +34,7 @@ app.use('/api', ticketsRouter);
 app.use('/api', adhocTicketsRouter);
 app.use('/api/hooks', hooksRouter);
 app.use('/api/tmux', tmuxRouter);
+app.use('/api', notificationsRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response): void => {

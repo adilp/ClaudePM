@@ -37,6 +37,7 @@ export function CreateAdhocTicketModal({
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [isExplore, setIsExplore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset form when modal opens
@@ -45,6 +46,7 @@ export function CreateAdhocTicketModal({
       setTitle('');
       setSlug('');
       setSlugManuallyEdited(false);
+      setIsExplore(false);
       setError(null);
     }
   }, [isOpen]);
@@ -76,7 +78,7 @@ export function CreateAdhocTicketModal({
     }
 
     createAdhocTicket.mutate(
-      { projectId, data: { title: title.trim(), slug: slug.trim() } },
+      { projectId, data: { title: title.trim(), slug: slug.trim(), isExplore } },
       {
         onSuccess: (ticket) => {
           onClose();
@@ -154,6 +156,28 @@ export function CreateAdhocTicketModal({
             <p className="text-xs text-muted-foreground mt-1">
               Used for the ticket filename and URL
             </p>
+          </div>
+
+          {/* Explore Mode Checkbox */}
+          <div className="flex items-center gap-3">
+            <input
+              id="isExplore"
+              type="checkbox"
+              checked={isExplore}
+              onChange={(e) => setIsExplore(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <div>
+              <label
+                htmlFor="isExplore"
+                className="text-sm font-medium cursor-pointer"
+              >
+                Explore Mode
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Claude researches first, you implement
+              </p>
+            </div>
           </div>
 
           {/* Error Message */}

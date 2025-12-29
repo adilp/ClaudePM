@@ -482,7 +482,11 @@ export function SessionDetail() {
     );
   }
 
-  const statusInfo = statusConfig[session.status];
+  const baseStatusInfo = statusConfig[session.status];
+  // Override status display when session is waiting for input
+  const statusInfo = isWaiting
+    ? { label: 'Waiting for Input', color: 'text-orange-700', bgColor: 'bg-orange-100', icon: AlertCircle }
+    : baseStatusInfo;
   const StatusIcon = statusInfo.icon;
   const isActive = session.status === 'running' || session.status === 'paused';
   const displayContext = contextPercent ?? session.context_percent;
@@ -582,9 +586,9 @@ export function SessionDetail() {
 
         {/* Waiting Indicator */}
         {isWaiting && (
-          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-blue-100 text-blue-700">
+          <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-lg bg-orange-100 text-orange-700 border border-orange-300 animate-pulse">
             <AlertCircle className="h-4 w-4" />
-            <span className="text-xs md:text-sm font-medium">Waiting for input...</span>
+            <span className="text-xs md:text-sm font-medium">Waiting for input</span>
           </div>
         )}
 

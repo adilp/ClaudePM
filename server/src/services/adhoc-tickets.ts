@@ -118,7 +118,8 @@ export async function generateAdhocDisplayId(projectId: string): Promise<string>
 export async function createAdhocTicket(
   projectId: string,
   title: string,
-  slug: string
+  slug: string,
+  isExplore: boolean = false
 ): Promise<Ticket> {
   // 1. Find the project
   const project = await prisma.project.findUnique({
@@ -180,6 +181,7 @@ export async function createAdhocTicket(
         title,
         filePath: relativeFilePath,
         isAdhoc: true,
+        isExplore,
         state: 'backlog',
       },
     });
