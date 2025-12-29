@@ -29,6 +29,9 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Maximize2,
+  ChevronUp,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 
 const statusConfig: Record<SessionStatus, { label: string; color: string; bgColor: string; icon: typeof Play }> = {
@@ -78,6 +81,7 @@ export function SessionDetail() {
   const [contextPercent, setContextPercent] = useState<number | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisTab, setAnalysisTab] = useState<'summary' | 'activity' | 'review'>('summary');
+  const [isScrollMode, setIsScrollMode] = useState(false);
 
   // Start ttyd when in ttyd mode
   useEffect(() => {
@@ -400,6 +404,45 @@ export function SessionDetail() {
     ptySelectPane(sessionId);
   }, [sessionId, ptySelectPane]);
 
+  // Send tmux key sequences via API (for mobile scroll controls)
+  const sendTmuxKeys = useCallback(async (keys: string) => {
+    if (!sessionId) return;
+    try {
+      await fetch(`/api/sessions/${sessionId}/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys }),
+      });
+    } catch (err) {
+      console.error('[Terminal] Failed to send tmux keys:', err);
+    }
+  }, [sessionId]);
+
+  // Scroll control handlers
+  const handleScrollUp = useCallback(() => {
+    if (!isScrollMode) {
+      // Enter copy mode and scroll up
+      sendTmuxKeys('C-b [');
+      setIsScrollMode(true);
+      // Small delay then scroll up
+      setTimeout(() => sendTmuxKeys('C-u'), 100);
+    } else {
+      // Already in copy mode, just scroll up
+      sendTmuxKeys('C-u');
+    }
+  }, [isScrollMode, sendTmuxKeys]);
+
+  const handleScrollDown = useCallback(() => {
+    if (isScrollMode) {
+      sendTmuxKeys('C-d');
+    }
+  }, [isScrollMode, sendTmuxKeys]);
+
+  const handleExitScrollMode = useCallback(() => {
+    sendTmuxKeys('q');
+    setIsScrollMode(false);
+  }, [sendTmuxKeys]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -631,6 +674,44 @@ export function SessionDetail() {
           >
             {useTtyd ? 'ttyd' : 'PTY'}
           </button>
+
+          {/* Mobile scroll controls - floating buttons */}
+          <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+            {isScrollMode && (
+              <button
+                onClick={handleExitScrollMode}
+                className="p-3 rounded-full bg-red-600/90 hover:bg-red-500 text-white shadow-lg transition-colors"
+                title="Exit scroll mode"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+            <button
+              onClick={handleScrollUp}
+              className={cn(
+                'p-3 rounded-full shadow-lg transition-colors',
+                isScrollMode
+                  ? 'bg-blue-600/90 hover:bg-blue-500 text-white'
+                  : 'bg-gray-700/90 hover:bg-gray-600 text-gray-200'
+              )}
+              title={isScrollMode ? 'Scroll up (half page)' : 'Enter scroll mode & scroll up'}
+            >
+              <ChevronUp className="h-5 w-5" />
+            </button>
+            <button
+              onClick={handleScrollDown}
+              disabled={!isScrollMode}
+              className={cn(
+                'p-3 rounded-full shadow-lg transition-colors',
+                isScrollMode
+                  ? 'bg-blue-600/90 hover:bg-blue-500 text-white'
+                  : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+              )}
+              title="Scroll down (half page)"
+            >
+              <ChevronDown className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Analysis Panel */}

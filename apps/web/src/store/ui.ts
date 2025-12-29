@@ -15,6 +15,11 @@ interface UIState {
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
 
+  // Sidebar expanded sections
+  expandedSections: string[];
+  toggleSection: (section: string) => void;
+  isSectionExpanded: (section: string) => boolean;
+
   // Theme
   theme: 'light' | 'dark' | 'system';
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -42,11 +47,40 @@ interface Notification {
 // Store
 // ============================================================================
 
-export const useUIStore = create<UIState>((set) => ({
+// Helper to get initial expanded sections from localStorage
+const getInitialExpandedSections = (): string[] => {
+  try {
+    const stored = localStorage.getItem('sidebar-expanded-sections');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  // Default: Projects section expanded
+  return ['projects'];
+};
+
+export const useUIStore = create<UIState>((set, get) => ({
   // Sidebar
   sidebarOpen: true,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  // Sidebar expanded sections
+  expandedSections: getInitialExpandedSections(),
+  toggleSection: (section) => {
+    const { expandedSections } = get();
+    const isExpanded = expandedSections.includes(section);
+    const newSections = isExpanded
+      ? expandedSections.filter((s) => s !== section)
+      : [...expandedSections, section];
+
+    // Persist to localStorage
+    localStorage.setItem('sidebar-expanded-sections', JSON.stringify(newSections));
+    set({ expandedSections: newSections });
+  },
+  isSectionExpanded: (section) => get().expandedSections.includes(section),
 
   // Theme
   theme: 'system',

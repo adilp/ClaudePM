@@ -522,9 +522,9 @@ export class WebSocketManager {
       return;
     }
 
-    // Send keys to session
+    // Send raw keys to session (for terminal input)
     sessionSupervisor
-      .sendKeys(sessionId, keys)
+      .sendRawKeys(sessionId, keys)
       .then(() => {
         // Keys sent successfully - no response needed
       })

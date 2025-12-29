@@ -49,6 +49,13 @@ export const sendInputSchema = z.object({
 });
 
 /**
+ * Schema for sending tmux keys to a session (for mobile scroll controls, etc.)
+ */
+export const sendKeysSchema = z.object({
+  keys: z.string().min(1).max(100, 'Keys string too long'),
+});
+
+/**
  * Schema for stop session options
  */
 export const stopSessionSchema = z.object({
@@ -71,6 +78,7 @@ export type ProjectIdInput = z.infer<typeof projectIdSchema>;
 export type StartSessionInput = z.infer<typeof startSessionSchema>;
 export type StartTicketSessionInput = z.infer<typeof startTicketSessionSchema>;
 export type SendInputInput = z.infer<typeof sendInputSchema>;
+export type SendKeysInput = z.infer<typeof sendKeysSchema>;
 export type StopSessionInput = z.infer<typeof stopSessionSchema>;
 export type OutputQueryInput = z.infer<typeof outputQuerySchema>;
 

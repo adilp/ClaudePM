@@ -17,19 +17,23 @@ import {
   Wifi,
   WifiOff,
   Terminal,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
+import { SidebarProjectsList } from './SidebarProjectsList';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Projects', href: '/projects', icon: FolderKanban },
+  { name: 'Projects', href: '/projects', icon: FolderKanban, expandable: true },
   { name: 'Sessions', href: '/sessions', icon: Terminal },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export function AppLayout() {
   const location = useLocation();
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const { sidebarOpen, toggleSidebar, isSectionExpanded, toggleSection } = useUIStore();
   const { connectionState } = useWebSocket();
+  const isProjectsExpanded = isSectionExpanded('projects');
 
   return (
     <div className="min-h-screen bg-background">
@@ -66,10 +70,49 @@ export function AppLayout() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href ||
                 (item.href !== '/' && location.pathname.startsWith(item.href));
+
+              // Handle expandable sections (Projects)
+              if (item.expandable) {
+                return (
+                  <div key={item.name}>
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => toggleSection(item.name.toLowerCase())}
+                        className="p-1 rounded hover:bg-accent"
+                        aria-label={isProjectsExpanded ? 'Collapse projects' : 'Expand projects'}
+                      >
+                        {isProjectsExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                      <Link
+                        to={item.href}
+                        className={cn(
+                          'flex-1 flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        )}
+                      >
+                        <item.icon className="h-5 w-5" />
+                        {item.name}
+                      </Link>
+                    </div>
+                    {isProjectsExpanded && (
+                      <div className="mt-1 mb-2">
+                        <SidebarProjectsList />
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <Link
                   key={item.name}

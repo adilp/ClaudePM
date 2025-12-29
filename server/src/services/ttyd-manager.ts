@@ -246,11 +246,19 @@ export class TtydManager extends EventEmitter {
 
   /**
    * Get or start ttyd for a session
+   * Validates that cached instances still have alive panes
    */
   async getOrStart(sessionId: string): Promise<TtydInstance> {
     const existing = this.instances.get(sessionId);
     if (existing) {
-      return existing;
+      // Verify the pane is still alive before returning cached instance
+      const isAlive = await tmux.isPaneAlive(existing.paneId);
+      if (isAlive) {
+        return existing;
+      }
+      // Pane is dead - clean up stale ttyd instance
+      console.log(`[TtydManager] Cached ttyd for session ${sessionId} has dead pane ${existing.paneId}, cleaning up`);
+      this.stop(sessionId);
     }
     return this.start(sessionId);
   }

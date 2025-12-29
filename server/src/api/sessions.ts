@@ -11,6 +11,7 @@ import {
   startSessionSchema,
   startTicketSessionSchema,
   sendInputSchema,
+  sendKeysSchema,
   stopSessionSchema,
   outputQuerySchema,
   type SessionResponse,
@@ -267,6 +268,25 @@ router.post(
     await sessionSupervisor.sendInput(id, input);
 
     res.json({ message: 'Input sent successfully' });
+  })
+);
+
+/**
+ * POST /api/sessions/:id/keys
+ * Send raw tmux keys to a session (for mobile scroll controls, special keys, etc.)
+ *
+ * Body:
+ * - keys: Tmux key sequence to send (e.g., "C-b PgUp", "PgDn", "q")
+ */
+router.post(
+  '/sessions/:id/keys',
+  asyncHandler<MessageResponse | ErrorResponse>(async (req, res) => {
+    const { id } = sessionIdSchema.parse(req.params);
+    const { keys } = sendKeysSchema.parse(req.body);
+
+    await sessionSupervisor.sendKeys(id, keys);
+
+    res.json({ message: 'Keys sent successfully' });
   })
 );
 

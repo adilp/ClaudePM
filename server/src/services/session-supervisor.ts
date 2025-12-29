@@ -251,11 +251,28 @@ export class SessionSupervisor extends EventEmitter {
    * Used for real-time terminal input from web terminal
    * Uses hex encoding to reliably pass escape sequences
    */
-  async sendKeys(sessionId: string, keys: string): Promise<void> {
+  async sendRawKeys(sessionId: string, keys: string): Promise<void> {
     const paneId = await this.getValidPaneId(sessionId);
     try {
       // Use sendRawKeys which uses hex encoding for reliable escape sequence handling
       await tmux.sendRawKeys(paneId, keys);
+    } catch (error) {
+      throw new SessionInputError(
+        sessionId,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  /**
+   * Send tmux key sequences to a session (for scroll controls, special keys, etc.)
+   * Unlike sendRawKeys, this interprets tmux key names like "C-b", "PgUp", etc.
+   */
+  async sendKeys(sessionId: string, keys: string): Promise<void> {
+    const paneId = await this.getValidPaneId(sessionId);
+    try {
+      // Use sendKeys which interprets tmux key names
+      await tmux.sendKeys(paneId, keys, false);
     } catch (error) {
       throw new SessionInputError(
         sessionId,
