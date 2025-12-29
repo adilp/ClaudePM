@@ -422,6 +422,20 @@ export function SessionDetail() {
     }
   }, [sessionId]);
 
+  // Send raw key via ttyd WebSocket (for Escape, etc.)
+  const sendKey = useCallback(async (key: string) => {
+    if (!sessionId) return;
+    try {
+      await fetch(`/api/sessions/${sessionId}/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: key }),
+      });
+    } catch (err) {
+      console.error('[Terminal] Failed to send key:', err);
+    }
+  }, [sessionId]);
+
   // Scroll control handlers
   // Both up and down auto-enter copy mode on the server if needed
   const handleScrollUp = useCallback(async () => {
@@ -438,6 +452,10 @@ export function SessionDetail() {
     await sendScrollAction('exit');
     setIsScrollMode(false);
   }, [sendScrollAction]);
+
+  const handleEscape = useCallback(() => {
+    sendKey('Escape');
+  }, [sendKey]);
 
   if (isLoading) {
     return (
@@ -671,8 +689,16 @@ export function SessionDetail() {
             {useTtyd ? 'ttyd' : 'PTY'}
           </button>
 
-          {/* Mobile scroll controls - floating buttons */}
+          {/* Mobile control buttons - floating */}
           <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+            {/* Escape key for vim/editors */}
+            <button
+              onClick={handleEscape}
+              className="px-2 py-1.5 rounded-full bg-gray-700/90 hover:bg-gray-600 text-gray-200 shadow-lg transition-colors text-xs font-mono font-bold"
+              title="Send Escape key"
+            >
+              ESC
+            </button>
             {isScrollMode && (
               <button
                 onClick={handleExitScrollMode}
@@ -696,12 +722,11 @@ export function SessionDetail() {
             </button>
             <button
               onClick={handleScrollDown}
-              disabled={!isScrollMode}
               className={cn(
                 'p-3 rounded-full shadow-lg transition-colors',
                 isScrollMode
                   ? 'bg-blue-600/90 hover:bg-blue-500 text-white'
-                  : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-700/90 hover:bg-gray-600 text-gray-200'
               )}
               title="Scroll down (half page)"
             >
