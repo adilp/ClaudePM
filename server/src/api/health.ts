@@ -61,7 +61,7 @@ async function checkTmuxAvailability(): Promise<'available' | 'unavailable'> {
   return tmuxStatusCache;
 }
 
-router.get('/health', (_req: Request, res: Response<HealthResponse>): void => {
+router.get('/', (_req: Request, res: Response<HealthResponse>): void => {
   void (async (): Promise<void> => {
     const [dbStatus, tmuxStatus] = await Promise.all([
       checkDatabaseConnection(),

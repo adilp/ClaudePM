@@ -27,8 +27,13 @@ const httpServer = createServer(app);
 // Middleware
 app.use(express.json());
 
-// API Routes
-app.use('/api', healthRouter);
+// API Routes - Health endpoint (no auth required)
+app.use('/api/health', healthRouter);
+
+// Apply API key auth to all other /api routes when API_KEY is configured
+app.use('/api', apiKeyAuth);
+
+// Protected API Routes
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects', gitRouter);
 app.use('/api', sessionsRouter);
@@ -37,7 +42,7 @@ app.use('/api', adhocTicketsRouter);
 app.use('/api/hooks', hooksRouter);
 app.use('/api/tmux', tmuxRouter);
 app.use('/api', notificationsRouter);
-app.use('/api/devices', apiKeyAuth, devicesRouter);  // Native app route - requires API key
+app.use('/api/devices', devicesRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response): void => {
