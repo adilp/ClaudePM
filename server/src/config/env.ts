@@ -10,6 +10,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().default('postgresql://localhost:5432/claude_session_manager'),
   HANDOFF_THRESHOLD_PERCENT: z.coerce.number().min(5).max(50).default(20),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  API_KEY: z.string().min(32).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

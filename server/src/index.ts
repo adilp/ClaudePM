@@ -10,6 +10,8 @@ import hooksRouter from './api/hooks.js';
 import gitRouter from './api/git.js';
 import tmuxRouter from './api/tmux.js';
 import notificationsRouter from './api/notifications.js';
+import devicesRouter from './api/devices.js';
+import { apiKeyAuth } from './middleware/api-key-auth.js';
 import { sessionSupervisor } from './services/session-supervisor.js';
 import { waitingDetector } from './services/waiting-detector.js';
 import { ticketStateMachine } from './services/ticket-state-machine.js';
@@ -35,6 +37,7 @@ app.use('/api', adhocTicketsRouter);
 app.use('/api/hooks', hooksRouter);
 app.use('/api/tmux', tmuxRouter);
 app.use('/api', notificationsRouter);
+app.use('/api/devices', apiKeyAuth, devicesRouter);  // Native app route - requires API key
 
 // 404 handler
 app.use((_req: Request, res: Response): void => {
