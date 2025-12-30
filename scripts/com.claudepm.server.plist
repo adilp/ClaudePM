@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.claudepm.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__NODE_PATH__</string>
+        <string>__SERVER_DIR__/dist/index.js</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__SERVER_DIR__</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/claudepm.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/claudepm.error.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PORT</key>
+        <string>__PORT__</string>
+        <key>HOST</key>
+        <string>__HOST__</string>
+        <key>NODE_ENV</key>
+        <string>__NODE_ENV__</string>
+        <key>DATABASE_URL</key>
+        <string>__DATABASE_URL__</string>
+        <key>HANDOFF_THRESHOLD_PERCENT</key>
+        <string>__HANDOFF_THRESHOLD_PERCENT__</string>
+        <key>LOG_LEVEL</key>
+        <string>__LOG_LEVEL__</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
