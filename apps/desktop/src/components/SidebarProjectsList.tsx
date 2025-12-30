@@ -8,7 +8,8 @@ import { useProjects } from '../hooks/useProjects';
 
 export function SidebarProjectsList() {
   const location = useLocation();
-  const { data: projects, isLoading, isError } = useProjects();
+  const { data, isLoading, isError } = useProjects();
+  const projects = data?.data ?? [];
 
   if (isLoading) {
     return (
@@ -19,7 +20,7 @@ export function SidebarProjectsList() {
     );
   }
 
-  if (isError || !projects?.length) {
+  if (isError || !projects.length) {
     return (
       <div className="sidebar-projects__empty">
         {isError ? 'Failed to load' : 'No projects'}

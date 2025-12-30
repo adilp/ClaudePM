@@ -4,7 +4,25 @@
  */
 
 import { load, type Store } from '@tauri-apps/plugin-store';
-import type { Session, Project, PaginatedResponse } from '../types/api';
+import type {
+  Session,
+  Project,
+  ProjectDetail,
+  CreateProjectData,
+  UpdateProjectData,
+  Ticket,
+  TicketDetail,
+  TicketState,
+  AdhocTicketCreate,
+  TransitionResult,
+  StateHistoryEntry,
+  StartTicketResponse,
+  SyncTicketsResult,
+  SyncSessionsResult,
+  TmuxSession,
+  TmuxSessionDetail,
+  PaginatedResponse,
+} from '../types/api';
 
 const DEFAULT_API_URL = 'http://localhost:4847';
 const STORE_FILE = '.settings.dat';
@@ -96,17 +114,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return response.json();
 }
 
-export async function getSessions(): Promise<Session[]> {
-  return request<Session[]>('/api/sessions');
-}
-
-export async function getSession(sessionId: string): Promise<Session> {
-  return request<Session>(`/api/sessions/${sessionId}`);
-}
+// ============================================================================
+// Health
+// ============================================================================
 
 export async function checkHealth(): Promise<{ status: string }> {
   return request<{ status: string }>('/health');
 }
+
+// ============================================================================
+// Projects
+// ============================================================================
 
 export async function getProjects(
   page = 1,
@@ -114,5 +132,192 @@ export async function getProjects(
 ): Promise<PaginatedResponse<Project>> {
   return request<PaginatedResponse<Project>>(
     `/api/projects?page=${page}&limit=${limit}`
+  );
+}
+
+export async function getProject(id: string): Promise<ProjectDetail> {
+  return request<ProjectDetail>(`/api/projects/${id}`);
+}
+
+export async function createProject(data: CreateProjectData): Promise<Project> {
+  return request<Project>('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateProject(
+  id: string,
+  data: UpdateProjectData
+): Promise<Project> {
+  return request<Project>(`/api/projects/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  return request<void>(`/api/projects/${id}`, { method: 'DELETE' });
+}
+
+// ============================================================================
+// Tickets
+// ============================================================================
+
+export async function getTickets(projectId: string): Promise<Ticket[]> {
+  const response = await request<{ data: Ticket[]; pagination: unknown }>(
+    `/api/projects/${projectId}/tickets?limit=100`
+  );
+  return response.data;
+}
+
+export async function getTicket(
+  _projectId: string,
+  ticketId: string
+): Promise<TicketDetail> {
+  return request<TicketDetail>(`/api/tickets/${ticketId}`);
+}
+
+export async function syncTickets(projectId: string): Promise<SyncTicketsResult> {
+  return request<SyncTicketsResult>(`/api/projects/${projectId}/sync-tickets`, {
+    method: 'POST',
+  });
+}
+
+export async function updateTicket(
+  ticketId: string,
+  data: { state: TicketState }
+): Promise<Ticket> {
+  return request<Ticket>(`/api/tickets/${ticketId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function createAdhocTicket(
+  projectId: string,
+  data: AdhocTicketCreate
+): Promise<Ticket> {
+  return request<Ticket>(`/api/projects/${projectId}/adhoc-tickets`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getTicketContent(
+  ticketId: string
+): Promise<{ content: string }> {
+  return request<{ content: string }>(`/api/tickets/${ticketId}/content`);
+}
+
+export async function updateTicketContent(
+  ticketId: string,
+  content: string
+): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`/api/tickets/${ticketId}/content`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function updateTicketTitle(
+  ticketId: string,
+  title: string
+): Promise<Ticket> {
+  return request<Ticket>(`/api/tickets/${ticketId}/title`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function deleteTicket(ticketId: string): Promise<void> {
+  return request<void>(`/api/tickets/${ticketId}`, { method: 'DELETE' });
+}
+
+export async function startTicket(ticketId: string): Promise<StartTicketResponse> {
+  return request<StartTicketResponse>(`/api/tickets/${ticketId}/start`, {
+    method: 'POST',
+  });
+}
+
+export async function approveTicket(ticketId: string): Promise<TransitionResult> {
+  return request<TransitionResult>(`/api/tickets/${ticketId}/approve`, {
+    method: 'POST',
+  });
+}
+
+export async function rejectTicket(
+  ticketId: string,
+  feedback: string
+): Promise<TransitionResult> {
+  return request<TransitionResult>(`/api/tickets/${ticketId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ feedback }),
+  });
+}
+
+export async function getTicketHistory(
+  ticketId: string
+): Promise<StateHistoryEntry[]> {
+  const response = await request<{ data: StateHistoryEntry[] }>(
+    `/api/tickets/${ticketId}/history`
+  );
+  return response.data;
+}
+
+// ============================================================================
+// Sessions
+// ============================================================================
+
+export async function getSessions(projectId?: string): Promise<Session[]> {
+  const query = projectId ? `?project_id=${projectId}` : '';
+  return request<Session[]>(`/api/sessions${query}`);
+}
+
+export async function getSession(sessionId: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${sessionId}`);
+}
+
+export async function startSession(data: {
+  project_id: string;
+  ticket_id?: string;
+}): Promise<Session> {
+  const { project_id, ticket_id } = data;
+  const body = ticket_id ? { ticket_id } : {};
+  return request<Session>(`/api/projects/${project_id}/sessions`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function stopSession(sessionId: string): Promise<void> {
+  return request<void>(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
+}
+
+export async function syncSessions(projectId?: string): Promise<SyncSessionsResult> {
+  const query = projectId ? `?project_id=${projectId}` : '';
+  return request<SyncSessionsResult>(`/api/sessions/sync${query}`, {
+    method: 'POST',
+  });
+}
+
+export async function sendInput(sessionId: string, text: string): Promise<void> {
+  return request<void>(`/api/sessions/${sessionId}/input`, {
+    method: 'POST',
+    body: JSON.stringify({ input: text }),
+  });
+}
+
+// ============================================================================
+// tmux Discovery
+// ============================================================================
+
+export async function getTmuxSessions(): Promise<TmuxSession[]> {
+  return request<TmuxSession[]>('/api/tmux/sessions');
+}
+
+export async function getTmuxSessionDetail(name: string): Promise<TmuxSessionDetail> {
+  return request<TmuxSessionDetail>(
+    `/api/tmux/sessions/${encodeURIComponent(name)}`
   );
 }
