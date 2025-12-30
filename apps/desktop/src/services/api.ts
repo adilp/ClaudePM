@@ -40,6 +40,18 @@ export async function setApiUrl(url: string): Promise<void> {
   await store.set('apiUrl', url);
 }
 
+export async function getNotificationsEnabled(): Promise<boolean> {
+  const store = await getStore();
+  const enabled = await store.get<boolean>('notificationsEnabled');
+  // Default to true if not set
+  return enabled ?? true;
+}
+
+export async function setNotificationsEnabled(enabled: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set('notificationsEnabled', enabled);
+}
+
 export class ApiError extends Error {
   status: number;
 

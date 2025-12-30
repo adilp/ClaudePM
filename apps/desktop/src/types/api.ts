@@ -1,6 +1,6 @@
 /**
  * API Types for Desktop App
- * Types matching the server API responses
+ * Types matching the server API responses and web app conventions
  */
 
 export type SessionStatus = 'running' | 'paused' | 'completed' | 'error';
@@ -29,13 +29,48 @@ export interface Session {
   } | null;
 }
 
+// ============================================================================
+// WebSocket Message Types (aligned with web app)
+// ============================================================================
+
 export interface WebSocketMessage {
   type: string;
   payload: unknown;
 }
 
+/** Session status changed (running → completed, etc) */
+export interface SessionStatusMessage {
+  type: 'session:status';
+  payload: {
+    sessionId: string;
+    previousStatus: string;
+    newStatus: SessionStatus;
+    timestamp: string;
+    error?: string;
+  };
+}
+
+/** Session waiting for user input */
+export interface SessionWaitingMessage {
+  type: 'session:waiting';
+  payload: {
+    sessionId: string;
+    waiting: boolean;
+    reason?: string;
+    detectedBy?: string;
+    timestamp: string;
+  };
+}
+
+/** Legacy status payload format (for backwards compatibility) */
 export interface SessionStatusPayload {
   session_id: string;
   status: SessionStatus;
   context_percent?: number;
 }
+
+/** Union of all incoming WebSocket message types */
+export type IncomingMessage =
+  | SessionStatusMessage
+  | SessionWaitingMessage
+  | WebSocketMessage;
