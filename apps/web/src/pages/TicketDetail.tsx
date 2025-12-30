@@ -466,7 +466,7 @@ export function TicketDetail() {
 
       {/* Code Changes Section - Show for review state tickets */}
       {ticket.state === 'review' && (
-        <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="rounded-lg border bg-card overflow-hidden max-w-full">
           <button
             onClick={() => setIsDiffExpanded(!isDiffExpanded)}
             className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/50 transition-colors"
@@ -507,7 +507,7 @@ export function TicketDetail() {
           </button>
 
           {isDiffExpanded && (
-            <div className="border-t p-4">
+            <div className="border-t p-2 sm:p-4 overflow-hidden">
               {diffLoading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />

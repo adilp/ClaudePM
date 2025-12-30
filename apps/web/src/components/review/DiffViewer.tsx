@@ -63,7 +63,7 @@ function DiffFileView({ file, defaultExpanded = true }: DiffFileViewProps) {
   }
 
   return (
-    <div className="rounded-lg border overflow-hidden">
+    <div className="rounded-lg border overflow-hidden max-w-full">
       {/* File Header */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -106,7 +106,7 @@ function DiffFileView({ file, defaultExpanded = true }: DiffFileViewProps) {
 
       {/* Diff Content */}
       {expanded && (
-        <div className="bg-gray-50 dark:bg-gray-900 overflow-x-auto">
+        <div className="bg-gray-50 dark:bg-gray-900 overflow-hidden">
           {file.hunks.map((hunk, hunkIndex) => {
             const lines = hunk.content.split('\n').filter(Boolean);
             let oldLineNum = hunk.old_start;
@@ -120,6 +120,7 @@ function DiffFileView({ file, defaultExpanded = true }: DiffFileViewProps) {
                 </div>
 
                 {/* Lines */}
+                <div className="overflow-x-auto">
                 <table className="w-full text-xs sm:text-sm font-mono">
                   <tbody>
                     {lines.map((line, lineIndex) => {
@@ -169,6 +170,7 @@ function DiffFileView({ file, defaultExpanded = true }: DiffFileViewProps) {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             );
           })}
@@ -214,7 +216,7 @@ export function DiffViewer({ diff, excludePatterns = ['*.md', '*.MD'] }: DiffVie
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-3 sm:space-y-4 overflow-hidden">
       {/* Summary */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">
