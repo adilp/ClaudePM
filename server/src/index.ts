@@ -1,4 +1,5 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import { createServer } from 'http';
 import { env } from './config/env.js';
 import healthRouter from './api/health.js';
@@ -25,6 +26,15 @@ const app: Express = express();
 const httpServer = createServer(app);
 
 // Middleware
+app.use(cors({
+  origin: [
+    'http://localhost:1420',  // Tauri dev server
+    'http://127.0.0.1:1420',
+    'tauri://localhost',      // Tauri production
+    /^http:\/\/localhost:\d+$/,  // Any localhost port
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 
 // API Routes - Health endpoint (no auth required)

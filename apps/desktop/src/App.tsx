@@ -1,24 +1,13 @@
-import { useState, useEffect } from 'react';
+import { SessionList } from './components/SessionList';
 
 function App() {
-  const [status, setStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
-
-  useEffect(() => {
-    // Placeholder: Will connect to backend in future tickets
-    const timer = setTimeout(() => {
-      setStatus('connecting');
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <div className="app">
-      <div className="container">
+      <header className="app-header">
         <div className="logo">
           <svg
-            width="64"
-            height="64"
+            width="32"
+            height="32"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -31,25 +20,12 @@ function App() {
             <path d="M2 12l10 5 10-5" />
           </svg>
         </div>
-        <h1 className="title">Claude PM</h1>
-        <div className="status">
-          {status === 'connecting' && (
-            <>
-              <div className="spinner" />
-              <span>Connecting...</span>
-            </>
-          )}
-          {status === 'connected' && (
-            <span className="connected">Connected</span>
-          )}
-          {status === 'error' && (
-            <span className="error">Connection failed</span>
-          )}
-        </div>
-        <p className="hint">
-          Configure your server connection in Settings
-        </p>
-      </div>
+        <h1 className="app-title">Claude PM</h1>
+      </header>
+
+      <main className="app-main">
+        <SessionList />
+      </main>
     </div>
   );
 }
