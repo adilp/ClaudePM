@@ -121,6 +121,9 @@ See `docs/jira-tickets/README.md` for full roadmap.
 | `server/src/config/db.ts` | Prisma client singleton |
 | `server/src/services/tmux.ts` | tmux integration service |
 | `server/prisma/schema.prisma` | Database schema |
+| `server/src/api/devices.ts` | Device token registration (native apps) |
+| `server/src/middleware/api-key-auth.ts` | API key authentication middleware |
+| `docs/api-reference.md` | Full API documentation |
 
 ## Claude Session Spawning
 
@@ -192,7 +195,37 @@ NODE_ENV=development
 DATABASE_URL=postgresql://localhost:5432/claude_session_manager
 HANDOFF_THRESHOLD_PERCENT=20
 LOG_LEVEL=info
+
+# Optional: API key for native app authentication (min 32 chars)
+# Generate with: openssl rand -hex 32
+API_KEY=your-api-key-here
 ```
+
+## Native App Integration
+
+The server supports native iOS/macOS apps with API key authentication and push notifications.
+
+### API Key Authentication
+
+Protected endpoints (under `/api/devices`) require `X-API-Key` header when `API_KEY` env var is set:
+
+```bash
+curl -X POST http://localhost:4847/api/devices/register \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{"token": "apns-device-token", "platform": "ios"}'
+```
+
+**Note:** When `API_KEY` is not configured, these endpoints are accessible without authentication (development mode).
+
+### Device Token Registration
+
+For push notifications, native apps register their APNs device tokens:
+
+- `POST /api/devices/register` - Register/update device token
+- `DELETE /api/devices/:token` - Remove device token
+
+See `docs/api-reference.md` for full API documentation.
 
 ## Testing Guidelines
 

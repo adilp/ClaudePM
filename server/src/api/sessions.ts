@@ -739,8 +739,11 @@ router.post(
     }
 
     const paneId = session.tmuxPaneId;
-    if (!paneId || !paneId.startsWith('%')) {
-      res.status(400).json({ error: 'Session has no valid pane ID' });
+    if (!paneId?.startsWith('%')) {
+      res.status(400).json({
+        error: 'Session has no tmux pane',
+        message: 'Session may not have been started yet',
+      });
       return;
     }
 
