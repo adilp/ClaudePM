@@ -4,7 +4,9 @@
  */
 
 import { WebSocketServer, WebSocket, RawData } from 'ws';
-import type { Server as HttpServer } from 'http';
+import type { Server as HttpServer, IncomingMessage } from 'http';
+import { env } from '../config/env.js';
+import { isLocalhostAddress } from '../middleware/api-key-auth.js';
 import { v4 as uuid } from 'uuid';
 import { ZodError } from 'zod';
 import {
@@ -180,8 +182,8 @@ export class WebSocketManager {
   private setupServer(): void {
     if (!this.wss) return;
 
-    this.wss.on('connection', (ws: WebSocket) => {
-      this.handleConnection(ws as ExtendedWebSocket);
+    this.wss.on('connection', (ws: WebSocket, request: IncomingMessage) => {
+      this.handleConnection(ws as ExtendedWebSocket, request);
     });
 
     this.wss.on('error', (error: Error) => {
@@ -241,7 +243,24 @@ export class WebSocketManager {
   /**
    * Handle new connection
    */
-  private handleConnection(ws: ExtendedWebSocket): void {
+  private handleConnection(ws: ExtendedWebSocket, request: IncomingMessage): void {
+    // Validate API key if configured (skip for localhost connections)
+    if (env.API_KEY) {
+      const remoteAddress = request.socket.remoteAddress;
+      const isLocal = isLocalhostAddress(remoteAddress);
+
+      if (!isLocal) {
+        // eslint-disable-next-line no-undef
+        const url = new URL(request.url ?? '', `http://${request.headers.host}`);
+        const apiKey = url.searchParams.get('apiKey');
+
+        if (!apiKey || apiKey !== env.API_KEY) {
+          ws.close(4001, 'Unauthorized: Invalid or missing API key');
+          return;
+        }
+      }
+    }
+
     const connectionId = uuid();
 
     // Initialize connection metadata

@@ -1,4 +1,5 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import { createServer } from 'http';
 import { env } from './config/env.js';
 import healthRouter from './api/health.js';
@@ -10,6 +11,8 @@ import hooksRouter from './api/hooks.js';
 import gitRouter from './api/git.js';
 import tmuxRouter from './api/tmux.js';
 import notificationsRouter from './api/notifications.js';
+import devicesRouter from './api/devices.js';
+import { apiKeyAuth } from './middleware/api-key-auth.js';
 import { sessionSupervisor } from './services/session-supervisor.js';
 import { waitingDetector } from './services/waiting-detector.js';
 import { ticketStateMachine } from './services/ticket-state-machine.js';
@@ -23,10 +26,24 @@ const app: Express = express();
 const httpServer = createServer(app);
 
 // Middleware
+app.use(cors({
+  origin: [
+    'http://localhost:1420',  // Tauri dev server
+    'http://127.0.0.1:1420',
+    'tauri://localhost',      // Tauri production
+    /^http:\/\/localhost:\d+$/,  // Any localhost port
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 
-// API Routes
-app.use('/api', healthRouter);
+// API Routes - Health endpoint (no auth required)
+app.use('/api/health', healthRouter);
+
+// Apply API key auth to all other /api routes when API_KEY is configured
+app.use('/api', apiKeyAuth);
+
+// Protected API Routes
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects', gitRouter);
 app.use('/api', sessionsRouter);
@@ -35,6 +52,7 @@ app.use('/api', adhocTicketsRouter);
 app.use('/api/hooks', hooksRouter);
 app.use('/api/tmux', tmuxRouter);
 app.use('/api', notificationsRouter);
+app.use('/api/devices', devicesRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response): void => {
