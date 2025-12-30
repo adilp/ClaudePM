@@ -22,6 +22,8 @@ import type {
   TmuxSession,
   TmuxSessionDetail,
   PaginatedResponse,
+  Notification,
+  NotificationCountResponse,
 } from '../types/api';
 
 const DEFAULT_API_URL = 'http://localhost:4847';
@@ -320,4 +322,24 @@ export async function getTmuxSessionDetail(name: string): Promise<TmuxSessionDet
   return request<TmuxSessionDetail>(
     `/api/tmux/sessions/${encodeURIComponent(name)}`
   );
+}
+
+// ============================================================================
+// Notifications
+// ============================================================================
+
+export async function getNotifications(): Promise<PaginatedResponse<Notification>> {
+  return request<PaginatedResponse<Notification>>('/api/notifications');
+}
+
+export async function getNotificationCount(): Promise<NotificationCountResponse> {
+  return request<NotificationCountResponse>('/api/notifications/count');
+}
+
+export async function dismissNotification(id: string): Promise<void> {
+  return request<void>(`/api/notifications/${id}`, { method: 'DELETE' });
+}
+
+export async function dismissAllNotifications(): Promise<void> {
+  return request<void>('/api/notifications', { method: 'DELETE' });
 }

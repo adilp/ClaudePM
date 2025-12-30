@@ -304,3 +304,36 @@ export type IncomingMessage =
   | SessionStatusMessage
   | SessionWaitingMessage
   | WebSocketMessage;
+
+// ============================================================================
+// Notification Types
+// ============================================================================
+
+export type NotificationType =
+  | 'waiting_input'
+  | 'review_ready'
+  | 'handoff_complete'
+  | 'error'
+  | 'context_low';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  message: string;
+  session_id: string | null;
+  ticket_id: string | null;
+  created_at: string;
+  session?: {
+    id: string;
+    status: SessionStatus;
+  } | null;
+  ticket?: {
+    id: string;
+    external_id: string | null;
+    title: string;
+  } | null;
+}
+
+export interface NotificationCountResponse {
+  count: number;
+}
