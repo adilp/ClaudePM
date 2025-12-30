@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import Markdown from 'react-markdown';
+import { MarkdownContent } from '@/components/ui/MarkdownContent';
 import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent, useStartTicket, useUpdateTicketTitle, useDeleteTicket, useTicketHistory } from '@/hooks/useTickets';
 import { useSessions } from '@/hooks/useSessions';
 import { useGitDiff } from '@/hooks/useGit';
@@ -208,7 +208,7 @@ export function TicketDetail() {
               </svg>
             </div>
             {ticket.is_adhoc && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
                 ADHOC
               </span>
             )}
@@ -397,8 +397,8 @@ export function TicketDetail() {
             </div>
           </div>
         ) : (
-          <div className="p-6 prose prose-sm dark:prose-invert max-w-none">
-            <Markdown>{ticket.content}</Markdown>
+          <div className="p-6">
+            <MarkdownContent>{ticket.content}</MarkdownContent>
           </div>
         )}
       </div>

@@ -65,7 +65,7 @@ export function KanbanCard({ ticket, projectId, hasRunningSession }: KanbanCardP
       className={`
         group relative rounded-lg border p-3 shadow-sm cursor-grab active:cursor-grabbing
         hover:border-primary/50 hover:shadow-md transition-colors transition-shadow
-        ${ticket.is_explore ? 'bg-indigo-50 border-indigo-200' : 'bg-card'}
+        ${ticket.is_explore ? 'bg-indigo-50 dark:bg-indigo-950 border-indigo-200 dark:border-indigo-800' : 'bg-card'}
         ${isDragging ? 'shadow-lg ring-2 ring-primary z-50' : ''}
       `}
     >
@@ -90,7 +90,7 @@ export function KanbanCard({ ticket, projectId, hasRunningSession }: KanbanCardP
       <div className="block pl-5 pr-6">
         <div className="flex items-start gap-2">
           {ticket.is_explore ? (
-            <Search className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+            <Search className="h-4 w-4 text-indigo-600 dark:text-indigo-400 mt-0.5 flex-shrink-0" />
           ) : (
             <FileText className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           )}
@@ -100,7 +100,7 @@ export function KanbanCard({ ticket, projectId, hasRunningSession }: KanbanCardP
             </p>
             <div className="flex items-center gap-2 mt-1">
               {ticket.is_adhoc && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
                   ADHOC
                 </span>
               )}

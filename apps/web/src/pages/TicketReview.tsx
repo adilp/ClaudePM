@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import Markdown from 'react-markdown';
+import { MarkdownContent } from '@/components/ui/MarkdownContent';
 import { useTicket, useApproveTicket, useRejectTicket } from '@/hooks/useTickets';
 import { useGitDiff, useGitStatus, useBranchInfo } from '@/hooks/useGit';
 import { DiffViewer } from '@/components/review/DiffViewer';
@@ -220,8 +220,8 @@ export function TicketReview() {
             <div className="border-b px-4 py-3">
               <h2 className="font-semibold">Ticket Content</h2>
             </div>
-            <div className="p-6 prose prose-sm dark:prose-invert max-w-none">
-              <Markdown>{ticket.content}</Markdown>
+            <div className="p-6">
+              <MarkdownContent>{ticket.content}</MarkdownContent>
             </div>
           </div>
         )}

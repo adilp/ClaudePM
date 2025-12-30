@@ -136,7 +136,7 @@ export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   {activeTicket.is_adhoc && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
                       ADHOC
                     </span>
                   )}

@@ -83,7 +83,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isSectionExpanded: (section) => get().expandedSections.includes(section),
 
   // Theme
-  theme: 'system',
+  theme: 'dark',
   setTheme: (theme) => {
     set({ theme });
     // Apply theme to document

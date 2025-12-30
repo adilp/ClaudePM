@@ -23,10 +23,10 @@ interface DiffViewerProps {
 }
 
 const changeTypeConfig = {
-  added: { label: 'Added', icon: FilePlus, color: 'text-green-600', bgColor: 'bg-green-50' },
-  modified: { label: 'Modified', icon: FileEdit, color: 'text-blue-600', bgColor: 'bg-blue-50' },
-  deleted: { label: 'Deleted', icon: FileMinus, color: 'text-red-600', bgColor: 'bg-red-50' },
-  renamed: { label: 'Renamed', icon: FileSymlink, color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
+  added: { label: 'Added', icon: FilePlus, color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-50 dark:bg-green-950' },
+  modified: { label: 'Modified', icon: FileEdit, color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-50 dark:bg-blue-950' },
+  deleted: { label: 'Deleted', icon: FileMinus, color: 'text-red-600 dark:text-red-400', bgColor: 'bg-red-50 dark:bg-red-950' },
+  renamed: { label: 'Renamed', icon: FileSymlink, color: 'text-yellow-600 dark:text-yellow-400', bgColor: 'bg-yellow-50 dark:bg-yellow-950' },
 };
 
 function parseDiffLine(line: string): { type: 'add' | 'remove' | 'context' | 'header'; content: string } {
