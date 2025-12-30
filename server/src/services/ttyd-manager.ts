@@ -247,11 +247,25 @@ export class TtydManager extends EventEmitter {
 
   /**
    * Get or start ttyd for a session
-   * Validates that cached instances still have alive panes
+   * Validates that cached instances still have alive panes AND match database pane ID
    */
   async getOrStart(sessionId: string): Promise<TtydInstance> {
     const existing = this.instances.get(sessionId);
     if (existing) {
+      // First check if the cached pane ID matches the database
+      // This handles cases where the session's pane changed (e.g., handoff, recreation)
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        select: { tmuxPaneId: true },
+      });
+
+      if (session && session.tmuxPaneId !== existing.paneId) {
+        // Pane ID changed - clean up stale ttyd instance
+        console.log(`[TtydManager] Cached ttyd for session ${sessionId} has stale pane ${existing.paneId}, DB has ${session.tmuxPaneId}, cleaning up`);
+        this.stop(sessionId);
+        return this.start(sessionId);
+      }
+
       // Verify the pane is still alive before returning cached instance
       const isAlive = await tmux.isPaneAlive(existing.paneId);
       if (isAlive) {

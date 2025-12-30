@@ -68,35 +68,37 @@ function DiffFileView({ file, defaultExpanded = true }: DiffFileViewProps) {
       <button
         onClick={() => setExpanded(!expanded)}
         className={cn(
-          'w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors',
+          'w-full flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 text-left hover:bg-accent/50 transition-colors',
           config.bgColor
         )}
       >
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 flex-shrink-0" />
-        ) : (
-          <ChevronRight className="h-4 w-4 flex-shrink-0" />
-        )}
-        <Icon className={cn('h-4 w-4 flex-shrink-0', config.color)} />
-        <span className="font-mono text-sm flex-1 truncate">
-          {file.old_file_path && file.old_file_path !== file.file_path ? (
-            <>
-              <span className="text-muted-foreground">{file.old_file_path}</span>
-              <span className="mx-2">→</span>
-              {file.file_path}
-            </>
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 flex-shrink-0" />
           ) : (
-            file.file_path
+            <ChevronRight className="h-4 w-4 flex-shrink-0" />
           )}
-        </span>
-        <div className="flex items-center gap-2 text-xs">
+          <Icon className={cn('h-4 w-4 flex-shrink-0', config.color)} />
+          <span className="font-mono text-xs sm:text-sm min-w-0 truncate">
+            {file.old_file_path && file.old_file_path !== file.file_path ? (
+              <>
+                <span className="text-muted-foreground">{file.old_file_path}</span>
+                <span className="mx-1 sm:mx-2">→</span>
+                {file.file_path}
+              </>
+            ) : (
+              file.file_path
+            )}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs ml-auto">
           {additions > 0 && (
             <span className="text-green-600 font-medium">+{additions}</span>
           )}
           {deletions > 0 && (
             <span className="text-red-600 font-medium">-{deletions}</span>
           )}
-          <span className={cn('px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>
+          <span className={cn('hidden sm:inline px-2 py-0.5 rounded-full font-medium', config.bgColor, config.color)}>
             {config.label}
           </span>
         </div>
@@ -118,7 +120,7 @@ function DiffFileView({ file, defaultExpanded = true }: DiffFileViewProps) {
                 </div>
 
                 {/* Lines */}
-                <table className="w-full text-sm font-mono">
+                <table className="w-full text-xs sm:text-sm font-mono">
                   <tbody>
                     {lines.map((line, lineIndex) => {
                       const parsed = parseDiffLine(line);
@@ -145,21 +147,21 @@ function DiffFileView({ file, defaultExpanded = true }: DiffFileViewProps) {
                             parsed.type === 'remove' && 'bg-red-100 dark:bg-red-950/50 text-red-900 dark:text-red-200'
                           )}
                         >
-                          {/* Old line number */}
-                          <td className="w-12 px-2 py-0 text-right text-muted-foreground select-none border-r">
+                          {/* Old line number - hidden on mobile */}
+                          <td className="hidden sm:table-cell w-12 px-2 py-0 text-right text-muted-foreground select-none border-r">
                             {oldNum}
                           </td>
-                          {/* New line number */}
-                          <td className="w-12 px-2 py-0 text-right text-muted-foreground select-none border-r">
+                          {/* New line number - hidden on mobile */}
+                          <td className="hidden sm:table-cell w-12 px-2 py-0 text-right text-muted-foreground select-none border-r">
                             {newNum}
                           </td>
                           {/* Change indicator */}
-                          <td className="w-6 px-1 py-0 text-center select-none">
+                          <td className="w-5 sm:w-6 px-1 py-0 text-center select-none">
                             {parsed.type === 'add' && <Plus className="h-3 w-3 text-green-600 inline" />}
                             {parsed.type === 'remove' && <Minus className="h-3 w-3 text-red-600 inline" />}
                           </td>
                           {/* Line content */}
-                          <td className="px-2 py-0 whitespace-pre">
+                          <td className="px-1 sm:px-2 py-0 whitespace-pre overflow-x-auto">
                             {parsed.content || ' '}
                           </td>
                         </tr>
@@ -212,15 +214,15 @@ export function DiffViewer({ diff, excludePatterns = ['*.md', '*.MD'] }: DiffVie
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Summary */}
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="text-muted-foreground">
           {filteredFiles.length} file{filteredFiles.length !== 1 ? 's' : ''} changed
         </span>
-        <div className="flex items-center gap-4">
-          <span className="text-green-600 font-medium">+{totalAdditions} additions</span>
-          <span className="text-red-600 font-medium">-{totalDeletions} deletions</span>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <span className="text-green-600 font-medium">+{totalAdditions}</span>
+          <span className="text-red-600 font-medium">-{totalDeletions}</span>
         </div>
       </div>
 
@@ -232,7 +234,7 @@ export function DiffViewer({ diff, excludePatterns = ['*.md', '*.MD'] }: DiffVie
       )}
 
       {/* Files */}
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {filteredFiles.map((file, index) => (
           <DiffFileView
             key={file.file_path}

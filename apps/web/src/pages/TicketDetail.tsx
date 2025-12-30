@@ -7,9 +7,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import { useTicket, useApproveTicket, useRejectTicket, useUpdateTicketState, useTicketContent, useUpdateTicketContent, useStartTicket, useUpdateTicketTitle, useDeleteTicket, useTicketHistory } from '@/hooks/useTickets';
 import { useSessions } from '@/hooks/useSessions';
+import { useGitDiff } from '@/hooks/useGit';
 import { cn } from '@/lib/utils';
 import type { TicketState } from '@/types/api';
 import { SessionSummaryCard, ReviewReportPanel } from '@/components/session';
+import { DiffViewer } from '@/components/review/DiffViewer';
 import {
   ArrowLeft,
   Play,
@@ -25,6 +27,10 @@ import {
   Sparkles,
   Trash2,
   Check,
+  ChevronDown,
+  ChevronRight,
+  GitCompare,
+  RefreshCw,
 } from 'lucide-react';
 
 const stateConfig: Record<TicketState, { label: string; color: string; bgColor: string; icon: typeof Clock }> = {
@@ -64,6 +70,10 @@ export function TicketDetail() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDiffExpanded, setIsDiffExpanded] = useState(false);
+
+  // Fetch git diff for review state tickets
+  const { data: diff, isLoading: diffLoading, refetch: refetchDiff } = useGitDiff(projectId!);
 
   // Query for ticket content (used for adhoc editing)
   const { data: ticketContent } = useTicketContent(ticketId!);
@@ -172,7 +182,7 @@ export function TicketDetail() {
       </Link>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2">
             <div className="relative">
@@ -261,7 +271,7 @@ export function TicketDetail() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Show Start Session button if no running session */}
           {!hasRunningSession && ticket.state !== 'done' && (
             <button
@@ -451,6 +461,67 @@ export function TicketDetail() {
               <ReviewReportPanel sessionId={latestSession.id} />
             )}
           </div>
+        </div>
+      )}
+
+      {/* Code Changes Section - Show for review state tickets */}
+      {ticket.state === 'review' && (
+        <div className="rounded-lg border bg-card overflow-hidden">
+          <button
+            onClick={() => setIsDiffExpanded(!isDiffExpanded)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              {isDiffExpanded ? (
+                <ChevronDown className="h-5 w-5" />
+              ) : (
+                <ChevronRight className="h-5 w-5" />
+              )}
+              <GitCompare className="h-5 w-5 text-blue-500" />
+              <span className="font-semibold">Code Changes</span>
+              {diff && (
+                <span className="text-sm text-muted-foreground">
+                  ({diff.files.length} file{diff.files.length !== 1 ? 's' : ''})
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  refetchDiff();
+                }}
+                className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
+                title="Refresh diff"
+              >
+                <RefreshCw className={cn('h-4 w-4', diffLoading && 'animate-spin')} />
+              </button>
+              <Link
+                to={`/projects/${projectId}/tickets/${ticketId}/review`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Full Review →
+              </Link>
+            </div>
+          </button>
+
+          {isDiffExpanded && (
+            <div className="border-t p-4">
+              {diffLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                </div>
+              ) : diff ? (
+                <DiffViewer diff={diff} excludePatterns={['*.md', '*.MD', 'README*']} />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <GitCompare className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p>Unable to load diff</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
