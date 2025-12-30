@@ -11,6 +11,7 @@ import {
   setApiUrl,
 } from '../services/api';
 import { ensureNotificationPermission } from '../hooks/useDesktopNotifications';
+import { toast } from '../hooks/use-toast';
 
 export function Settings() {
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
@@ -131,6 +132,39 @@ export function Settings() {
                 </button>
               </div>
             </label>
+          </div>
+
+          <div className="settings-section">
+            <h3>UI Components</h3>
+            <p className="settings-description" style={{ marginBottom: '0.75rem' }}>
+              Test toast notifications with different variants.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                className="settings-test-button"
+                onClick={() => toast.success('Success', 'Operation completed successfully!')}
+              >
+                Test Success Toast
+              </button>
+              <button
+                className="settings-test-button"
+                onClick={() => toast.error('Error', 'Something went wrong!')}
+              >
+                Test Error Toast
+              </button>
+              <button
+                className="settings-test-button"
+                onClick={() => toast.warning('Warning', 'Please check your input.')}
+              >
+                Test Warning Toast
+              </button>
+              <button
+                className="settings-test-button"
+                onClick={() => toast.info('Info', 'Here is some information.')}
+              >
+                Test Info Toast
+              </button>
+            </div>
           </div>
         </div>
       </div>
