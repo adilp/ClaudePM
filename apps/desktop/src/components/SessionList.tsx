@@ -1,15 +1,27 @@
 /**
  * SessionList Component
- * Main list container for displaying all sessions
+ * Main list container for displaying all sessions with keyboard navigation
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useSessionStore } from '../stores/sessionStore';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { SessionCard } from './SessionCard';
+import { SessionDetailModal } from './SessionDetailModal';
+import { focusSession, showErrorNotification } from '../services/session-controller';
+import type { Session } from '../types/api';
 
 export function SessionList() {
   const { sessions, loading, error, fetchSessions, clearError } = useSessionStore();
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [detailSession, setDetailSession] = useState<Session | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Filter out completed sessions
+  const activeSessions = useMemo(
+    () => sessions.filter((s) => s.status !== 'completed'),
+    [sessions]
+  );
 
   // Connect to WebSocket for real-time updates
   useWebSocket();
@@ -18,6 +30,94 @@ export function SessionList() {
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
+
+  // Select first session when sessions load
+  useEffect(() => {
+    if (activeSessions.length > 0 && selectedIndex === null) {
+      setSelectedIndex(0);
+    }
+  }, [activeSessions.length, selectedIndex]);
+
+  // Reset selection if sessions change and index is out of bounds
+  useEffect(() => {
+    if (selectedIndex !== null && selectedIndex >= activeSessions.length) {
+      setSelectedIndex(activeSessions.length > 0 ? activeSessions.length - 1 : null);
+    }
+  }, [activeSessions.length, selectedIndex]);
+
+  const selectNextSession = useCallback(() => {
+    if (activeSessions.length === 0) return;
+    setSelectedIndex((prev) => {
+      if (prev === null) return 0;
+      return Math.min(prev + 1, activeSessions.length - 1);
+    });
+  }, [activeSessions.length]);
+
+  const selectPreviousSession = useCallback(() => {
+    if (activeSessions.length === 0) return;
+    setSelectedIndex((prev) => {
+      if (prev === null) return 0;
+      return Math.max(prev - 1, 0);
+    });
+  }, [activeSessions.length]);
+
+  const handleFocusSelected = useCallback(async () => {
+    if (selectedIndex === null || !activeSessions[selectedIndex]) return;
+
+    try {
+      await focusSession(activeSessions[selectedIndex].id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to focus session';
+      await showErrorNotification(message);
+    }
+  }, [selectedIndex, activeSessions]);
+
+  const handleSessionDoubleClick = useCallback((session: Session) => {
+    setDetailSession(session);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailSession(null);
+  }, []);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if the list or a card is focused
+      if (!listRef.current?.contains(document.activeElement) &&
+          document.activeElement !== document.body) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'Enter':
+          e.preventDefault();
+          handleFocusSelected();
+          break;
+        case 'ArrowDown':
+        case 'j':
+          e.preventDefault();
+          selectNextSession();
+          break;
+        case 'ArrowUp':
+        case 'k':
+          e.preventDefault();
+          selectPreviousSession();
+          break;
+        case 'Home':
+          e.preventDefault();
+          if (activeSessions.length > 0) setSelectedIndex(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          if (activeSessions.length > 0) setSelectedIndex(activeSessions.length - 1);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleFocusSelected, selectNextSession, selectPreviousSession, activeSessions.length]);
 
   const handleRetry = () => {
     clearError();
@@ -60,10 +160,10 @@ export function SessionList() {
     );
   }
 
-  if (sessions.length === 0) {
+  if (activeSessions.length === 0) {
     return (
       <div className="session-list session-list--empty">
-        <span>No sessions found</span>
+        <span>No active sessions</span>
         <button className="refresh-button" onClick={fetchSessions}>
           Refresh
         </button>
@@ -72,9 +172,12 @@ export function SessionList() {
   }
 
   return (
-    <div className="session-list">
+    <div className="session-list" ref={listRef}>
       <div className="session-list__header">
         <h2 className="session-list__title">Sessions</h2>
+        <span className="session-list__hint">
+          Press Enter to focus selected session
+        </span>
         <button
           className="refresh-button refresh-button--icon"
           onClick={fetchSessions}
@@ -98,11 +201,21 @@ export function SessionList() {
         </button>
       </div>
 
-      <div className="session-list__content">
-        {sessions.map((session) => (
-          <SessionCard key={session.id} session={session} />
+      <div className="session-list__content" role="listbox" aria-label="Sessions">
+        {activeSessions.map((session, index) => (
+          <SessionCard
+            key={session.id}
+            session={session}
+            isSelected={index === selectedIndex}
+            onSelect={() => setSelectedIndex(index)}
+            onDoubleClick={() => handleSessionDoubleClick(session)}
+          />
         ))}
       </div>
+
+      {detailSession && (
+        <SessionDetailModal session={detailSession} onClose={handleCloseDetail} />
+      )}
     </div>
   );
 }
