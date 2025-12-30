@@ -4,7 +4,7 @@
  */
 
 import { load, type Store } from '@tauri-apps/plugin-store';
-import type { Session } from '../types/api';
+import type { Session, Project, PaginatedResponse } from '../types/api';
 
 const DEFAULT_API_URL = 'http://localhost:4847';
 const STORE_FILE = '.settings.dat';
@@ -106,4 +106,13 @@ export async function getSession(sessionId: string): Promise<Session> {
 
 export async function checkHealth(): Promise<{ status: string }> {
   return request<{ status: string }>('/health');
+}
+
+export async function getProjects(
+  page = 1,
+  limit = 50
+): Promise<PaginatedResponse<Project>> {
+  return request<PaginatedResponse<Project>>(
+    `/api/projects?page=${page}&limit=${limit}`
+  );
 }

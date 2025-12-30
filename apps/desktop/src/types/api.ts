@@ -3,6 +3,40 @@
  * Types matching the server API responses and web app conventions
  */
 
+// ============================================================================
+// Project Types
+// ============================================================================
+
+export interface Project {
+  id: string;
+  name: string;
+  repo_path: string;
+  tickets_path: string | null;
+  handoff_path: string | null;
+  tmux_session: string;
+  tmux_window: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Pagination Types
+// ============================================================================
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
+}
+
+// ============================================================================
+// Session Types
+// ============================================================================
+
 export type SessionStatus = 'running' | 'paused' | 'completed' | 'error';
 export type SessionType = 'ticket' | 'adhoc';
 
