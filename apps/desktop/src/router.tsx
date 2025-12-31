@@ -9,6 +9,7 @@ import { lazy, Suspense } from 'react';
 import { createHashRouter, Outlet } from 'react-router-dom';
 import { AppLayout } from './components/AppLayout';
 import { PageLoader } from './components/PageLoader';
+import { ShortcutProvider } from './shortcuts';
 
 // Lazy load all page components for code splitting
 const Dashboard = lazy(() =>
@@ -48,10 +49,19 @@ function SuspenseOutlet() {
   );
 }
 
+// Wrapper that provides ShortcutProvider context
+function AppWithShortcuts() {
+  return (
+    <ShortcutProvider>
+      <AppLayout />
+    </ShortcutProvider>
+  );
+}
+
 export const router = createHashRouter([
   {
     path: '/',
-    element: <AppLayout />,
+    element: <AppWithShortcuts />,
     children: [
       {
         element: <SuspenseOutlet />,

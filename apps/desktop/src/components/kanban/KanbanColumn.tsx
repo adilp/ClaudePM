@@ -14,6 +14,8 @@ interface KanbanColumnProps {
   tickets: Ticket[];
   projectId: string;
   ticketsWithRunningSession: Set<string>;
+  isColumnSelected?: boolean;
+  selectedTicketIndex?: number;
 }
 
 const columnConfig: Record<
@@ -61,6 +63,8 @@ export function KanbanColumn({
   tickets,
   projectId,
   ticketsWithRunningSession,
+  isColumnSelected,
+  selectedTicketIndex,
 }: KanbanColumnProps) {
   const config = columnConfig[state];
   const Icon = config.icon;
@@ -110,12 +114,13 @@ export function KanbanColumn({
           isOver && 'bg-primary/5'
         )}
       >
-        {tickets.map((ticket) => (
+        {tickets.map((ticket, ticketIndex) => (
           <KanbanCard
             key={ticket.id}
             ticket={ticket}
             projectId={projectId}
             hasRunningSession={ticketsWithRunningSession.has(ticket.id)}
+            isSelected={isColumnSelected && ticketIndex === selectedTicketIndex}
           />
         ))}
 

@@ -3,6 +3,7 @@
  * Draggable ticket card for the sprint board
  */
 
+import { useEffect, useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { useNavigate } from 'react-router-dom';
 import { GripVertical, FileText, Play, Search } from 'lucide-react';
@@ -14,17 +15,20 @@ interface KanbanCardProps {
   ticket: Ticket;
   projectId: string;
   hasRunningSession: boolean;
+  isSelected?: boolean;
 }
 
 export function KanbanCard({
   ticket,
   projectId,
   hasRunningSession,
+  isSelected,
 }: KanbanCardProps) {
   const navigate = useNavigate();
   const startTicket = useStartTicket();
   const highlightedTicketId = useUIStore((state) => state.highlightedTicketId);
   const isHighlighted = highlightedTicketId === ticket.id;
+  const cardRef = useRef<HTMLDivElement>(null);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: ticket.id,
     data: {
@@ -32,6 +36,22 @@ export function KanbanCard({
       ticket,
     },
   });
+
+  // Scroll into view when selected via keyboard navigation
+  useEffect(() => {
+    if (isSelected && cardRef.current) {
+      cardRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [isSelected]);
+
+  // Combine refs for drag-and-drop and scrolling
+  const combinedRef = (node: HTMLDivElement | null) => {
+    setNodeRef(node);
+    (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+  };
 
   // When dragging, hide the original card (DragOverlay shows the preview)
   const style = isDragging ? { opacity: 0.4 } : undefined;
@@ -57,7 +77,7 @@ export function KanbanCard({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={combinedRef}
       style={style}
       {...attributes}
       {...listeners}
@@ -68,6 +88,7 @@ export function KanbanCard({
         ${ticket.is_explore ? 'bg-indigo-50 dark:bg-indigo-950 border-indigo-200 dark:border-indigo-800' : 'bg-card'}
         ${isDragging ? 'shadow-lg ring-2 ring-primary z-50' : ''}
         ${isHighlighted ? 'ticket-highlight' : ''}
+        ${isSelected ? 'ring-2 ring-indigo-500 border-indigo-500' : ''}
       `}
     >
       {/* Drag Handle Icon (visual indicator) */}

@@ -4,17 +4,23 @@
  * Ported from web app with desktop-specific adaptations
  */
 
-import { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
 import { useServerNotifications } from '../hooks/useServerNotifications';
 import { useTicketStateListener } from '../hooks/useTicketStateListener';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useNotificationCount } from '../hooks/useNotifications';
+import { useSyncSessions } from '../hooks/useSessions';
+import { toast } from '../hooks/use-toast';
 import { useUIStore } from '../stores/uiStore';
+import { useShortcuts } from '../shortcuts';
+import { ShortcutCheatsheet } from '../shortcuts/ShortcutCheatsheet';
 import { cn } from '../lib/utils';
 import { SidebarProjectsList } from './SidebarProjectsList';
 import { NotificationsPanel } from './NotificationsPanel';
+import { ProjectFinder } from './ProjectFinder';
+import { TicketFinder } from './TicketFinder';
 import appIcon from '../assets/app-icon.png';
 
 export function AppLayout() {
@@ -24,6 +30,75 @@ export function AppLayout() {
   const isProjectsExpanded = isSectionExpanded('projects');
   const { data: notificationCount } = useNotificationCount();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProjectFinder, setShowProjectFinder] = useState(false);
+  const [showTicketFinder, setShowTicketFinder] = useState(false);
+
+  // Sync sessions mutation
+  const syncSessions = useSyncSessions();
+
+  const handleSyncSessions = useCallback(() => {
+    if (syncSessions.isPending) return;
+
+    toast.info('Syncing', 'Syncing sessions...');
+    syncSessions.mutate(undefined, {
+      onSuccess: (result) => {
+        if (result.orphaned_count > 0) {
+          toast.success('Synced', `Cleaned up ${result.orphaned_count} orphan session${result.orphaned_count > 1 ? 's' : ''}`);
+        } else {
+          toast.success('Synced', 'All sessions up to date');
+        }
+      },
+      onError: () => {
+        toast.error('Sync failed', 'Could not sync sessions');
+      },
+    });
+  }, [syncSessions]);
+
+  // Keyboard shortcuts
+  const {
+    isCheatsheetOpen,
+    closeCheatsheet,
+    currentScope,
+    registerHandler,
+    unregisterHandler,
+  } = useShortcuts();
+
+  // Register global handlers
+  useEffect(() => {
+    registerHandler('escape', () => {
+      // Close ticket finder if open
+      if (showTicketFinder) {
+        setShowTicketFinder(false);
+        return;
+      }
+      // Close project finder if open
+      if (showProjectFinder) {
+        setShowProjectFinder(false);
+        return;
+      }
+      // Close notifications panel if open
+      if (showNotifications) {
+        setShowNotifications(false);
+      }
+    });
+
+    registerHandler('findProject', () => {
+      setShowProjectFinder(true);
+    });
+
+    registerHandler('findTicket', () => {
+      setShowTicketFinder(true);
+    });
+
+    registerHandler('syncSessions', handleSyncSessions);
+
+    return () => {
+      unregisterHandler('escape');
+      unregisterHandler('findProject');
+      unregisterHandler('findTicket');
+      unregisterHandler('syncSessions');
+    };
+  }, [showNotifications, showProjectFinder, showTicketFinder, registerHandler, unregisterHandler, handleSyncSessions]);
 
   // Initialize desktop notifications for session events (via WebSocket)
   useDesktopNotifications();
@@ -321,6 +396,25 @@ export function AppLayout() {
       <NotificationsPanel
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
+      />
+
+      {/* Keyboard Shortcuts Cheatsheet */}
+      <ShortcutCheatsheet
+        isOpen={isCheatsheetOpen}
+        onClose={closeCheatsheet}
+        currentScope={currentScope}
+      />
+
+      {/* Project Finder (f p) */}
+      <ProjectFinder
+        isOpen={showProjectFinder}
+        onClose={() => setShowProjectFinder(false)}
+      />
+
+      {/* Ticket Finder (f t) */}
+      <TicketFinder
+        isOpen={showTicketFinder}
+        onClose={() => setShowTicketFinder(false)}
       />
     </div>
   );

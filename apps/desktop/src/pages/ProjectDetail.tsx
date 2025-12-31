@@ -3,17 +3,22 @@
  * Project view with kanban board for ticket management
  */
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProject } from '../hooks/useProjects';
-import { useTickets } from '../hooks/useTickets';
+import { useTickets, useStartTicket } from '../hooks/useTickets';
 import { useSessions, useSyncProject } from '../hooks/useSessions';
+import { useShortcutScope } from '../shortcuts';
+import { useUIStore } from '../stores/uiStore';
 import { KanbanBoard } from '../components/kanban/KanbanBoard';
 import { CreateAdhocTicketModal } from '../components/CreateAdhocTicketModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { Button } from '../components/ui/button';
 import { toast } from '../hooks/use-toast';
-import type { Session } from '../types/api';
+import type { Session, Ticket, TicketState } from '../types/api';
+
+// Column order for keyboard navigation
+const COLUMN_STATES: TicketState[] = ['backlog', 'in_progress', 'review', 'done'];
 
 // Context meter component for session context percentage
 function ContextMeter({ value }: { value: number | null }) {
@@ -98,7 +103,104 @@ export function ProjectDetail() {
   const { data: tickets, isLoading: ticketsLoading } = useTickets(projectId!);
   const { data: sessions } = useSessions(projectId!);
   const syncProject = useSyncProject();
+  const startTicketMutation = useStartTicket();
   const [showAdhocModal, setShowAdhocModal] = useState(false);
+
+  // Keyboard navigation state
+  const {
+    selectedColumnIndex,
+    selectedTicketIndex,
+    setSelectedColumn,
+    setSelectedTicket,
+    resetKanbanSelection,
+  } = useUIStore();
+
+  // Group tickets by state for keyboard navigation
+  const ticketsByState = useMemo(() => {
+    if (!tickets) return {} as Record<TicketState, Ticket[]>;
+    return COLUMN_STATES.reduce(
+      (acc, state) => {
+        acc[state] = tickets.filter((t) => t.state === state);
+        return acc;
+      },
+      {} as Record<TicketState, Ticket[]>
+    );
+  }, [tickets]);
+
+  // Get currently selected ticket
+  const selectedTicket = useMemo(() => {
+    const currentState = COLUMN_STATES[selectedColumnIndex];
+    const columnTickets = ticketsByState[currentState] || [];
+    return columnTickets[selectedTicketIndex] || null;
+  }, [selectedColumnIndex, selectedTicketIndex, ticketsByState]);
+
+  // Reset selection when leaving page
+  useEffect(() => {
+    return () => resetKanbanSelection();
+  }, [resetKanbanSelection]);
+
+  // Keyboard navigation handlers
+  const handleNextTicket = useCallback(() => {
+    const currentState = COLUMN_STATES[selectedColumnIndex];
+    const columnTickets = ticketsByState[currentState] || [];
+    if (selectedTicketIndex < columnTickets.length - 1) {
+      setSelectedTicket(selectedTicketIndex + 1);
+    }
+  }, [selectedColumnIndex, selectedTicketIndex, ticketsByState, setSelectedTicket]);
+
+  const handlePrevTicket = useCallback(() => {
+    if (selectedTicketIndex > 0) {
+      setSelectedTicket(selectedTicketIndex - 1);
+    }
+  }, [selectedTicketIndex, setSelectedTicket]);
+
+  const handleNextColumn = useCallback(() => {
+    if (selectedColumnIndex < COLUMN_STATES.length - 1) {
+      setSelectedColumn(selectedColumnIndex + 1);
+    }
+  }, [selectedColumnIndex, setSelectedColumn]);
+
+  const handlePrevColumn = useCallback(() => {
+    if (selectedColumnIndex > 0) {
+      setSelectedColumn(selectedColumnIndex - 1);
+    }
+  }, [selectedColumnIndex, setSelectedColumn]);
+
+  const handleOpenTicket = useCallback(() => {
+    if (selectedTicket) {
+      navigate(`/projects/${projectId}/tickets/${selectedTicket.id}`);
+    }
+  }, [selectedTicket, projectId, navigate]);
+
+  const handleStartTicket = useCallback(() => {
+    if (selectedTicket) {
+      startTicketMutation.mutate(selectedTicket.id, {
+        onSuccess: (result) => {
+          toast.success('Session started', `Working on ${selectedTicket.title}`);
+          navigate(`/sessions/${result.session.id}`);
+        },
+        onError: (err: Error) => {
+          toast.error('Failed to start session', err.message);
+        },
+      });
+    }
+  }, [selectedTicket, startTicketMutation, navigate]);
+
+  const handleNewAdhoc = useCallback(() => {
+    setShowAdhocModal(true);
+  }, []);
+
+  // Register keyboard shortcuts for this page
+  useShortcutScope('projectDetail', {
+    selectNextTicket: handleNextTicket,
+    selectPrevTicket: handlePrevTicket,
+    nextColumn: handleNextColumn,
+    prevColumn: handlePrevColumn,
+    openTicket: handleOpenTicket,
+    startTicket: handleStartTicket,
+    newAdhoc: handleNewAdhoc,
+    sync: () => handleSync(),
+  });
 
   const handleSync = () => {
     syncProject.mutate(projectId!, {
@@ -261,7 +363,12 @@ export function ProjectDetail() {
 
         {/* Filter chips are handled inside KanbanBoard component */}
         {tickets && tickets.length > 0 ? (
-          <KanbanBoard tickets={tickets} projectId={projectId!} />
+          <KanbanBoard
+            tickets={tickets}
+            projectId={projectId!}
+            selectedColumnIndex={selectedColumnIndex}
+            selectedTicketIndex={selectedTicketIndex}
+          />
         ) : (
           /* Empty state - no tickets */
           <div className="flex flex-col items-center justify-center py-16 text-center">

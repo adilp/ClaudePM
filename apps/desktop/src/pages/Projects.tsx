@@ -3,9 +3,12 @@
  * Displays all projects in a responsive grid with loading, error, and empty states
  */
 
-import { Link } from 'react-router-dom';
+import { useState, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
+import { useShortcutScope } from '../shortcuts';
 import { Button } from '../components/ui/button';
+import { cn } from '../lib/utils';
 
 // Icons as inline SVGs to match desktop app pattern
 function PlusIcon({ className }: { className?: string }) {
@@ -70,7 +73,38 @@ function RefreshIcon({ className }: { className?: string }) {
 }
 
 export function Projects() {
+  const navigate = useNavigate();
   const { data, isLoading, error, refetch, isRefetching } = useProjects();
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const projects = data?.data ?? [];
+
+  // Keyboard navigation handlers
+  const handleNext = useCallback(() => {
+    setSelectedIndex((i) => Math.min(i + 1, projects.length - 1));
+  }, [projects.length]);
+
+  const handlePrev = useCallback(() => {
+    setSelectedIndex((i) => Math.max(i - 1, 0));
+  }, []);
+
+  const handleOpen = useCallback(() => {
+    if (projects[selectedIndex]) {
+      navigate(`/projects/${projects[selectedIndex].id}`);
+    }
+  }, [projects, selectedIndex, navigate]);
+
+  const handleNew = useCallback(() => {
+    navigate('/projects/new');
+  }, [navigate]);
+
+  // Register keyboard shortcuts
+  useShortcutScope('projects', {
+    selectNext: handleNext,
+    selectPrev: handlePrev,
+    openProject: handleOpen,
+    newProject: handleNew,
+  });
 
   // Loading state
   if (isLoading) {
@@ -146,8 +180,6 @@ export function Projects() {
     );
   }
 
-  const projects = data?.data ?? [];
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -188,11 +220,16 @@ export function Projects() {
       ) : (
         /* Projects Grid */
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
+          {projects.map((project, index) => (
             <Link
               key={project.id}
               to={`/projects/${project.id}`}
-              className="group rounded-xl border border-line bg-surface-secondary p-5 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/5 transition-all"
+              className={cn(
+                'group rounded-xl border bg-surface-secondary p-5 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/5 transition-all',
+                index === selectedIndex
+                  ? 'ring-2 ring-indigo-500 border-indigo-500'
+                  : 'border-line'
+              )}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="rounded-lg bg-indigo-500/10 p-2">

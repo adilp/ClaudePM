@@ -16,6 +16,13 @@ interface UIStore {
   // Highlighted ticket ID (for real-time state change animation)
   highlightedTicketId: string | null;
 
+  // Keyboard navigation state for Kanban board
+  selectedColumnIndex: number;
+  selectedTicketIndex: number;
+
+  // Kanban filter state per project (projectId -> selected prefixes)
+  kanbanFilters: Record<string, string[]>;
+
   // Check if a section is expanded
   isSectionExpanded: (sectionId: string) => boolean;
 
@@ -27,6 +34,15 @@ interface UIStore {
 
   // Set highlighted ticket (auto-clears after animation duration)
   setHighlightedTicket: (ticketId: string | null) => void;
+
+  // Keyboard navigation actions
+  setSelectedColumn: (index: number) => void;
+  setSelectedTicket: (index: number) => void;
+  resetKanbanSelection: () => void;
+
+  // Kanban filter actions
+  getKanbanFilters: (projectId: string) => string[];
+  setKanbanFilters: (projectId: string, filters: string[]) => void;
 }
 
 // Track timeout for clearing highlight
@@ -40,6 +56,13 @@ export const useUIStore = create<UIStore>()(
       },
 
       highlightedTicketId: null,
+
+      // Keyboard navigation defaults
+      selectedColumnIndex: 0,
+      selectedTicketIndex: 0,
+
+      // Kanban filters per project
+      kanbanFilters: {},
 
       isSectionExpanded: (sectionId: string) => {
         return get().expandedSections[sectionId] ?? false;
@@ -80,11 +103,39 @@ export const useUIStore = create<UIStore>()(
           }, HIGHLIGHT_DURATION);
         }
       },
+
+      setSelectedColumn: (index: number) => {
+        set({ selectedColumnIndex: index, selectedTicketIndex: 0 });
+      },
+
+      setSelectedTicket: (index: number) => {
+        set({ selectedTicketIndex: index });
+      },
+
+      resetKanbanSelection: () => {
+        set({ selectedColumnIndex: 0, selectedTicketIndex: 0 });
+      },
+
+      getKanbanFilters: (projectId: string) => {
+        return get().kanbanFilters[projectId] ?? [];
+      },
+
+      setKanbanFilters: (projectId: string, filters: string[]) => {
+        set((state) => ({
+          kanbanFilters: {
+            ...state.kanbanFilters,
+            [projectId]: filters,
+          },
+        }));
+      },
     }),
     {
       name: 'claude-pm-ui-state',
-      // Don't persist highlightedTicketId
-      partialize: (state) => ({ expandedSections: state.expandedSections }),
+      // Persist expandedSections and kanbanFilters, but not transient state
+      partialize: (state) => ({
+        expandedSections: state.expandedSections,
+        kanbanFilters: state.kanbanFilters,
+      }),
     }
   )
 );

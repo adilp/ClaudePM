@@ -3,8 +3,9 @@
  * Comprehensive ticket view with state management, content editing, and AI analysis
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useShortcutScope } from '../shortcuts';
 import { cn } from '../lib/utils';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { SessionSummaryCard, ReviewReportPanel } from '../components/session';
@@ -92,6 +93,49 @@ export function TicketDetail() {
   // Check if this ticket has a running session
   const runningSession = ticketSessions.find((s) => s.status === 'running');
   const hasRunningSession = !!runningSession;
+
+  // Keyboard shortcut handlers
+  const handleGoBack = useCallback(() => {
+    navigate(`/projects/${projectId}`);
+  }, [navigate, projectId]);
+
+  const handleStartWithShortcut = useCallback(() => {
+    if (ticket && !hasRunningSession && ticket.state !== 'done') {
+      startTicket.mutate(ticketId!, {
+        onSuccess: (result) => {
+          navigate(`/sessions/${result.session.id}`);
+        },
+      });
+    }
+  }, [ticket, hasRunningSession, ticketId, startTicket, navigate]);
+
+  const handleApproveWithShortcut = useCallback(() => {
+    if (ticket?.state === 'review') {
+      approveTicket.mutate(ticketId!);
+    }
+  }, [ticket, approveTicket, ticketId]);
+
+  const handleRejectWithShortcut = useCallback(() => {
+    if (ticket?.state === 'review') {
+      setShowRejectModal(true);
+    }
+  }, [ticket]);
+
+  const handleEditTicketWithShortcut = useCallback(() => {
+    if (ticket && ticketContent) {
+      setEditContent(ticketContent.content || '');
+      setIsEditing(true);
+    }
+  }, [ticket, ticketContent]);
+
+  // Register keyboard shortcuts
+  useShortcutScope('ticketDetail', {
+    startSession: handleStartWithShortcut,
+    approve: handleApproveWithShortcut,
+    reject: handleRejectWithShortcut,
+    editTicket: handleEditTicketWithShortcut,
+    goBack: handleGoBack,
+  });
 
   // Get the most recent session for this ticket (prefer running, then latest)
   const latestSession = runningSession ?? (ticketSessions.length > 0

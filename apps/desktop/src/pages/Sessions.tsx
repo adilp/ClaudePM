@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSessions, useSyncSessions } from '../hooks/useSessions';
 import { useTmuxSessions } from '../hooks/useTmux';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useShortcutScope } from '../shortcuts';
 import { toast } from '../hooks/use-toast';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailModal } from '../components/SessionDetailModal';
@@ -301,52 +302,12 @@ export function Sessions() {
     }
   }, [selectedIndex, activeSessions]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle if the list or a card is focused, or body is focused
-      if (
-        !listRef.current?.contains(document.activeElement) &&
-        document.activeElement !== document.body
-      ) {
-        return;
-      }
-
-      switch (e.key) {
-        case 'Enter':
-          e.preventDefault();
-          openSelectedDetail();
-          break;
-        case 'ArrowDown':
-        case 'j':
-          e.preventDefault();
-          selectNextSession();
-          break;
-        case 'ArrowUp':
-        case 'k':
-          e.preventDefault();
-          selectPreviousSession();
-          break;
-        case 'Home':
-          e.preventDefault();
-          if (activeSessions.length > 0) setSelectedIndex(0);
-          break;
-        case 'End':
-          e.preventDefault();
-          if (activeSessions.length > 0)
-            setSelectedIndex(activeSessions.length - 1);
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    openSelectedDetail,
-    selectNextSession,
-    selectPreviousSession,
-    activeSessions.length,
-  ]);
+  // Register keyboard shortcuts for this page
+  useShortcutScope('sessions', {
+    selectNext: selectNextSession,
+    selectPrev: selectPreviousSession,
+    openSession: openSelectedDetail,
+  });
 
   // Sync sessions - cleans up orphan panes and refreshes data
   const handleSync = useCallback(async () => {

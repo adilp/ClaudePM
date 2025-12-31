@@ -3,7 +3,7 @@
  * Sprint board with drag-and-drop functionality
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -19,21 +19,36 @@ import { KanbanColumn } from './KanbanColumn';
 import { FilterChips } from './FilterChips';
 import { useUpdateTicketState } from '../../hooks/useTickets';
 import { useSessions } from '../../hooks/useSessions';
+import { useUIStore } from '../../stores/uiStore';
 import type { Ticket, TicketState } from '../../types/api';
 import { FileText, Search } from 'lucide-react';
 
 interface KanbanBoardProps {
   tickets: Ticket[];
   projectId: string;
+  selectedColumnIndex?: number;
+  selectedTicketIndex?: number;
 }
 
 const STATES: TicketState[] = ['backlog', 'in_progress', 'review', 'done'];
 
-export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
+export function KanbanBoard({
+  tickets,
+  projectId,
+  selectedColumnIndex,
+  selectedTicketIndex,
+}: KanbanBoardProps) {
   const updateTicketState = useUpdateTicketState();
   const { data: sessions } = useSessions(projectId);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
-  const [selectedPrefixes, setSelectedPrefixes] = useState<string[]>([]);
+
+  // Get persisted filters from store
+  const { getKanbanFilters, setKanbanFilters } = useUIStore();
+  const selectedPrefixes = getKanbanFilters(projectId);
+  const handlePrefixChange = useCallback(
+    (prefixes: string[]) => setKanbanFilters(projectId, prefixes),
+    [projectId, setKanbanFilters]
+  );
 
   // Get set of ticket IDs that have a running session
   const ticketsWithRunningSession = new Set(
@@ -142,7 +157,7 @@ export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
           <FilterChips
             prefixes={prefixes}
             selectedPrefixes={selectedPrefixes}
-            onSelectionChange={setSelectedPrefixes}
+            onSelectionChange={handlePrefixChange}
           />
         </div>
       )}
@@ -155,13 +170,17 @@ export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 justify-center overflow-x-auto pb-4">
-          {STATES.map((state) => (
+          {STATES.map((state, columnIndex) => (
             <KanbanColumn
               key={state}
               state={state}
               tickets={ticketsByState[state]}
               projectId={projectId}
               ticketsWithRunningSession={ticketsWithRunningSession}
+              isColumnSelected={columnIndex === selectedColumnIndex}
+              selectedTicketIndex={
+                columnIndex === selectedColumnIndex ? selectedTicketIndex : undefined
+              }
             />
           ))}
         </div>
