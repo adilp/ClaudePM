@@ -3,7 +3,7 @@
  * Container with consistent styling for content sections
  */
 
-import clsx from 'clsx';
+import { cn } from '../../lib/utils';
 import type { HTMLAttributes, ReactNode } from 'react';
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {
@@ -12,7 +12,13 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 export function Card({ children, className, ...props }: CardProps) {
   return (
-    <div className={clsx('card', className)} {...props}>
+    <div
+      className={cn(
+        'bg-surface-secondary border border-line rounded-xl',
+        className
+      )}
+      {...props}
+    >
       {children}
     </div>
   );
@@ -24,7 +30,7 @@ interface CardHeaderProps extends HTMLAttributes<HTMLDivElement> {
 
 export function CardHeader({ children, className, ...props }: CardHeaderProps) {
   return (
-    <div className={clsx('card__header', className)} {...props}>
+    <div className={cn('px-5 pt-5 pb-2', className)} {...props}>
       {children}
     </div>
   );
@@ -36,7 +42,10 @@ interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
 
 export function CardTitle({ children, className, ...props }: CardTitleProps) {
   return (
-    <h3 className={clsx('card__title', className)} {...props}>
+    <h3
+      className={cn('text-lg font-semibold text-content-primary', className)}
+      {...props}
+    >
       {children}
     </h3>
   );
@@ -48,7 +57,7 @@ interface CardDescriptionProps extends HTMLAttributes<HTMLParagraphElement> {
 
 export function CardDescription({ children, className, ...props }: CardDescriptionProps) {
   return (
-    <p className={clsx('card__description', className)} {...props}>
+    <p className={cn('text-sm text-content-secondary mt-1', className)} {...props}>
       {children}
     </p>
   );
@@ -60,7 +69,7 @@ interface CardContentProps extends HTMLAttributes<HTMLDivElement> {
 
 export function CardContent({ children, className, ...props }: CardContentProps) {
   return (
-    <div className={clsx('card__content', className)} {...props}>
+    <div className={cn('px-5 py-4', className)} {...props}>
       {children}
     </div>
   );
@@ -72,7 +81,10 @@ interface CardFooterProps extends HTMLAttributes<HTMLDivElement> {
 
 export function CardFooter({ children, className, ...props }: CardFooterProps) {
   return (
-    <div className={clsx('card__footer', className)} {...props}>
+    <div
+      className={cn('px-5 pb-5 pt-2 flex items-center gap-3', className)}
+      {...props}
+    >
       {children}
     </div>
   );

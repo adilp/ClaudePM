@@ -17,6 +17,7 @@ import {
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { useCreateAdhocTicket } from '../hooks/useTickets';
+import { toast } from '../hooks/use-toast';
 
 interface CreateAdhocTicketModalProps {
   projectId: string;
@@ -91,6 +92,7 @@ export function CreateAdhocTicketModal({
       { projectId, data: { title: title.trim(), slug: slug.trim(), isExplore } },
       {
         onSuccess: (ticket) => {
+          toast.success('Ticket created', `"${title.trim()}" added to backlog`);
           onClose();
           navigate(`/projects/${projectId}/tickets/${ticket.id}`);
         },

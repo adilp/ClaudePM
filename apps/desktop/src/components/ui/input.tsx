@@ -3,7 +3,7 @@
  * Styled text input with consistent appearance
  */
 
-import clsx from 'clsx';
+import { cn } from '../../lib/utils';
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -15,7 +15,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <input
         ref={ref}
-        className={clsx('input', error && 'input--error', className)}
+        className={cn(
+          'w-full px-3 py-2 text-sm rounded-md',
+          'bg-surface-tertiary border border-line text-content-primary',
+          'placeholder:text-content-muted',
+          'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent',
+          'disabled:opacity-50 disabled:cursor-not-allowed',
+          error && 'border-red-500 focus:ring-red-500',
+          className
+        )}
         {...props}
       />
     );
