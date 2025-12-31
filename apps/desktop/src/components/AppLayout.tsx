@@ -15,6 +15,7 @@ import { useUIStore } from '../stores/uiStore';
 import { cn } from '../lib/utils';
 import { SidebarProjectsList } from './SidebarProjectsList';
 import { NotificationsPanel } from './NotificationsPanel';
+import appIcon from '../assets/app-icon.png';
 
 export function AppLayout() {
   const location = useLocation();
@@ -44,22 +45,7 @@ export function AppLayout() {
       <aside className="w-[220px] flex flex-col shrink-0 bg-surface-secondary border-r border-line">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
-          <div className="text-indigo-500">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-              <path d="M2 17l10 5 10-5" />
-              <path d="M2 12l10 5 10-5" />
-            </svg>
-          </div>
+          <img src={appIcon} alt="Claude PM" className="w-8 h-8" />
           <h1 className="text-lg font-semibold tracking-tight">Claude PM</h1>
         </div>
 
