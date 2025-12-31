@@ -16,12 +16,14 @@ apps/ios/
 ├── ClaudePM.xcodeproj/
 ├── ClaudePM/
 │   ├── App/
-│   │   └── ClaudePMApp.swift       # App entry point
+│   │   └── ClaudePMApp.swift       # App entry point, lifecycle management
 │   ├── Models/
-│   │   └── Session.swift           # API response models
+│   │   ├── Session.swift           # API response models
+│   │   └── SessionUpdate.swift     # WebSocket update models
 │   ├── Services/
 │   │   ├── APIClient.swift         # Network layer (actor-based)
-│   │   └── KeychainHelper.swift    # Secure credential storage
+│   │   ├── KeychainHelper.swift    # Secure credential storage
+│   │   └── WebSocketClient.swift   # Real-time session updates
 │   ├── ViewModels/
 │   │   └── ConnectionViewModel.swift   # Connection state management
 │   ├── Views/
@@ -57,6 +59,33 @@ let key = KeychainHelper.getAPIKey()
 KeychainHelper.delete()
 ```
 
+### WebSocketClient (`Services/WebSocketClient.swift`)
+Singleton WebSocket client for real-time session updates.
+
+```swift
+// Lifecycle: Connects when app foregrounds, disconnects on background
+WebSocketClient.shared.connect()
+WebSocketClient.shared.disconnect()
+
+// States: .disconnected, .connecting, .connected, .reconnecting(attempt:)
+let isReconnecting = WebSocketClient.shared.isReconnecting
+
+// Session updates callback
+WebSocketClient.shared.onSessionUpdate = { update in
+    switch update.type {
+    case .status:    // Session status changed
+    case .waiting:   // Claude waiting for input
+    case .context:   // Context usage updated
+    }
+}
+```
+
+**Features:**
+- Auto-reconnect with exponential backoff (1s, 2s, 4s... max 30s)
+- Automatic ping/pong for connection health
+- API key authentication via query parameter
+- Handles `session:status`, `session:waiting`, `session:context` messages
+
 ### ConnectionViewModel (`ViewModels/ConnectionViewModel.swift`)
 Uses `@Observable` macro (iOS 17+) for reactive state management.
 
@@ -66,6 +95,7 @@ class ConnectionViewModel {
     var connectionStatus: ConnectionStatus  // .disconnected, .connecting, .connected, .error
     var sessions: [Session]
     var activeSessionCount: Int  // Sessions with status == .running
+    var isWebSocketReconnecting: Bool  // Show reconnecting banner
 }
 ```
 
@@ -134,13 +164,19 @@ xcodebuild test -project ClaudePM.xcodeproj \
 
 The app connects to the Claude PM backend server.
 
-**Default endpoints used:**
+**HTTP Endpoints used:**
 - `GET /api/health` - Connection check (no auth)
 - `GET /api/sessions` - Fetch all sessions (requires API key if configured)
 
+**WebSocket Connection:**
+- URL: `ws://host:port?apiKey=xxx` (or `wss://` for TLS)
+- Connects on app foreground, disconnects on background
+- Receives real-time updates for session status, waiting state, and context usage
+
 **Authentication:**
 - If the server has `API_KEY` env var set, include it in Settings
-- Header: `X-API-Key: <your-key>`
+- HTTP Header: `X-API-Key: <your-key>`
+- WebSocket: Query parameter `?apiKey=<your-key>`
 - In development mode (no API_KEY on server), authentication is optional
 
 ## Bundle Identifier

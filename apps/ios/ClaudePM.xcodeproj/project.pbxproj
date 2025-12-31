@@ -16,6 +16,8 @@
 		A1000006A1000006A1000006 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006A1000006A1000000 /* KeychainHelper.swift */; };
 		A1000007A1000007A1000007 /* ConnectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000007A1000007A1000000 /* ConnectionViewModel.swift */; };
 		A1000008A1000008A1000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000008A1000008A1000000 /* Assets.xcassets */; };
+		A1000009A1000009A1000009 /* WebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000009A1000009A1000000 /* WebSocketClient.swift */; };
+		A100000AA100000AA100000A /* SessionUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000AA100000AA1000000 /* SessionUpdate.swift */; };
 
 		/* Test Files */
 		A1000010A1000010A1000010 /* ClaudePMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000010A1000010A1000000 /* ClaudePMTests.swift */; };
@@ -41,6 +43,8 @@
 		A1000006A1000006A1000000 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		A1000007A1000007A1000000 /* ConnectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionViewModel.swift; sourceTree = "<group>"; };
 		A1000008A1000008A1000000 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1000009A1000009A1000000 /* WebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketClient.swift; sourceTree = "<group>"; };
+		A100000AA100000AA1000000 /* SessionUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionUpdate.swift; sourceTree = "<group>"; };
 
 		/* Products */
 		A1000200A1000200A1000001 /* ClaudePM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudePM.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -102,6 +106,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000004A1000004A1000000 /* Session.swift */,
+				A100000AA100000AA1000000 /* SessionUpdate.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -111,6 +116,7 @@
 			children = (
 				A1000005A1000005A1000000 /* APIClient.swift */,
 				A1000006A1000006A1000000 /* KeychainHelper.swift */,
+				A1000009A1000009A1000000 /* WebSocketClient.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -263,6 +269,8 @@
 				A1000005A1000005A1000005 /* APIClient.swift in Sources */,
 				A1000006A1000006A1000006 /* KeychainHelper.swift in Sources */,
 				A1000007A1000007A1000007 /* ConnectionViewModel.swift in Sources */,
+				A1000009A1000009A1000009 /* WebSocketClient.swift in Sources */,
+				A100000AA100000AA100000A /* SessionUpdate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

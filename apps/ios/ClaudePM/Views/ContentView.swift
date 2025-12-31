@@ -7,6 +7,11 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
+                // WebSocket Reconnecting Banner
+                if viewModel.isWebSocketReconnecting {
+                    reconnectingBanner
+                }
+
                 // Connection Status Card
                 connectionStatusCard
 
@@ -37,14 +42,32 @@ struct ContentView: View {
             }
             .onAppear {
                 viewModel.startAutoRefresh()
+                viewModel.startWebSocketObserving()
             }
             .onDisappear {
                 viewModel.stopAutoRefresh()
+                viewModel.stopWebSocketObserving()
             }
         }
     }
 
     // MARK: - Subviews
+
+    private var reconnectingBanner: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .tint(.white)
+                .scaleEffect(0.8)
+
+            Text(viewModel.webSocketStateText)
+                .font(.subheadline)
+                .foregroundStyle(.white)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Color.orange)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
 
     private var connectionStatusCard: some View {
         VStack(spacing: 12) {
