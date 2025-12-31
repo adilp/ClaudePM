@@ -23,6 +23,9 @@ import {
   type AiAnalysisStatusMessage,
   type AiAnalysisType,
   type AiAnalysisStatus,
+  type ReviewResultMessage,
+  type ReviewDecisionType,
+  type ReviewTriggerType,
   type ErrorMessage,
   type SubscribedMessage,
   type UnsubscribedMessage,
@@ -48,6 +51,7 @@ import {
   type TicketStateChangeEvent,
 } from '../services/ticket-state-machine.js';
 import { prisma } from '../config/db.js';
+import { notificationService } from '../services/notification-service.js';
 import {
   ptyManager,
   PtySessionNotFoundError,
@@ -907,40 +911,10 @@ export class WebSocketManager {
 
       const reasonText = event.reason ? reasonMap[event.reason] || event.reason : 'User input required';
 
-      // Find existing notification for this session
-      const existing = await prisma.notification.findFirst({
-        where: { sessionId: event.sessionId },
-      });
-
-      if (existing) {
-        // Update existing notification
-        await prisma.notification.update({
-          where: { id: existing.id },
-          data: {
-            type: 'waiting_input',
-            message: `Session waiting for input: ${reasonText}`,
-            read: false,
-            createdAt: new Date(), // Update timestamp to show it's fresh
-          },
-        });
-      } else {
-        // Create new notification
-        await prisma.notification.create({
-          data: {
-            type: 'waiting_input',
-            sessionId: event.sessionId,
-            message: `Session waiting for input: ${reasonText}`,
-          },
-        });
-      }
+      await notificationService.notifyWaitingInput(event.sessionId, reasonText);
     } else {
       // Session is no longer waiting - remove the waiting_input notification
-      await prisma.notification.deleteMany({
-        where: {
-          sessionId: event.sessionId,
-          type: 'waiting_input',
-        },
-      });
+      await notificationService.deleteBySession(event.sessionId, 'waiting_input');
     }
   }
 
@@ -1121,6 +1095,31 @@ export class WebSocketManager {
       type: 'ai:analysis_status',
       payload,
     });
+  }
+
+  /**
+   * Send review result to all connections
+   */
+  sendReviewResult(
+    sessionId: string,
+    ticketId: string,
+    trigger: ReviewTriggerType,
+    decision: ReviewDecisionType,
+    reasoning: string
+  ): void {
+    const message: ReviewResultMessage = {
+      type: 'review:result',
+      payload: {
+        sessionId,
+        ticketId,
+        trigger,
+        decision,
+        reasoning,
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    this.broadcast(message);
   }
 }
 

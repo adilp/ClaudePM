@@ -19,6 +19,7 @@ import { ticketStateMachine } from './services/ticket-state-machine.js';
 import { reviewerSubagent } from './services/reviewer-subagent.js';
 import { autoHandoff } from './services/auto-handoff.js';
 import { wsManager, attachWebSocket } from './websocket/server.js';
+import { notificationService } from './services/notification-service.js';
 
 const app: Express = express();
 
@@ -67,6 +68,9 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction): void =>
 
 // Attach WebSocket server
 const wss = attachWebSocket(httpServer);
+
+// Wire up notification service with WebSocket manager
+notificationService.setWebSocketManager(wsManager);
 
 // Start server
 httpServer.listen(env.PORT, env.HOST, () => {

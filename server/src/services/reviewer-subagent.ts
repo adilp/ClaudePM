@@ -16,6 +16,8 @@ import { sessionSupervisor } from './session-supervisor.js';
 import { sessionAnalyzer } from './session-analyzer.js';
 import { ticketStateMachine } from './ticket-state-machine.js';
 import { waitingDetector } from './waiting-detector.js';
+import { wsManager } from '../websocket/server.js';
+import { notificationService } from './notification-service.js';
 import {
   type ReviewResult,
   type ReviewInput,
@@ -265,7 +267,7 @@ export class ReviewerSubagent extends TypedEventEmitter {
       this.emit('review:completed', completedEvent);
 
       // Handle state transition based on decision
-      await this.handleReviewResult(sessionId, ticketId, result);
+      await this.handleReviewResult(sessionId, ticketId, trigger, result);
 
       return result;
     } catch (error) {
@@ -544,13 +546,27 @@ export class ReviewerSubagent extends TypedEventEmitter {
   // ==========================================================================
 
   /**
-   * Handle the review result - trigger state transition if needed
+   * Handle the review result - save to DB, emit WebSocket, trigger state transition if needed
    */
   private async handleReviewResult(
     sessionId: string,
     ticketId: string,
+    trigger: ReviewTrigger,
     result: ReviewResult
   ): Promise<void> {
+    // 1. Save review result to database (for all decisions)
+    await this.saveReviewResult(sessionId, ticketId, trigger, result);
+
+    // 2. Emit WebSocket event (for all decisions)
+    wsManager.sendReviewResult(
+      sessionId,
+      ticketId,
+      trigger,
+      result.decision,
+      result.reasoning
+    );
+
+    // 3. Handle decision-specific actions
     switch (result.decision) {
       case 'complete':
         // Move ticket to review state
@@ -577,7 +593,8 @@ export class ReviewerSubagent extends TypedEventEmitter {
         break;
 
       case 'not_complete':
-        // No state change needed
+        // Create notification so user knows what's still pending
+        await this.createNotCompleteNotification(ticketId, result);
         break;
 
       case 'needs_clarification':
@@ -588,7 +605,33 @@ export class ReviewerSubagent extends TypedEventEmitter {
   }
 
   /**
-   * Upsert a notification for completed ticket (one per ticket)
+   * Save review result to database
+   */
+  private async saveReviewResult(
+    sessionId: string,
+    ticketId: string,
+    trigger: ReviewTrigger,
+    result: ReviewResult
+  ): Promise<void> {
+    try {
+      await prisma.reviewResult.create({
+        data: {
+          sessionId,
+          ticketId,
+          trigger: trigger as 'stop_hook' | 'idle_timeout' | 'completion_signal' | 'manual',
+          decision: result.decision as 'complete' | 'not_complete' | 'needs_clarification',
+          reasoning: result.reasoning,
+          rawOutput: result.rawOutput,
+        },
+      });
+      console.log(`[ReviewerSubagent] Saved review result for session ${sessionId}: ${result.decision}`);
+    } catch (error) {
+      console.error(`[ReviewerSubagent] Failed to save review result:`, error);
+    }
+  }
+
+  /**
+   * Create notification for completed ticket using NotificationService
    */
   private async createNotification(ticketId: string, result: ReviewResult): Promise<void> {
     const ticket = await prisma.ticket.findUnique({
@@ -597,36 +640,32 @@ export class ReviewerSubagent extends TypedEventEmitter {
 
     if (!ticket) return;
 
-    // Find existing notification for this ticket
-    const existing = await prisma.notification.findFirst({
-      where: { ticketId },
-    });
-
-    const message = `Ticket ${ticket.externalId} is ready for review. ${result.reasoning}`;
-
-    if (existing) {
-      await prisma.notification.update({
-        where: { id: existing.id },
-        data: {
-          type: 'review_ready',
-          message,
-          read: false,
-          createdAt: new Date(),
-        },
-      });
-    } else {
-      await prisma.notification.create({
-        data: {
-          type: 'review_ready',
-          ticketId,
-          message,
-        },
-      });
-    }
+    await notificationService.notifyReviewReady(
+      ticketId,
+      ticket.externalId || ticket.title,
+      result.reasoning
+    );
   }
 
   /**
-   * Upsert a notification when clarification is needed (one per ticket)
+   * Create notification for not complete status using NotificationService
+   */
+  private async createNotCompleteNotification(ticketId: string, result: ReviewResult): Promise<void> {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+
+    if (!ticket) return;
+
+    await notificationService.notifyNotComplete(
+      ticketId,
+      ticket.externalId || ticket.title,
+      result.reasoning
+    );
+  }
+
+  /**
+   * Create notification for clarification needed using NotificationService
    */
   private async createClarificationNotification(ticketId: string, result: ReviewResult): Promise<void> {
     const ticket = await prisma.ticket.findUnique({
@@ -635,32 +674,11 @@ export class ReviewerSubagent extends TypedEventEmitter {
 
     if (!ticket) return;
 
-    // Find existing notification for this ticket
-    const existing = await prisma.notification.findFirst({
-      where: { ticketId },
-    });
-
-    const message = `Ticket ${ticket.externalId} needs clarification: ${result.reasoning}`;
-
-    if (existing) {
-      await prisma.notification.update({
-        where: { id: existing.id },
-        data: {
-          type: 'waiting_input',
-          message,
-          read: false,
-          createdAt: new Date(),
-        },
-      });
-    } else {
-      await prisma.notification.create({
-        data: {
-          type: 'waiting_input',
-          ticketId,
-          message,
-        },
-      });
-    }
+    await notificationService.notifyNeedsClarification(
+      ticketId,
+      ticket.externalId || ticket.title,
+      result.reasoning
+    );
   }
 
   // ==========================================================================

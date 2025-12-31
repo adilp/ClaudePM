@@ -264,6 +264,12 @@ export type AiAnalysisType = 'summary' | 'review_report';
 export type AiAnalysisStatus = 'generating' | 'completed' | 'failed';
 
 /**
+ * Review decision from subagent
+ */
+export type ReviewDecisionType = 'complete' | 'not_complete' | 'needs_clarification';
+export type ReviewTriggerType = 'stop_hook' | 'idle_timeout' | 'completion_signal' | 'manual';
+
+/**
  * AI analysis status message
  */
 export interface AiAnalysisStatusMessage {
@@ -275,6 +281,21 @@ export interface AiAnalysisStatusMessage {
     status: AiAnalysisStatus;
     timestamp: string;
     error?: string;
+  };
+}
+
+/**
+ * Review result message from subagent
+ */
+export interface ReviewResultMessage {
+  type: 'review:result';
+  payload: {
+    sessionId: string;
+    ticketId: string;
+    trigger: ReviewTriggerType;
+    decision: ReviewDecisionType;
+    reasoning: string;
+    timestamp: string;
   };
 }
 
@@ -388,6 +409,7 @@ export type ServerMessage =
   | SessionWaitingMessage
   | TicketStateMessage
   | AiAnalysisStatusMessage
+  | ReviewResultMessage
   | NotificationMessage
   | PongMessage
   | ErrorMessage

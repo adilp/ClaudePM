@@ -12,6 +12,7 @@ import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
 import { contextMonitor, type ContextThresholdEvent } from './context-monitor.js';
 import { sessionSupervisor } from './session-supervisor.js';
+import { notificationService } from './notification-service.js';
 import * as tmux from './tmux.js';
 import {
   type AutoHandoffConfig,
@@ -408,14 +409,10 @@ export class AutoHandoff extends EventEmitter {
     this.emit('handoff:completed', completedEvent);
 
     // Create notification
-    await prisma.notification.create({
-      data: {
-        type: 'handoff_complete',
-        sessionId: newSession.id,
-        ticketId: handoff.ticketId,
-        message: `Handoff complete. New session created with fresh context.`,
-      },
-    });
+    await notificationService.notifyHandoffComplete(
+      newSession.id,
+      `Handoff complete. New session created with fresh context.`
+    );
 
     // Cleanup
     this.activeHandoffs.delete(handoff.fromSessionId);
@@ -475,14 +472,11 @@ export class AutoHandoff extends EventEmitter {
     this.emit('handoff:failed', failedEvent);
 
     // Create notification
-    await prisma.notification.create({
-      data: {
-        type: 'error',
-        sessionId: handoff.fromSessionId,
-        ticketId: handoff.ticketId,
-        message: `Handoff failed: ${errorMessage}. ${sessionPreserved ? 'Session preserved.' : 'Session may be in inconsistent state.'}`,
-      },
-    });
+    await notificationService.notifyError(
+      `Handoff failed: ${errorMessage}. ${sessionPreserved ? 'Session preserved.' : 'Session may be in inconsistent state.'}`,
+      handoff.fromSessionId,
+      handoff.ticketId ?? undefined
+    );
 
     // Cleanup
     this.activeHandoffs.delete(handoff.fromSessionId);

@@ -92,6 +92,7 @@ model Ticket {
   sessions      Session[]
   notifications Notification[]
   stateHistory  TicketStateHistory[]
+  reviewResults ReviewResult[]
 
   // Indexes
   @@index([projectId, state], name: "tickets_project_state_idx")
@@ -129,9 +130,33 @@ model Session {
   summaryCache SessionSummaryCache?
   reviewCache  ReviewReportCache?
 
+  // Review history
+  reviewResults ReviewResult[]
+
   // Indexes
   @@index([status], name: "sessions_status_idx")
   @@map("sessions")
+}
+
+model ReviewResult {
+  id        String         @id @default(uuid()) @db.Uuid
+  sessionId String         @map("session_id") @db.Uuid
+  ticketId  String         @map("ticket_id") @db.Uuid
+  trigger   ReviewTrigger
+  decision  ReviewDecision
+  reasoning String         @db.Text
+  rawOutput String?        @map("raw_output") @db.Text
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ticket  Ticket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  // Indexes
+  @@index([sessionId], name: "review_results_session_idx")
+  @@index([ticketId], name: "review_results_ticket_idx")
+  @@index([createdAt], name: "review_results_created_idx")
+  @@map("review_results")
 }
 
 model HandoffEvent {
@@ -200,6 +225,19 @@ enum CompletionStatus {
   partial
   blocked
   unclear
+}
+
+enum ReviewDecision {
+  complete
+  not_complete
+  needs_clarification
+}
+
+enum ReviewTrigger {
+  stop_hook
+  idle_timeout
+  completion_signal
+  manual
 }
 
 model SessionSummaryCache {

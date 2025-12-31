@@ -523,4 +523,41 @@ router.post(
   })
 );
 
+/**
+ * GET /api/tickets/:id/review-history
+ * Get review results history for a ticket
+ */
+router.get(
+  '/tickets/:id/review-history',
+  asyncHandler(async (req, res) => {
+    const { id } = ticketIdParamSchema.parse(req.params);
+
+    const results = await prisma.reviewResult.findMany({
+      where: { ticketId: id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        session: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    res.json({
+      ticketId: id,
+      results: results.map((r) => ({
+        id: r.id,
+        session_id: r.sessionId,
+        trigger: r.trigger,
+        decision: r.decision,
+        reasoning: r.reasoning,
+        created_at: r.createdAt.toISOString(),
+        session_status: r.session?.status,
+      })),
+    });
+  })
+);
+
 export default router;
