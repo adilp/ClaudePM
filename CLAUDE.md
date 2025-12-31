@@ -18,8 +18,12 @@ claudePM/
 │   ├── tests/                # Vitest tests (mirrors src structure)
 │   ├── prisma/               # Database schema and migrations
 │   └── package.json
+├── apps/
+│   ├── web/                  # React web client (Vite + Tailwind)
+│   └── desktop/              # Tauri desktop app (React + Tailwind)
 ├── docs/
-│   ├── jira-tickets/         # Implementation tickets (CSM-001 through CSM-025)
+│   ├── jira-tickets/         # Implementation tickets
+│   │   └── desktop-parity/   # Desktop app tickets (DWP-001+)
 │   ├── plans/                # Design documents
 │   └── ai-context/           # Handoff documents
 └── README.md
@@ -27,6 +31,7 @@ claudePM/
 
 ## Tech Stack
 
+### Server
 - **Runtime**: Node.js 20+ with ESM modules
 - **Language**: TypeScript 5.6 (strict mode)
 - **Server**: Express 4.21
@@ -34,6 +39,46 @@ claudePM/
 - **WebSocket**: ws library
 - **Validation**: Zod
 - **Testing**: Vitest
+
+### Client Apps (Web & Desktop)
+- **Framework**: React 18 + TypeScript
+- **Styling**: Tailwind CSS v4
+- **State**: React Query (TanStack Query)
+- **Routing**: React Router v6
+- **Build**: Vite
+- **Desktop**: Tauri 2.x (Rust backend)
+
+## Client Applications
+
+### Web App (`apps/web/`)
+Browser-based client for session monitoring and ticket management.
+```bash
+cd apps/web
+npm run dev      # Start dev server (port 5173)
+npm run build    # Production build
+```
+
+### Desktop App (`apps/desktop/`)
+Native desktop app with system notifications and offline support.
+```bash
+cd apps/desktop
+npm run dev          # Vite dev server only
+npm run tauri dev    # Full Tauri app with hot reload
+npm run tauri build  # Build distributable
+```
+
+See `apps/desktop/CLAUDE.md` for desktop-specific documentation.
+
+### Running Full Stack
+```bash
+# Terminal 1: Server
+cd server && npm run dev
+
+# Terminal 2: Web OR Desktop
+cd apps/web && npm run dev
+# OR
+cd apps/desktop && npm run tauri dev
+```
 
 ## Code Conventions
 
