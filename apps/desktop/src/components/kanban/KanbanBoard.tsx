@@ -138,11 +138,13 @@ export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
     <div className="space-y-4">
       {/* Filter chips - only show if there are multiple prefixes */}
       {prefixes.length > 1 && (
-        <FilterChips
-          prefixes={prefixes}
-          selectedPrefixes={selectedPrefixes}
-          onSelectionChange={setSelectedPrefixes}
-        />
+        <div className="flex justify-center">
+          <FilterChips
+            prefixes={prefixes}
+            selectedPrefixes={selectedPrefixes}
+            onSelectionChange={setSelectedPrefixes}
+          />
+        </div>
       )}
 
       <DndContext
@@ -152,7 +154,7 @@ export function KanbanBoard({ tickets, projectId }: KanbanBoardProps) {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 justify-center overflow-x-auto pb-4">
           {STATES.map((state) => (
             <KanbanColumn
               key={state}

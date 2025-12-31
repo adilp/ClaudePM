@@ -180,7 +180,7 @@ export function ProjectDetail() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
       {/* Header */}
       <header className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div className="space-y-2">
@@ -250,7 +250,7 @@ export function ProjectDetail() {
 
       {/* Sprint Board Section */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-center gap-4">
           <h2 className="text-lg font-semibold text-content-primary">Sprint Board</h2>
           {tickets && (
             <span className="text-sm text-content-muted">
