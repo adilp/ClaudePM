@@ -348,7 +348,7 @@ export function TicketDetail() {
       <div className="rounded-lg border bg-card">
         <div className="border-b px-4 py-3 flex items-center justify-between">
           <h2 className="font-semibold">Ticket Content</h2>
-          {ticket.is_adhoc && !isEditing && (
+          {!isEditing && (
             <button
               onClick={() => {
                 setEditContent(ticketContent?.content || ticket.content);

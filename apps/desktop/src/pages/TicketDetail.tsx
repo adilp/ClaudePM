@@ -366,7 +366,7 @@ export function TicketDetail() {
       <div className="ticket-detail__card">
         <div className="ticket-detail__card-header">
           <h2>Ticket Content</h2>
-          {ticket.is_adhoc && !isEditing && (
+          {!isEditing && (
             <button
               onClick={() => {
                 setEditContent(ticketContent?.content || ticket.content);
