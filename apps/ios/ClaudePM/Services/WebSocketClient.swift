@@ -131,6 +131,7 @@ final class WebSocketClient {
         Task { @MainActor in
             self.state = .connected
             self.reconnectAttempts = 0
+            print("[WebSocket] Connected successfully to \(url.absoluteString)")
         }
     }
 

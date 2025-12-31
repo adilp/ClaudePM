@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents a Claude session from the backend API
-struct Session: Codable, Identifiable {
+struct Session: Codable, Identifiable, Hashable {
     let id: String
     let projectId: String
     let ticketId: String?
@@ -17,6 +17,15 @@ struct Session: Codable, Identifiable {
     // Nested objects from API
     let project: SessionProject
     let ticket: SessionTicket?
+
+    // Hashable conformance - use id for identity
+    static func == (lhs: Session, rhs: Session) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
 }
 
 /// Nested project info in session response

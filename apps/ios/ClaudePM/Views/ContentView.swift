@@ -1,57 +1,37 @@
 import SwiftUI
 
+/// Root content view that wraps the session list with settings access
 struct ContentView: View {
-    @State private var viewModel = ConnectionViewModel()
+    @State private var connectionViewModel = ConnectionViewModel()
     @State private var showingSettings = false
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                // WebSocket Reconnecting Banner
-                if viewModel.isWebSocketReconnecting {
-                    reconnectingBanner
-                }
+        ZStack(alignment: .top) {
+            // Main content: Session list with integrated navigation
+            MainSessionListView(
+                connectionViewModel: connectionViewModel,
+                showingSettings: $showingSettings
+            )
 
-                // Connection Status Card
-                connectionStatusCard
-
-                // Session Count Display - always show when connected
-                sessionCountCard
-
-                Spacer()
-
-                // Connect/Refresh Button
-                actionButton
-            }
-            .padding()
-            .navigationTitle("Claude PM")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gear")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView(viewModel: viewModel)
-            }
-            .task {
-                await viewModel.checkConnection()
-            }
-            .onAppear {
-                viewModel.startAutoRefresh()
-                viewModel.startWebSocketObserving()
-            }
-            .onDisappear {
-                viewModel.stopAutoRefresh()
-                viewModel.stopWebSocketObserving()
+            // WebSocket reconnecting banner overlay
+            if connectionViewModel.isWebSocketReconnecting {
+                reconnectingBanner
+                    .padding(.horizontal)
+                    .padding(.top, 4)
             }
         }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(viewModel: connectionViewModel)
+        }
+        .onAppear {
+            connectionViewModel.startAutoRefresh()
+            connectionViewModel.startWebSocketObserving()
+        }
+        .onDisappear {
+            connectionViewModel.stopAutoRefresh()
+            connectionViewModel.stopWebSocketObserving()
+        }
     }
-
-    // MARK: - Subviews
 
     private var reconnectingBanner: some View {
         HStack(spacing: 8) {
@@ -59,7 +39,7 @@ struct ContentView: View {
                 .tint(.white)
                 .scaleEffect(0.8)
 
-            Text(viewModel.webSocketStateText)
+            Text(connectionViewModel.webSocketStateText)
                 .font(.subheadline)
                 .foregroundStyle(.white)
         }
@@ -68,103 +48,179 @@ struct ContentView: View {
         .background(Color.orange)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
+}
 
-    private var connectionStatusCard: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Circle()
-                    .fill(viewModel.connectionStatus.color)
-                    .frame(width: 12, height: 12)
+/// Main session list view with navigation and toolbar
+struct MainSessionListView: View {
+    var connectionViewModel: ConnectionViewModel
+    @Binding var showingSettings: Bool
+    @State private var viewModel = SessionListViewModel()
 
-                Text(viewModel.connectionStatus.displayText)
-                    .font(.headline)
-            }
-
-            if case .error(let message) = viewModel.connectionStatus {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+    var body: some View {
+        NavigationStack {
+            sessionListContent
+                .navigationTitle("Sessions")
+                .toolbar {
+                    toolbarContent
+                }
+                .navigationDestination(for: Session.self) { session in
+                    SessionDetailView(session: session)
+                }
+        }
+        .task {
+            // Check connection first, then load sessions
+            await connectionViewModel.checkConnection()
+            if connectionViewModel.connectionStatus.isConnected {
+                await viewModel.loadSessions()
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .onAppear {
+            startWebSocketObserving()
+        }
+        .onDisappear {
+            stopWebSocketObserving()
+        }
+        .onChange(of: connectionViewModel.connectionStatus) { oldValue, newValue in
+            // Reload sessions when connection status changes to connected
+            if newValue.isConnected && !oldValue.isConnected {
+                Task {
+                    await viewModel.loadSessions()
+                }
+            }
+        }
     }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            connectionStatusIndicator
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "gear")
+            }
+        }
+    }
+
+    private var connectionStatusIndicator: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(connectionViewModel.connectionStatus.color)
+                .frame(width: 8, height: 8)
+
+            Text(connectionViewModel.connectionStatus.displayText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - List Content
 
     @ViewBuilder
-    private var sessionCountCard: some View {
-        VStack(spacing: 8) {
-            switch viewModel.connectionStatus {
-            case .connected:
-                Text("\(viewModel.activeSessionCount)")
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-
-                Text("active session\(viewModel.activeSessionCount == 1 ? "" : "s")")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if viewModel.sessionCount > viewModel.activeSessionCount {
-                    Text("\(viewModel.sessionCount) total")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            case .connecting:
-                ProgressView()
-                    .padding(.bottom, 4)
-                Text("Loading sessions...")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            case .disconnected, .error(_):
-                Image(systemName: "server.rack")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.secondary)
-                Text("Not connected")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+    private var sessionListContent: some View {
+        ZStack {
+            if !connectionViewModel.connectionStatus.isConnected {
+                // Not connected state
+                notConnectedView
+            } else if viewModel.sessions.isEmpty && !viewModel.isLoading && viewModel.error == nil {
+                // Empty state
+                emptyStateView
+            } else if let error = viewModel.error, viewModel.sessions.isEmpty {
+                // Error state
+                errorStateView(error)
+            } else {
+                // Session list
+                sessionList
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 100)
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            if viewModel.isLoading && viewModel.sessions.isEmpty {
+                loadingView
+            }
+        }
     }
 
-    private var actionButton: some View {
-        Button {
-            Task {
-                await viewModel.checkConnection()
+    private var sessionList: some View {
+        List(viewModel.sessions) { session in
+            NavigationLink(value: session) {
+                SessionRowView(session: session)
             }
-        } label: {
-            HStack {
-                if case .connecting = viewModel.connectionStatus {
-                    ProgressView()
-                        .tint(.white)
-                        .padding(.trailing, 4)
-                }
-                Text(buttonTitle)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.accentColor)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
-        .disabled(viewModel.connectionStatus == .connecting)
+        .listStyle(.plain)
+        .refreshable {
+            await viewModel.loadSessions()
+        }
     }
 
-    private var buttonTitle: String {
-        switch viewModel.connectionStatus {
-        case .connecting:
-            return "Connecting..."
-        case .connected:
-            return "Refresh"
-        default:
-            return "Connect"
+    private var notConnectedView: some View {
+        ContentUnavailableView {
+            Label("Not Connected", systemImage: "wifi.slash")
+        } description: {
+            Text("Configure your server connection in Settings to view sessions.")
+        } actions: {
+            Button("Open Settings") {
+                showingSettings = true
+            }
+            .buttonStyle(.borderedProminent)
         }
+    }
+
+    private var emptyStateView: some View {
+        ContentUnavailableView {
+            Label("No Sessions", systemImage: "terminal")
+        } description: {
+            Text("No sessions found. Start a session from the server to see it here.")
+        } actions: {
+            Button("Refresh") {
+                Task {
+                    await viewModel.loadSessions()
+                }
+            }
+        }
+    }
+
+    private func errorStateView(_ error: String) -> some View {
+        ContentUnavailableView {
+            Label("Error", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(error)
+        } actions: {
+            Button("Try Again") {
+                Task {
+                    await viewModel.loadSessions()
+                }
+            }
+        }
+    }
+
+    private var loadingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(1.2)
+            Text("Loading sessions...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+
+    // MARK: - WebSocket
+
+    private func startWebSocketObserving() {
+        WebSocketClient.shared.onSessionUpdate = { [viewModel] update in
+            Task { @MainActor in
+                viewModel.handleSessionUpdate(update)
+            }
+        }
+    }
+
+    private func stopWebSocketObserving() {
+        WebSocketClient.shared.onSessionUpdate = nil
     }
 }
 

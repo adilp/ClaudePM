@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		/* App Files */
 		A1000001A1000001A1000001 /* ClaudePMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001A1000001A1000000 /* ClaudePMApp.swift */; };
 		A1000002A1000002A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002A1000002A1000000 /* ContentView.swift */; };
 		A1000003A1000003A1000003 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000003A1000003A1000000 /* SettingsView.swift */; };
@@ -18,8 +17,9 @@
 		A1000008A1000008A1000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000008A1000008A1000000 /* Assets.xcassets */; };
 		A1000009A1000009A1000009 /* WebSocketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000009A1000009A1000000 /* WebSocketClient.swift */; };
 		A100000AA100000AA100000A /* SessionUpdate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000AA100000AA1000000 /* SessionUpdate.swift */; };
-
-		/* Test Files */
+		A100000BA100000BA100000B /* SessionListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000BA100000BA1000000 /* SessionListViewModel.swift */; };
+		A100000CA100000CA100000C /* SessionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000CA100000CA1000000 /* SessionRowView.swift */; };
+		A100000DA100000DA100000D /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000DA100000DA1000000 /* SessionDetailView.swift */; };
 		A1000010A1000010A1000010 /* ClaudePMTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000010A1000010A1000000 /* ClaudePMTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,7 +34,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		/* App Files */
 		A1000001A1000001A1000000 /* ClaudePMApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePMApp.swift; sourceTree = "<group>"; };
 		A1000002A1000002A1000000 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1000003A1000003A1000000 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -45,13 +44,12 @@
 		A1000008A1000008A1000000 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000009A1000009A1000000 /* WebSocketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketClient.swift; sourceTree = "<group>"; };
 		A100000AA100000AA1000000 /* SessionUpdate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionUpdate.swift; sourceTree = "<group>"; };
-
-		/* Products */
+		A100000BA100000BA1000000 /* SessionListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListViewModel.swift; sourceTree = "<group>"; };
+		A100000CA100000CA1000000 /* SessionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
+		A100000DA100000DA1000000 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		A1000010A1000010A1000000 /* ClaudePMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePMTests.swift; sourceTree = "<group>"; };
 		A1000200A1000200A1000001 /* ClaudePM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudePM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000300A1000300A1000001 /* ClaudePMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudePMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-
-		/* Test Files */
-		A1000010A1000010A1000000 /* ClaudePMTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePMTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -125,6 +123,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000007A1000007A1000000 /* ConnectionViewModel.swift */,
+				A100000BA100000BA1000000 /* SessionListViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -133,6 +132,8 @@
 			isa = PBXGroup;
 			children = (
 				A1000002A1000002A1000000 /* ContentView.swift */,
+				A100000CA100000CA1000000 /* SessionRowView.swift */,
+				A100000DA100000DA1000000 /* SessionDetailView.swift */,
 				A1000003A1000003A1000000 /* SettingsView.swift */,
 			);
 			path = Views;
@@ -271,6 +272,9 @@
 				A1000007A1000007A1000007 /* ConnectionViewModel.swift in Sources */,
 				A1000009A1000009A1000009 /* WebSocketClient.swift in Sources */,
 				A100000AA100000AA100000A /* SessionUpdate.swift in Sources */,
+				A100000BA100000BA100000B /* SessionListViewModel.swift in Sources */,
+				A100000CA100000CA100000C /* SessionRowView.swift in Sources */,
+				A100000DA100000DA100000D /* SessionDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -293,7 +297,6 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		/* Project Debug */
 		A1000100A1000100A1000300 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -357,7 +360,6 @@
 			};
 			name = Debug;
 		};
-		/* Project Release */
 		A1000100A1000100A1000400 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -414,7 +416,6 @@
 			};
 			name = Release;
 		};
-		/* App Debug */
 		A1000200A1000200A1000400 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -423,6 +424,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 647Y8SN38G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -443,7 +445,6 @@
 			};
 			name = Debug;
 		};
-		/* App Release */
 		A1000200A1000200A1000500 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -452,6 +453,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_TEAM = 647Y8SN38G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -472,7 +474,6 @@
 			};
 			name = Release;
 		};
-		/* Tests Debug */
 		A1000300A1000300A1000400 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -491,7 +492,6 @@
 			};
 			name = Debug;
 		};
-		/* Tests Release */
 		A1000300A1000300A1000500 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {

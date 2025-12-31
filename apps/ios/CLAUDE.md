@@ -3,11 +3,14 @@
 ## Overview
 Native iOS app for Claude Session Manager. Provides remote monitoring of Claude Code sessions, connection status, and session counts.
 
+**NOTE: Currently focused on iPhone only. iPad support is deferred.**
+
 ## Tech Stack
 - **Language**: Swift 5
 - **UI Framework**: SwiftUI
 - **Minimum iOS**: 17.0
 - **Architecture**: MVVM with @Observable
+- **Target Device**: iPhone (iPad deferred)
 
 ## Project Structure
 
@@ -16,19 +19,22 @@ apps/ios/
 ├── ClaudePM.xcodeproj/
 ├── ClaudePM/
 │   ├── App/
-│   │   └── ClaudePMApp.swift       # App entry point, lifecycle management
+│   │   └── ClaudePMApp.swift           # App entry point, lifecycle management
 │   ├── Models/
-│   │   ├── Session.swift           # API response models
-│   │   └── SessionUpdate.swift     # WebSocket update models
+│   │   ├── Session.swift               # API response models
+│   │   └── SessionUpdate.swift         # WebSocket update models
 │   ├── Services/
-│   │   ├── APIClient.swift         # Network layer (actor-based)
-│   │   ├── KeychainHelper.swift    # Secure credential storage
-│   │   └── WebSocketClient.swift   # Real-time session updates
+│   │   ├── APIClient.swift             # Network layer (actor-based)
+│   │   ├── KeychainHelper.swift        # Secure credential storage
+│   │   └── WebSocketClient.swift       # Real-time session updates
 │   ├── ViewModels/
-│   │   └── ConnectionViewModel.swift   # Connection state management
+│   │   ├── ConnectionViewModel.swift   # Connection state management
+│   │   └── SessionListViewModel.swift  # Session list state & WebSocket updates
 │   ├── Views/
-│   │   ├── ContentView.swift       # Main screen with session count
-│   │   └── SettingsView.swift      # Backend URL & API key config
+│   │   ├── ContentView.swift           # Root view with session list
+│   │   ├── SessionRowView.swift        # Session row with status badge
+│   │   ├── SessionDetailView.swift     # Session detail screen
+│   │   └── SettingsView.swift          # Backend URL & API key config
 │   └── Resources/
 │       └── Assets.xcassets
 └── ClaudePMTests/
@@ -194,3 +200,11 @@ The Session model must match the API response exactly. The backend returns:
 - Ensure backend server is running
 - Use machine's IP address, not `localhost` (Simulator has its own network)
 - Example: `http://192.168.1.100:4847`
+
+### Simulator socket warnings (safe to ignore)
+These console warnings are harmless and only appear in the Simulator:
+```
+nw_socket_set_connection_idle setsockopt SO_CONNECTION_IDLE failed [42: Protocol not available]
+nw_protocol_socket_set_no_wake_from_sleep setsockopt SO_NOWAKEFROMSLEEP failed [22: Invalid argument]
+```
+The Simulator doesn't support certain socket options available on real devices. These don't affect app functionality.
