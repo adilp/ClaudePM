@@ -14,11 +14,13 @@ export const notificationKeys = {
 };
 
 // Hooks
+// Note: WebSocket invalidates cache on new notifications, so polling is just a fallback
 export function useNotifications() {
   return useQuery({
     queryKey: notificationKeys.list(),
     queryFn: () => api.getNotifications(),
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 120000, // Fallback refetch every 2 minutes (WebSocket handles real-time)
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 }
 
@@ -26,7 +28,8 @@ export function useNotificationCount() {
   return useQuery({
     queryKey: notificationKeys.count(),
     queryFn: () => api.getNotificationCount(),
-    refetchInterval: 15000, // Refetch every 15 seconds
+    refetchInterval: 120000, // Fallback refetch every 2 minutes (WebSocket handles real-time)
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 }
 

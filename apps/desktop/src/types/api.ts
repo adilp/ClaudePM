@@ -360,11 +360,23 @@ export interface AiAnalysisStatusMessage {
   };
 }
 
+/** WebSocket notification message (broadcasted when notifications are created/updated) */
+export interface NotificationWsMessage {
+  type: 'notification';
+  payload: {
+    id: string;
+    title: string;
+    body: string;
+    timestamp: string;
+  };
+}
+
 /** Union of all incoming WebSocket message types */
 export type IncomingMessage =
   | SessionStatusMessage
   | SessionWaitingMessage
   | AiAnalysisStatusMessage
+  | NotificationWsMessage
   | WebSocketMessage;
 
 // ============================================================================

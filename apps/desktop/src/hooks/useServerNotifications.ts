@@ -1,143 +1,83 @@
 /**
  * Server Notifications Hook
- * Polls the server for notifications and shows desktop alerts for new ones
- * Handles: review_ready, context_low, handoff_complete, error, waiting_input
+ * Listens to WebSocket for real-time notifications and shows desktop alerts
+ * Also invalidates React Query cache for instant UI updates
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { sendNotification } from '@tauri-apps/plugin-notification';
-import { getApiUrl, getApiKey, getNotificationsEnabled } from '../services/api';
+import { getNotificationsEnabled } from '../services/api';
 import { ensureNotificationPermission } from './useDesktopNotifications';
-
-interface ServerNotification {
-  id: string;
-  type: 'review_ready' | 'context_low' | 'handoff_complete' | 'error' | 'waiting_input';
-  title: string;
-  message: string;
-  session_id?: string;
-  ticket_id?: string;
-  created_at: string;
-  read: boolean;
-}
-
-const POLL_INTERVAL = 15000; // 15 seconds
+import { notificationKeys } from './useNotifications';
+import type { IncomingMessage, NotificationWsMessage } from '../types/api';
 
 /**
- * Map notification type to display title
+ * Type guard for notification messages
  */
-function getNotificationTitle(type: ServerNotification['type']): string {
-  switch (type) {
-    case 'review_ready':
-      return 'Ready for Review';
-    case 'context_low':
-      return 'Context Running Low';
-    case 'handoff_complete':
-      return 'Handoff Complete';
-    case 'error':
-      return 'Session Error';
-    case 'waiting_input':
-      return 'Input Required';
-    default:
-      return 'Notification';
-  }
+function isNotificationMessage(msg: IncomingMessage): msg is NotificationWsMessage {
+  return msg.type === 'notification';
+}
+
+interface UseServerNotificationsProps {
+  lastMessage: IncomingMessage | null;
 }
 
 /**
- * Fetch notifications from server
+ * Hook that listens to WebSocket notifications and:
+ * 1. Shows desktop notifications via Tauri
+ * 2. Invalidates React Query cache for instant UI updates
  */
-async function fetchNotifications(): Promise<ServerNotification[]> {
-  const apiUrl = await getApiUrl();
-  const apiKey = await getApiKey();
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  if (apiKey) {
-    headers['X-API-Key'] = apiKey;
-  }
-
-  const response = await fetch(`${apiUrl}/api/notifications`, { headers });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch notifications: ${response.status}`);
-  }
-
-  const result = await response.json();
-  // API returns { data: [...], count: N }
-  return result.data || [];
-}
-
-/**
- * Hook that polls for server notifications and shows desktop alerts
- */
-export function useServerNotifications() {
-  // Track which notification IDs we've already shown
+export function useServerNotifications({ lastMessage }: UseServerNotificationsProps) {
+  const queryClient = useQueryClient();
+  // Track which notification IDs we've already shown to prevent duplicates
   const shownIdsRef = useRef<Set<string>>(new Set());
-  const pollIntervalRef = useRef<number | null>(null);
-
-  const checkNotifications = useCallback(async () => {
-    try {
-      const enabled = await getNotificationsEnabled();
-      console.log('[ServerNotif] Notifications enabled:', enabled);
-      if (!enabled) {
-        return;
-      }
-
-      const notifications = await fetchNotifications();
-      console.log('[ServerNotif] Fetched notifications:', notifications.length);
-
-      // Filter to unread notifications we haven't shown yet
-      const newNotifications = notifications.filter(
-        (n) => !n.read && !shownIdsRef.current.has(n.id)
-      );
-
-      console.log('[ServerNotif] New unread notifications:', newNotifications.length);
-
-      if (newNotifications.length === 0) {
-        return;
-      }
-
-      const granted = await ensureNotificationPermission();
-      console.log('[ServerNotif] Permission granted:', granted);
-      if (!granted) {
-        return;
-      }
-
-      // Show desktop notification for each new one
-      for (const notif of newNotifications) {
-        console.log('[ServerNotif] Showing notification:', notif.type, notif.message);
-        shownIdsRef.current.add(notif.id);
-
-        await sendNotification({
-          title: getNotificationTitle(notif.type),
-          body: notif.message || notif.title,
-        });
-        console.log('[ServerNotif] Notification sent for:', notif.id);
-      }
-
-      // Limit the size of shown IDs set to prevent memory growth
-      if (shownIdsRef.current.size > 500) {
-        const idsArray = Array.from(shownIdsRef.current);
-        shownIdsRef.current = new Set(idsArray.slice(-250));
-      }
-    } catch (error) {
-      // Silently fail - server might not be available
-      console.debug('[ServerNotifications] Poll failed:', error);
-    }
-  }, []);
 
   useEffect(() => {
-    // Initial check
-    checkNotifications();
+    if (!lastMessage || !isNotificationMessage(lastMessage)) {
+      return;
+    }
 
-    // Set up polling
-    pollIntervalRef.current = window.setInterval(checkNotifications, POLL_INTERVAL);
+    const { id, title, body } = lastMessage.payload;
 
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
+    // Invalidate React Query cache for instant UI updates
+    queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+
+    // Skip if we've already shown this notification
+    if (shownIdsRef.current.has(id)) {
+      return;
+    }
+
+    // Show desktop notification
+    (async () => {
+      try {
+        const enabled = await getNotificationsEnabled();
+        if (!enabled) {
+          return;
+        }
+
+        const granted = await ensureNotificationPermission();
+        if (!granted) {
+          return;
+        }
+
+        shownIdsRef.current.add(id);
+
+        await sendNotification({
+          title,
+          body,
+        });
+
+        console.log('[ServerNotif] Notification shown:', id, title);
+
+        // Limit the size of shown IDs set to prevent memory growth
+        if (shownIdsRef.current.size > 500) {
+          const idsArray = Array.from(shownIdsRef.current);
+          shownIdsRef.current = new Set(idsArray.slice(-250));
+        }
+      } catch (error) {
+        console.debug('[ServerNotifications] Failed to show notification:', error);
       }
-    };
-  }, [checkNotifications]);
+    })();
+  }, [lastMessage, queryClient]);
 }

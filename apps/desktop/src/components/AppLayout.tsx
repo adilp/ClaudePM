@@ -17,7 +17,7 @@ import { NotificationsPanel } from './NotificationsPanel';
 
 export function AppLayout() {
   const location = useLocation();
-  const { connectionState } = useWebSocket();
+  const { connectionState, lastMessage } = useWebSocket();
   const { isSectionExpanded, toggleSection } = useUIStore();
   const isProjectsExpanded = isSectionExpanded('projects');
   const { data: notificationCount } = useNotificationCount();
@@ -26,8 +26,8 @@ export function AppLayout() {
   // Initialize desktop notifications for session events (via WebSocket)
   useDesktopNotifications();
 
-  // Poll server for notifications (review_ready, context_low, etc.)
-  useServerNotifications();
+  // Listen to WebSocket for real-time notifications
+  useServerNotifications({ lastMessage });
 
   // Check if Projects nav item is active
   const isProjectsActive =

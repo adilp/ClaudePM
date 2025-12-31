@@ -212,6 +212,61 @@ npm run tauri dev
 - **Storage**: localStorage (persisted by Tauri)
 - **Window Management**: Native window controls
 
+## Notification System
+
+Notifications use **WebSocket** for real-time updates (not polling).
+
+### Architecture
+```
+Server                           Desktop App
+   │                                  │
+   │──WebSocket: notification────────►│
+   │                                  │
+   │                    useServerNotifications()
+   │                           │
+   │                    ┌──────┴──────┐
+   │                    ▼             ▼
+   │              Invalidate     Show Desktop
+   │            React Query       Notification
+   │               Cache          (Tauri)
+   │                    │
+   │                    ▼
+   │              UI Updates
+   │              Instantly
+```
+
+### Key Files
+| File | Purpose |
+|------|---------|
+| `hooks/useWebSocket.ts` | WebSocket connection, exposes `lastMessage` |
+| `hooks/useServerNotifications.ts` | Listens to `notification` messages, invalidates cache, shows alerts |
+| `hooks/useNotifications.ts` | React Query hooks for notification list/count |
+| `components/NotificationsPanel.tsx` | UI for notification list |
+| `components/AppLayout.tsx` | Wires up `useServerNotifications({ lastMessage })` |
+
+### WebSocket Message Type
+```typescript
+interface NotificationWsMessage {
+  type: 'notification';
+  payload: {
+    id: string;
+    title: string;
+    body: string;
+    timestamp: string;
+  };
+}
+```
+
+### How It Works
+1. Server broadcasts `notification` message via WebSocket
+2. `useServerNotifications` receives via `lastMessage` prop
+3. Invalidates `notificationKeys.all` → React Query refetches
+4. Dashboard count and NotificationsPanel update instantly
+5. Desktop notification shown via Tauri
+
+### Fallback Polling
+React Query still polls every 2 minutes as fallback if WebSocket disconnects.
+
 ## Routes
 | Path | Page | Description |
 |------|------|-------------|
