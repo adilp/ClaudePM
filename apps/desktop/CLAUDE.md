@@ -17,7 +17,7 @@ Tauri-based desktop application for Claude Session Manager. Provides native macO
 ## Tech Stack
 - **Framework**: Tauri 2.x (Rust backend, web frontend)
 - **Frontend**: React 18 + TypeScript
-- **Styling**: Tailwind CSS v4 + custom CSS (migration pending - see DWP-019)
+- **Styling**: Tailwind CSS v4 utility classes
 - **State Management**: React Query (TanStack Query)
 - **Routing**: React Router v6
 - **Build Tool**: Vite
@@ -56,40 +56,105 @@ src/
 │   └── api.ts           # TypeScript types for API
 ├── lib/
 │   └── utils.ts         # Utility functions (cn for classnames)
-└── styles.css           # Global styles + Tailwind
+└── styles.css           # Tailwind config + minimal custom styles
 ```
 
 ## Styling Architecture
 
-### Current State (Mixed)
-- **Tailwind v4**: Used by kanban components (`KanbanBoard`, `KanbanCard`, etc.)
-- **Custom CSS**: Used by other pages/components (Dashboard, Sessions, Settings, etc.)
-- **CSS Overrides**: Kanban styling tweaks at end of `styles.css` kanban keeps overriding as global cauisng styling issues
+The app uses **Tailwind CSS v4** with theme colors defined in `@theme` block.
 
-### Theme Configuration
-Theme is defined in `styles.css`:
+### Theme Colors (styles.css)
+
 ```css
 @import "tailwindcss";
 
 @theme {
-  --color-background: ...;
-  --color-card: ...;
-  --color-primary: ...;
-  /* etc */
-}
+  /* Surface colors - use as bg-surface-primary, bg-surface-secondary, etc. */
+  --color-surface-primary: #0f0f0f;
+  --color-surface-secondary: #1a1a1a;
+  --color-surface-tertiary: #252525;
 
-.dark {
-  /* Dark mode color overrides */
+  /* Text colors - use as text-content-primary, text-content-secondary, etc. */
+  --color-content-primary: #e5e5e5;
+  --color-content-secondary: #a0a0a0;
+  --color-content-muted: #666666;
+
+  /* Border color - use as border-line */
+  --color-line: #333333;
 }
 ```
 
-The app is dark mode by default (`<html class="dark">`).
+### Styling Rules
 
-### Important CSS Notes
-- Kanban components use Tailwind utility classes
-- CSS overrides for kanban are at the end of `styles.css` (search for "Kanban Board Overrides")
-- Other components use BEM-style custom classes (e.g., `session-card`, `stats-card`)
-- Migration to full Tailwind is tracked in DWP-019
+**DO use theme-defined classes:**
+```tsx
+// Correct - uses theme colors
+className="bg-surface-secondary text-content-primary border-line"
+className="bg-surface-tertiary text-content-muted"
+```
+
+**DO NOT use arbitrary CSS variable syntax:**
+```tsx
+// WRONG - arbitrary value syntax doesn't work properly in Tailwind v4
+className="bg-[--bg-secondary] text-[--text-primary]"
+```
+
+**Common color mappings:**
+| Usage | Tailwind Class |
+|-------|----------------|
+| Main background | `bg-surface-primary` |
+| Card/panel background | `bg-surface-secondary` |
+| Hover/active state | `bg-surface-tertiary` |
+| Primary text | `text-content-primary` |
+| Secondary/label text | `text-content-secondary` |
+| Muted/hint text | `text-content-muted` |
+| Borders | `border-line` |
+
+### Styling Patterns
+
+**Cards:**
+```tsx
+<div className="bg-surface-secondary border border-line rounded-xl p-5">
+```
+
+**Loading states:**
+```tsx
+<div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+  <div className="w-8 h-8 border-2 border-surface-tertiary border-t-indigo-500 rounded-full animate-spin" />
+  <p className="text-content-secondary">Loading...</p>
+</div>
+```
+
+**Form fields:**
+```tsx
+<div className="space-y-2">
+  <label className="block text-sm font-medium text-content-primary">Label</label>
+  <Input placeholder="..." />
+  <p className="text-xs text-content-muted">Help text</p>
+</div>
+```
+
+**Buttons (use Button component):**
+```tsx
+<Button variant="primary">Primary Action</Button>
+<Button variant="secondary">Secondary</Button>
+<Button variant="ghost">Ghost</Button>
+```
+
+### Class Names Helper
+Always use `cn()` for conditional classes:
+```tsx
+import { cn } from '../lib/utils';
+className={cn('base-classes', isActive && 'active-classes', className)}
+```
+
+### Custom CSS (styles.css)
+Only these custom styles remain:
+- `@theme` block with color definitions
+- `.dark` class with shadcn dark mode colors
+- `@layer base` with body defaults
+- Keyframe animations (spin, pulse)
+- `.markdown-content` for rendered markdown
 
 ## Key Patterns
 
@@ -112,12 +177,6 @@ navigate(`/projects/${projectId}/tickets/${ticketId}`);
 import { toast } from '../hooks/use-toast';
 toast.success('Title', 'Message');
 toast.error('Error', 'Something went wrong');
-```
-
-### Class Names (Tailwind)
-```tsx
-import { cn } from '../lib/utils';
-className={cn('base-class', isActive && 'active-class')}
 ```
 
 ## API Integration
@@ -163,7 +222,3 @@ npm run tauri dev
 | `/sessions` | Sessions | All sessions |
 | `/sessions/:sessionId` | SessionDetail | Session terminal |
 | `/settings` | Settings | App configuration |
-
-## Known Issues / Tech Debt
-- Mixed CSS approach (Tailwind + custom) - see DWP-019
-- Some CSS overrides use `!important` for Tailwind v4 compatibility

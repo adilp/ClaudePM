@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProject } from '../hooks/useProjects';
 import { useTickets } from '../hooks/useTickets';
-import { useSessions, useSyncProject, useStartSession } from '../hooks/useSessions';
+import { useSessions, useSyncProject } from '../hooks/useSessions';
 import { KanbanBoard } from '../components/kanban/KanbanBoard';
 import { CreateAdhocTicketModal } from '../components/CreateAdhocTicketModal';
 import { StatusBadge } from '../components/StatusBadge';
@@ -19,110 +19,52 @@ import type { Session } from '../types/api';
 function ContextMeter({ value }: { value: number | null }) {
   if (value === null) return null;
 
-  const getColor = () => {
-    if (value >= 80) return 'var(--color-error)';
-    if (value >= 60) return 'var(--color-warning)';
-    return 'var(--color-success)';
+  const getColorClass = () => {
+    if (value >= 80) return 'bg-red-500';
+    if (value >= 60) return 'bg-yellow-500';
+    return 'bg-green-500';
   };
 
   return (
-    <div className="context-meter">
-      <div className="context-meter__bar">
+    <div className="flex items-center gap-2">
+      <div className="w-16 h-1 bg-surface-tertiary rounded-full overflow-hidden">
         <div
-          className="context-meter__fill"
-          style={{ width: `${value}%`, backgroundColor: getColor() }}
+          className={`h-full ${getColorClass()} transition-all`}
+          style={{ width: `${value}%` }}
         />
       </div>
-      <span className="context-meter__label">{value}%</span>
+      <span className="text-xs text-content-muted">{value}%</span>
     </div>
   );
 }
 
 // Active session indicator component
 function ActiveSessionIndicator({
-  projectId,
   sessions,
 }: {
   projectId: string;
   sessions: Session[] | undefined;
 }) {
-  const navigate = useNavigate();
-  const startSession = useStartSession();
-
   const activeSession = sessions?.find(
     (s) => s.status === 'running' || s.status === 'paused'
   );
 
-  const handleStartSession = () => {
-    startSession.mutate(
-      { project_id: projectId },
-      {
-        onSuccess: (session) => {
-          toast.success('Session started');
-          navigate(`/sessions/${session.id}`);
-        },
-        onError: (err) => {
-          toast.error(
-            'Failed to start session',
-            err instanceof Error ? err.message : 'Unknown error'
-          );
-        },
-      }
-    );
-  };
-
   if (!activeSession) {
-    return (
-      <div className="session-indicator session-indicator--empty">
-        <div className="session-indicator__content">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <span>No active session</span>
-        </div>
-        <Button
-          variant="primary"
-          onClick={handleStartSession}
-          disabled={startSession.isPending}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-          {startSession.isPending ? 'Starting...' : 'Start Session'}
-        </Button>
-      </div>
-    );
+    return null; // Don't show anything if no active session
   }
 
   return (
     <Link
       to={`/sessions/${activeSession.id}`}
-      className="session-indicator session-indicator--active"
+      className="flex items-center justify-between p-4 bg-surface-secondary border border-line rounded-xl hover:border-indigo-500 transition-colors"
     >
-      <div className="session-indicator__content">
-        <div className="session-indicator__pulse" />
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20" />
+          <div className="relative w-2 h-2 bg-green-500 rounded-full" />
+        </div>
         <StatusBadge status={activeSession.status} />
-        <span className="session-indicator__label">
+        <span className="text-sm font-medium text-content-primary">
           {activeSession.ticket?.external_id ||
             activeSession.ticket?.title ||
             'Adhoc Session'}
@@ -175,9 +117,9 @@ export function ProjectDetail() {
   // Loading state
   if (projectLoading || ticketsLoading) {
     return (
-      <div className="page page--loading">
-        <div className="loading-spinner" />
-        <p>Loading project...</p>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="w-8 h-8 border-2 border-surface-tertiary border-t-indigo-500 rounded-full animate-spin" />
+        <p className="text-content-secondary">Loading project...</p>
       </div>
     );
   }
@@ -185,32 +127,29 @@ export function ProjectDetail() {
   // Error state
   if (projectError) {
     return (
-      <div className="page page--error">
-        <div className="error-content">
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="15" y1="9" x2="9" y2="15" />
-            <line x1="9" y1="9" x2="15" y2="15" />
-          </svg>
-          <h2>Failed to load project</h2>
-          <p>
-            {projectError instanceof Error
-              ? projectError.message
-              : 'An error occurred'}
-          </p>
-          <Button variant="secondary" onClick={() => navigate('/projects')}>
-            Back to Projects
-          </Button>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center p-8">
+        <svg
+          className="h-12 w-12 text-red-500"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="15" y1="9" x2="9" y2="15" />
+          <line x1="9" y1="9" x2="15" y2="15" />
+        </svg>
+        <h2 className="text-xl font-semibold text-content-primary">Failed to load project</h2>
+        <p className="text-content-secondary">
+          {projectError instanceof Error
+            ? projectError.message
+            : 'An error occurred'}
+        </p>
+        <Button variant="secondary" onClick={() => navigate('/projects')}>
+          Back to Projects
+        </Button>
       </div>
     );
   }
@@ -218,37 +157,34 @@ export function ProjectDetail() {
   // Project not found
   if (!project) {
     return (
-      <div className="page page--error">
-        <div className="error-content">
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-            <line x1="9" y1="14" x2="15" y2="14" />
-          </svg>
-          <h2>Project not found</h2>
-          <p>The project you're looking for doesn't exist.</p>
-          <Button variant="secondary" onClick={() => navigate('/projects')}>
-            Back to Projects
-          </Button>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center p-8">
+        <svg
+          className="h-12 w-12 text-content-muted"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          <line x1="9" y1="14" x2="15" y2="14" />
+        </svg>
+        <h2 className="text-xl font-semibold text-content-primary">Project not found</h2>
+        <p className="text-content-secondary">The project you're looking for doesn't exist.</p>
+        <Button variant="secondary" onClick={() => navigate('/projects')}>
+          Back to Projects
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="page project-detail">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <header className="project-detail__header">
-        <div className="project-detail__header-left">
-          <Link to="/projects" className="back-link">
+      <header className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="space-y-2">
+          <Link to="/projects" className="inline-flex items-center gap-2 text-sm text-content-secondary hover:text-content-primary transition-colors">
             <svg
               width="16"
               height="16"
@@ -264,10 +200,10 @@ export function ProjectDetail() {
             </svg>
             Back to Projects
           </Link>
-          <h1 className="project-detail__title">{project.name}</h1>
-          <p className="project-detail__path">{project.repo_path}</p>
+          <h1 className="text-2xl font-bold text-content-primary">{project.name}</h1>
+          <p className="text-sm text-content-muted">{project.repo_path}</p>
         </div>
-        <div className="project-detail__header-actions">
+        <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             onClick={handleSync}
@@ -282,7 +218,7 @@ export function ProjectDetail() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className={syncProject.isPending ? 'spin' : ''}
+              className={syncProject.isPending ? 'animate-spin' : ''}
             >
               <polyline points="23 4 23 10 17 10" />
               <polyline points="1 20 1 14 7 14" />
@@ -313,11 +249,11 @@ export function ProjectDetail() {
       <ActiveSessionIndicator projectId={projectId!} sessions={sessions} />
 
       {/* Sprint Board Section */}
-      <section className="project-detail__board">
-        <div className="project-detail__board-header">
-          <h2>Sprint Board</h2>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-content-primary">Sprint Board</h2>
           {tickets && (
-            <span className="project-detail__ticket-count">
+            <span className="text-sm text-content-muted">
               {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -328,10 +264,9 @@ export function ProjectDetail() {
           <KanbanBoard tickets={tickets} projectId={projectId!} />
         ) : (
           /* Empty state - no tickets */
-          <div className="empty-state">
+          <div className="flex flex-col items-center justify-center py-16 text-center">
             <svg
-              width="48"
-              height="48"
+              className="h-12 w-12 text-content-muted mb-4"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -344,12 +279,12 @@ export function ProjectDetail() {
               <line x1="12" y1="18" x2="12" y2="12" />
               <line x1="9" y1="15" x2="15" y2="15" />
             </svg>
-            <h3>No tickets found</h3>
-            <p>
+            <h3 className="text-lg font-semibold text-content-primary mb-2">No tickets found</h3>
+            <p className="text-content-secondary mb-6 max-w-md">
               Sync to discover tickets from your filesystem or create an adhoc
               ticket to get started.
             </p>
-            <div className="empty-state__actions">
+            <div className="flex items-center gap-3">
               <Button
                 variant="primary"
                 onClick={handleSync}
@@ -364,7 +299,7 @@ export function ProjectDetail() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className={syncProject.isPending ? 'spin' : ''}
+                  className={syncProject.isPending ? 'animate-spin' : ''}
                 >
                   <polyline points="23 4 23 10 17 10" />
                   <polyline points="1 20 1 14 7 14" />

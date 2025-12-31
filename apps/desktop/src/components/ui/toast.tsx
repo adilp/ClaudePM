@@ -4,6 +4,7 @@
  */
 
 import { useEffect } from 'react';
+import { cn } from '../../lib/utils';
 import type { ToastType } from '../../hooks/use-toast';
 
 interface ToastProps {
@@ -15,11 +16,17 @@ interface ToastProps {
   onDismiss: () => void;
 }
 
+const typeStyles: Record<ToastType, { bg: string; icon: string }> = {
+  success: { bg: 'border-l-green-500', icon: 'text-green-500' },
+  error: { bg: 'border-l-red-500', icon: 'text-red-500' },
+  warning: { bg: 'border-l-amber-500', icon: 'text-amber-500' },
+  info: { bg: 'border-l-indigo-500', icon: 'text-indigo-500' },
+};
+
 // SVG Icons inline to avoid external dependencies
 const icons: Record<ToastType, React.ReactNode> = {
   success: (
     <svg
-      className="toast__icon"
       width="20"
       height="20"
       viewBox="0 0 24 24"
@@ -35,7 +42,6 @@ const icons: Record<ToastType, React.ReactNode> = {
   ),
   error: (
     <svg
-      className="toast__icon"
       width="20"
       height="20"
       viewBox="0 0 24 24"
@@ -52,7 +58,6 @@ const icons: Record<ToastType, React.ReactNode> = {
   ),
   warning: (
     <svg
-      className="toast__icon"
       width="20"
       height="20"
       viewBox="0 0 24 24"
@@ -69,7 +74,6 @@ const icons: Record<ToastType, React.ReactNode> = {
   ),
   info: (
     <svg
-      className="toast__icon"
       width="20"
       height="20"
       viewBox="0 0 24 24"
@@ -95,13 +99,25 @@ export function Toast({ type, title, message, duration = 5000, onDismiss }: Toas
   }, [duration, onDismiss]);
 
   return (
-    <div className={`toast toast--${type}`}>
-      {icons[type]}
-      <div className="toast__content">
-        <p className="toast__title">{title}</p>
-        {message && <p className="toast__message">{message}</p>}
+    <div
+      className={cn(
+        'flex items-start gap-3 p-4 bg-surface-secondary border border-line border-l-4 rounded-lg shadow-lg',
+        'animate-[toast-slide-in_0.3s_ease-out]',
+        typeStyles[type].bg
+      )}
+    >
+      <div className={cn('shrink-0', typeStyles[type].icon)}>
+        {icons[type]}
       </div>
-      <button className="toast__close" onClick={onDismiss} aria-label="Dismiss">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-content-primary">{title}</p>
+        {message && <p className="text-sm text-content-secondary mt-0.5">{message}</p>}
+      </div>
+      <button
+        className="shrink-0 p-1 bg-transparent border-none text-content-muted cursor-pointer rounded transition-colors hover:text-content-primary hover:bg-surface-tertiary"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+      >
         <svg
           width="16"
           height="16"

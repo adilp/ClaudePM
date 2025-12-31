@@ -9,6 +9,7 @@ import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
 import { useServerNotifications } from '../hooks/useServerNotifications';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useUIStore } from '../stores/uiStore';
+import { cn } from '../lib/utils';
 import { SidebarProjectsList } from './SidebarProjectsList';
 
 export function AppLayout() {
@@ -29,10 +30,12 @@ export function AppLayout() {
     location.pathname.startsWith('/projects/');
 
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar__header">
-          <div className="logo">
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-[220px] flex flex-col shrink-0 bg-surface-secondary border-r border-line">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
+          <div className="text-indigo-500">
             <svg
               width="32"
               height="32"
@@ -48,15 +51,21 @@ export function AppLayout() {
               <path d="M2 12l10 5 10-5" />
             </svg>
           </div>
-          <h1 className="sidebar__title">Claude PM</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Claude PM</h1>
         </div>
 
-        <nav className="sidebar__nav">
+        {/* Navigation */}
+        <nav className="flex-1 flex flex-col p-3 gap-1 overflow-y-auto">
           {/* Dashboard */}
           <NavLink
             to="/"
             className={({ isActive }) =>
-              `nav-link ${isActive ? 'nav-link--active' : ''}`
+              cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-indigo-500/15 text-indigo-500'
+                  : 'text-content-secondary hover:bg-surface-tertiary hover:text-content-primary'
+              )
             }
             end
           >
@@ -69,6 +78,7 @@ export function AppLayout() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              className="shrink-0"
             >
               <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
               <polyline points="9 22 9 12 15 12 15 22" />
@@ -77,11 +87,11 @@ export function AppLayout() {
           </NavLink>
 
           {/* Projects - Expandable section */}
-          <div className="nav-section">
-            <div className="nav-section__header">
+          <div className="mb-1">
+            <div className="flex items-center">
               <button
                 onClick={() => toggleSection('projects')}
-                className="nav-section__toggle"
+                className="flex items-center justify-center w-6 h-6 ml-1 bg-transparent border-none rounded text-content-muted cursor-pointer transition-colors hover:bg-surface-tertiary hover:text-content-primary"
                 aria-label={
                   isProjectsExpanded ? 'Collapse projects' : 'Expand projects'
                 }
@@ -95,14 +105,22 @@ export function AppLayout() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className={`nav-section__chevron ${isProjectsExpanded ? 'nav-section__chevron--expanded' : ''}`}
+                  className={cn(
+                    'transition-transform duration-200',
+                    isProjectsExpanded && 'rotate-90'
+                  )}
                 >
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
               </button>
               <NavLink
                 to="/projects"
-                className={`nav-link nav-link--expandable ${isProjectsActive ? 'nav-link--active' : ''}`}
+                className={cn(
+                  'flex-1 flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  isProjectsActive
+                    ? 'bg-indigo-500/15 text-indigo-500'
+                    : 'text-content-secondary hover:bg-surface-tertiary hover:text-content-primary'
+                )}
               >
                 <svg
                   width="20"
@@ -113,6 +131,7 @@ export function AppLayout() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  className="shrink-0"
                 >
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
@@ -120,7 +139,7 @@ export function AppLayout() {
               </NavLink>
             </div>
             {isProjectsExpanded && (
-              <div className="nav-section__content">
+              <div className="mt-1 mb-2">
                 <SidebarProjectsList />
               </div>
             )}
@@ -130,7 +149,12 @@ export function AppLayout() {
           <NavLink
             to="/sessions"
             className={({ isActive }) =>
-              `nav-link ${isActive ? 'nav-link--active' : ''}`
+              cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-indigo-500/15 text-indigo-500'
+                  : 'text-content-secondary hover:bg-surface-tertiary hover:text-content-primary'
+              )
             }
           >
             <svg
@@ -142,6 +166,7 @@ export function AppLayout() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              className="shrink-0"
             >
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
               <line x1="8" y1="21" x2="16" y2="21" />
@@ -154,7 +179,12 @@ export function AppLayout() {
           <NavLink
             to="/settings"
             className={({ isActive }) =>
-              `nav-link ${isActive ? 'nav-link--active' : ''}`
+              cn(
+                'flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-indigo-500/15 text-indigo-500'
+                  : 'text-content-secondary hover:bg-surface-tertiary hover:text-content-primary'
+              )
             }
           >
             <svg
@@ -166,6 +196,7 @@ export function AppLayout() {
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
+              className="shrink-0"
             >
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -175,8 +206,8 @@ export function AppLayout() {
         </nav>
 
         {/* Connection status */}
-        <div className="sidebar__footer">
-          <div className="connection-status">
+        <div className="px-4 py-3 border-t border-line">
+          <div className="flex items-center gap-2">
             {connectionState === 'connected' ? (
               <>
                 <svg
@@ -188,14 +219,14 @@ export function AppLayout() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="connection-status__icon connection-status__icon--connected"
+                  className="shrink-0 text-green-500"
                 >
                   <path d="M5 12.55a11 11 0 0 1 14.08 0" />
                   <path d="M1.42 9a16 16 0 0 1 21.16 0" />
                   <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
                   <line x1="12" y1="20" x2="12.01" y2="20" />
                 </svg>
-                <span className="connection-status__text">Connected</span>
+                <span className="text-xs text-content-muted">Connected</span>
               </>
             ) : (
               <>
@@ -208,7 +239,7 @@ export function AppLayout() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="connection-status__icon connection-status__icon--disconnected"
+                  className="shrink-0 text-red-500"
                 >
                   <line x1="1" y1="1" x2="23" y2="23" />
                   <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
@@ -218,7 +249,7 @@ export function AppLayout() {
                   <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
                   <line x1="12" y1="20" x2="12.01" y2="20" />
                 </svg>
-                <span className="connection-status__text">
+                <span className="text-xs text-content-muted">
                   {connectionState === 'connecting'
                     ? 'Connecting...'
                     : 'Disconnected'}
@@ -230,15 +261,15 @@ export function AppLayout() {
       </aside>
 
       {/* Main content area with header */}
-      <div className="main-wrapper">
-        <header className="app-header">
-          <div className="app-header__title">
+      <div className="flex flex-col flex-1 min-w-0">
+        <header className="flex items-center justify-between h-12 px-4 bg-surface-secondary border-b border-line shrink-0">
+          <div className="text-sm font-medium text-content-primary">
             {/* Page title can be added here dynamically if needed */}
           </div>
-          <div className="app-header__actions">
+          <div className="flex items-center gap-2">
             {/* Notification badge placeholder for DWP-016 */}
             <button
-              className="notification-badge"
+              className="flex items-center justify-center w-9 h-9 bg-transparent border-none rounded-md text-content-secondary cursor-pointer transition-colors relative hover:bg-surface-tertiary hover:text-content-primary"
               aria-label="Notifications"
               title="Notifications (coming soon)"
             >
@@ -259,7 +290,7 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="main-content">
+        <main className="flex-1 overflow-y-auto bg-surface-primary">
           <Outlet />
         </main>
       </div>

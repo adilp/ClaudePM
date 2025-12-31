@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import type { Session } from '../types/api';
 import { StatusBadge } from './StatusBadge';
 
@@ -44,121 +45,135 @@ export function SessionDetailModal({ session, onClose }: SessionDetailModalProps
     [onClose]
   );
 
+  const getContextColor = (percent: number) => {
+    if (percent >= 80) return 'bg-red-500';
+    if (percent >= 60) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
   // Use portal to render modal at document body level
   return createPortal(
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <div className="modal__header">
-          <h2 id="modal-title" className="modal__title">{name}</h2>
-          <button className="modal__close" onClick={onClose} aria-label="Close">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={handleBackdropClick}
+    >
+      <div
+        className="bg-surface-secondary border border-line rounded-xl shadow-xl w-full max-w-md mx-4 animate-[dialog-fade-in_0.2s_ease-out]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+          <h2 id="modal-title" className="text-lg font-semibold text-content-primary truncate pr-4">
+            {name}
+          </h2>
+          <button
+            className="p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-tertiary transition-colors"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="modal__content">
-          <div className="detail-row">
-            <span className="detail-label">Status</span>
+        {/* Content */}
+        <div className="px-5 py-4 space-y-3">
+          <DetailRow label="Status">
             <StatusBadge status={session.status} />
-          </div>
+          </DetailRow>
 
-          <div className="detail-row">
-            <span className="detail-label">Type</span>
-            <span className="detail-value detail-value--tag">{session.type}</span>
-          </div>
+          <DetailRow label="Type">
+            <span className="px-2 py-0.5 bg-surface-tertiary text-content-secondary text-xs font-medium rounded">
+              {session.type}
+            </span>
+          </DetailRow>
 
           {session.project && (
-            <div className="detail-row">
-              <span className="detail-label">Project</span>
-              <span className="detail-value">{session.project.name}</span>
-            </div>
+            <DetailRow label="Project">
+              <span className="text-sm text-content-primary">{session.project.name}</span>
+            </DetailRow>
           )}
 
           {session.ticket && (
             <>
-              <div className="detail-row">
-                <span className="detail-label">Ticket</span>
-                <span className="detail-value">{session.ticket.title}</span>
-              </div>
+              <DetailRow label="Ticket">
+                <span className="text-sm text-content-primary">{session.ticket.title}</span>
+              </DetailRow>
               {session.ticket.external_id && (
-                <div className="detail-row">
-                  <span className="detail-label">Ticket ID</span>
-                  <span className="detail-value detail-value--code">
+                <DetailRow label="Ticket ID">
+                  <span className="text-sm font-mono text-indigo-400">
                     {session.ticket.external_id}
                   </span>
-                </div>
+                </DetailRow>
               )}
             </>
           )}
 
           {session.context_percent !== null && (
-            <div className="detail-row">
-              <span className="detail-label">Context Usage</span>
-              <div className="detail-context">
-                <div className="detail-context__bar">
+            <DetailRow label="Context Usage">
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1.5 bg-surface-tertiary rounded-full overflow-hidden">
                   <div
-                    className="detail-context__fill"
+                    className={`h-full ${getContextColor(session.context_percent)} transition-all`}
                     style={{ width: `${session.context_percent}%` }}
                   />
                 </div>
-                <span className="detail-context__label">{session.context_percent}%</span>
+                <span className="text-xs text-content-muted">{session.context_percent}%</span>
               </div>
-            </div>
+            </DetailRow>
           )}
 
           {session.pane_id && (
-            <div className="detail-row">
-              <span className="detail-label">Pane ID</span>
-              <span className="detail-value detail-value--code">{session.pane_id}</span>
-            </div>
+            <DetailRow label="Pane ID">
+              <span className="text-sm font-mono text-content-secondary">{session.pane_id}</span>
+            </DetailRow>
           )}
 
-          <div className="detail-row">
-            <span className="detail-label">Session ID</span>
-            <span className="detail-value detail-value--code detail-value--small">
+          <DetailRow label="Session ID">
+            <span className="text-xs font-mono text-content-muted truncate max-w-[200px]">
               {session.id}
             </span>
-          </div>
+          </DetailRow>
 
           {session.started_at && (
-            <div className="detail-row">
-              <span className="detail-label">Started</span>
-              <span className="detail-value">{formatDateTime(session.started_at)}</span>
-            </div>
+            <DetailRow label="Started">
+              <span className="text-sm text-content-primary">{formatDateTime(session.started_at)}</span>
+            </DetailRow>
           )}
 
           {session.ended_at && (
-            <div className="detail-row">
-              <span className="detail-label">Ended</span>
-              <span className="detail-value">{formatDateTime(session.ended_at)}</span>
-            </div>
+            <DetailRow label="Ended">
+              <span className="text-sm text-content-primary">{formatDateTime(session.ended_at)}</span>
+            </DetailRow>
           )}
 
-          <div className="detail-row">
-            <span className="detail-label">Created</span>
-            <span className="detail-value">{formatDateTime(session.created_at)}</span>
-          </div>
+          <DetailRow label="Created">
+            <span className="text-sm text-content-primary">{formatDateTime(session.created_at)}</span>
+          </DetailRow>
         </div>
 
-        <div className="modal__footer">
-          <button className="modal__button" onClick={onClose}>
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-line">
+          <button
+            className="w-full px-4 py-2 bg-surface-tertiary text-content-primary rounded-lg text-sm font-medium hover:bg-line transition-colors"
+            onClick={onClose}
+          >
             Close
           </button>
         </div>
       </div>
     </div>,
     document.body
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-sm text-content-muted shrink-0">{label}</span>
+      {children}
+    </div>
   );
 }
 

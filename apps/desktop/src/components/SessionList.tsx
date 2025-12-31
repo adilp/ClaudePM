@@ -9,6 +9,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { SessionCard } from './SessionCard';
 import { SessionDetailModal } from './SessionDetailModal';
 import { focusSession, showErrorNotification } from '../services/session-controller';
+import { cn } from '../lib/utils';
 import type { Session } from '../types/api';
 
 export function SessionList() {
@@ -126,8 +127,8 @@ export function SessionList() {
 
   if (loading && sessions.length === 0) {
     return (
-      <div className="session-list session-list--loading">
-        <div className="spinner" />
+      <div className="flex flex-col items-center justify-center gap-4 min-h-[300px] text-content-secondary">
+        <div className="w-5 h-5 border-2 border-surface-tertiary border-t-indigo-500 rounded-full animate-spin" />
         <span>Loading sessions...</span>
       </div>
     );
@@ -135,8 +136,8 @@ export function SessionList() {
 
   if (error) {
     return (
-      <div className="session-list session-list--error">
-        <div className="error-icon">
+      <div className="flex flex-col items-center justify-center gap-4 min-h-[300px] text-content-secondary">
+        <div className="text-red-500">
           <svg
             width="48"
             height="48"
@@ -152,8 +153,11 @@ export function SessionList() {
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         </div>
-        <span className="error-message">{error}</span>
-        <button className="retry-button" onClick={handleRetry}>
+        <span className="text-red-500 text-center">{error}</span>
+        <button
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-500 text-white rounded-lg text-sm font-medium cursor-pointer transition-colors hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed"
+          onClick={handleRetry}
+        >
           Retry
         </button>
       </div>
@@ -162,9 +166,12 @@ export function SessionList() {
 
   if (activeSessions.length === 0) {
     return (
-      <div className="session-list session-list--empty">
+      <div className="flex flex-col items-center justify-center gap-4 min-h-[300px] text-content-secondary">
         <span>No active sessions</span>
-        <button className="refresh-button" onClick={fetchSessions}>
+        <button
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-500 text-white rounded-lg text-sm font-medium cursor-pointer transition-colors hover:bg-indigo-600"
+          onClick={fetchSessions}
+        >
           Refresh
         </button>
       </div>
@@ -172,20 +179,24 @@ export function SessionList() {
   }
 
   return (
-    <div className="session-list" ref={listRef}>
-      <div className="session-list__header">
-        <h2 className="session-list__title">Sessions</h2>
-        <span className="session-list__hint">
+    <div className="max-w-[800px] mx-auto" ref={listRef}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-content-primary">Sessions</h2>
+        <span className="text-xs text-content-muted ml-auto mr-3">
           Press Enter to focus selected session
         </span>
         <button
-          className="refresh-button refresh-button--icon"
+          className={cn(
+            'p-2 bg-transparent rounded-md text-content-secondary cursor-pointer transition-colors',
+            'hover:text-content-primary hover:bg-surface-tertiary',
+            'disabled:opacity-60 disabled:cursor-not-allowed'
+          )}
           onClick={fetchSessions}
           disabled={loading}
           title="Refresh sessions"
         >
           <svg
-            className={loading ? 'spinning' : ''}
+            className={loading ? 'animate-spin' : ''}
             width="20"
             height="20"
             viewBox="0 0 24 24"
@@ -201,7 +212,7 @@ export function SessionList() {
         </button>
       </div>
 
-      <div className="session-list__content" role="listbox" aria-label="Sessions">
+      <div className="flex flex-col gap-3" role="listbox" aria-label="Sessions">
         {activeSessions.map((session, index) => (
           <SessionCard
             key={session.id}

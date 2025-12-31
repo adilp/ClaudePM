@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Trash2,
 } from 'lucide-react';
+import { cn } from '../lib/utils';
 import type { NotificationType, Notification } from '../types/api';
 
 interface NotificationsPanelProps {
@@ -28,31 +29,36 @@ interface NotificationsPanelProps {
 
 const notificationConfig: Record<
   NotificationType,
-  { icon: typeof Bell; colorClass: string; label: string }
+  { icon: typeof Bell; iconColor: string; borderColor: string; label: string }
 > = {
   waiting_input: {
     icon: MessageCircleQuestion,
-    colorClass: 'notification--waiting',
+    iconColor: 'text-amber-500',
+    borderColor: 'border-l-amber-500',
     label: 'Waiting for Input',
   },
   review_ready: {
     icon: CheckCircle,
-    colorClass: 'notification--success',
+    iconColor: 'text-green-500',
+    borderColor: 'border-l-green-500',
     label: 'Ready for Review',
   },
   handoff_complete: {
     icon: RefreshCw,
-    colorClass: 'notification--info',
+    iconColor: 'text-indigo-500',
+    borderColor: 'border-l-indigo-500',
     label: 'Handoff Complete',
   },
   error: {
     icon: AlertCircle,
-    colorClass: 'notification--error',
+    iconColor: 'text-red-500',
+    borderColor: 'border-l-red-500',
     label: 'Error',
   },
   context_low: {
     icon: AlertCircle,
-    colorClass: 'notification--warning',
+    iconColor: 'text-amber-500',
+    borderColor: 'border-l-amber-500',
     label: 'Context Low',
   },
 };
@@ -104,57 +110,65 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
   return (
     <>
       {/* Backdrop */}
-      <div className="notifications-backdrop" onClick={onClose} />
+      <div
+        className="fixed inset-0 bg-black/40 z-40"
+        onClick={onClose}
+      />
 
       {/* Panel */}
-      <div className="notifications-panel">
+      <div className="fixed top-0 right-0 bottom-0 w-[380px] max-w-full bg-surface-secondary border-l border-line z-50 flex flex-col animate-[slide-in-right_0.2s_ease-out]">
         {/* Header */}
-        <div className="notifications-panel__header">
-          <div className="notifications-panel__title-row">
-            <Bell size={20} />
-            <h2 className="notifications-panel__title">Notifications</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+          <div className="flex items-center gap-3">
+            <Bell size={20} className="text-content-secondary" />
+            <h2 className="text-lg font-semibold text-content-primary">Notifications</h2>
             {notifications.length > 0 && (
-              <span className="notifications-panel__count">{notifications.length}</span>
+              <span className="px-1.5 py-0.5 text-xs font-medium bg-indigo-500 text-white rounded">
+                {notifications.length}
+              </span>
             )}
           </div>
-          <div className="notifications-panel__actions">
+          <div className="flex items-center gap-2">
             {notifications.length > 0 && (
               <button
                 onClick={handleDismissAll}
                 disabled={dismissAll.isPending}
-                className="btn btn--ghost btn--sm"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-transparent border-none text-content-secondary rounded-md cursor-pointer transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:opacity-60"
                 title="Dismiss all notifications"
               >
-                <Trash2 size={16} />
+                <Trash2 size={14} />
                 Clear all
               </button>
             )}
-            <button onClick={onClose} className="btn btn--ghost btn--sm">
+            <button
+              onClick={onClose}
+              className="flex items-center justify-center w-8 h-8 bg-transparent border-none text-content-secondary rounded-md cursor-pointer transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+            >
               <X size={20} />
             </button>
           </div>
         </div>
 
         {/* Info banner */}
-        <div className="notifications-panel__info">
+        <div className="px-5 py-2.5 text-xs text-content-muted bg-surface-tertiary border-b border-line">
           Notifications auto-update when session state changes. Click to navigate, or
           dismiss when acknowledged.
         </div>
 
         {/* Content */}
-        <div className="notifications-panel__content">
+        <div className="flex-1 overflow-y-auto">
           {isLoading ? (
-            <div className="notifications-panel__loading">
-              <div className="spinner" />
+            <div className="flex items-center justify-center py-16">
+              <div className="w-5 h-5 border-2 border-surface-tertiary border-t-indigo-500 rounded-full animate-spin" />
             </div>
           ) : notifications.length === 0 ? (
-            <div className="notifications-panel__empty">
-              <Bell size={48} className="notifications-panel__empty-icon" />
-              <p className="notifications-panel__empty-title">No notifications</p>
-              <p className="notifications-panel__empty-text">You're all caught up!</p>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Bell size={48} className="text-content-muted mb-4" />
+              <p className="font-medium text-content-primary">No notifications</p>
+              <p className="text-sm text-content-secondary">You're all caught up!</p>
             </div>
           ) : (
-            <div className="notifications-list">
+            <div className="flex flex-col">
               {notifications.map((notification) => {
                 const config =
                   notificationConfig[notification.type] || notificationConfig.error;
@@ -162,22 +176,25 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                 const link = getNotificationLink(notification);
 
                 const content = (
-                  <div className={`notification-item ${config.colorClass}`}>
-                    <div className="notification-item__icon">
+                  <div className={cn(
+                    'flex gap-3 p-4 border-l-[3px] border-b border-line bg-surface-secondary transition-colors hover:bg-surface-tertiary',
+                    config.borderColor
+                  )}>
+                    <div className={cn('shrink-0 mt-0.5', config.iconColor)}>
                       <Icon size={16} />
                     </div>
-                    <div className="notification-item__content">
-                      <div className="notification-item__header">
-                        <span className="notification-item__label">{config.label}</span>
-                        <span className="notification-item__time">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs font-medium text-content-primary">{config.label}</span>
+                        <span className="text-[10px] text-content-muted shrink-0">
                           {formatTime(notification.created_at)}
                         </span>
                       </div>
-                      <p className="notification-item__message">{notification.message}</p>
+                      <p className="text-sm text-content-secondary leading-snug">{notification.message}</p>
                       {(notification.session || notification.ticket) && (
-                        <div className="notification-item__meta">
+                        <div className="flex items-center gap-1.5 mt-2 text-xs text-content-muted">
                           {notification.ticket && (
-                            <span className="notification-item__ticket">
+                            <span className="truncate max-w-[200px]">
                               {notification.ticket.title || notification.ticket.external_id}
                             </span>
                           )}
@@ -187,7 +204,7 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                       <button
                         onClick={(e) => handleDismiss(notification.id, e)}
                         disabled={dismissNotification.isPending}
-                        className="notification-item__dismiss"
+                        className="mt-2 px-2 py-1 text-xs text-content-secondary bg-transparent border border-line rounded cursor-pointer transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:opacity-60"
                       >
                         Dismiss
                       </button>
@@ -201,7 +218,7 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                       key={notification.id}
                       to={link}
                       onClick={onClose}
-                      className="notification-item__link"
+                      className="no-underline text-inherit"
                     >
                       {content}
                     </Link>
@@ -215,10 +232,10 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
         </div>
 
         {/* Footer */}
-        <div className="notifications-panel__footer">
+        <div className="px-5 py-4 border-t border-line">
           <button
             onClick={() => refetch()}
-            className="btn btn--ghost btn--md notifications-panel__refresh"
+            className="inline-flex items-center justify-center gap-2 w-full px-4 py-2 bg-transparent border border-line text-content-secondary text-sm rounded-md cursor-pointer transition-colors hover:bg-surface-tertiary hover:text-content-primary"
           >
             <RefreshCw size={16} />
             Refresh

@@ -22,12 +22,28 @@ import {
 } from '../hooks/useTickets';
 import { useSessions } from '../hooks/useSessions';
 import type { TicketState } from '../types/api';
+import {
+  ArrowLeft,
+  ChevronDown,
+  Check,
+  X,
+  Pencil,
+  FileText,
+  Play,
+  ExternalLink,
+  CheckCircle,
+  XCircle,
+  Trash2,
+  Save,
+  Sparkles,
+  AlertCircle,
+} from 'lucide-react';
 
 const stateStyles: Record<TicketState, string> = {
-  backlog: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-  in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-  review: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-  done: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+  backlog: 'bg-gray-500/10 text-gray-400',
+  in_progress: 'bg-blue-500/10 text-blue-400',
+  review: 'bg-yellow-500/10 text-yellow-400',
+  done: 'bg-green-500/10 text-green-400',
 };
 
 export function TicketDetail() {
@@ -148,65 +164,51 @@ export function TicketDetail() {
 
   if (isLoading) {
     return (
-      <div className="page page--loading">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-        <p className="text-gray-400">Loading ticket...</p>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500" />
+        <p className="text-content-secondary">Loading ticket...</p>
       </div>
     );
   }
 
   if (error || !ticket) {
     return (
-      <div className="page page--error">
-        <div className="error-content">
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="text-red-500 mb-4"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <h2 className="text-xl font-semibold text-gray-200 mb-2">Ticket not found</h2>
-          <Link
-            to={`/projects/${projectId}`}
-            className="text-blue-400 hover:text-blue-300"
-          >
-            ← Back to Project
-          </Link>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center p-8">
+        <AlertCircle className="h-12 w-12 text-red-500" />
+        <h2 className="text-xl font-semibold text-content-primary">Ticket not found</h2>
+        <Link
+          to={`/projects/${projectId}`}
+          className="text-indigo-500 hover:text-indigo-400"
+        >
+          ← Back to Project
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="page ticket-detail">
+    <div className="p-6 max-w-[1200px] mx-auto space-y-6">
       {/* Breadcrumb */}
       <Link
         to={`/projects/${projectId}`}
-        className="ticket-detail__breadcrumb"
+        className="inline-flex items-center gap-2 text-sm text-content-secondary hover:text-content-primary transition-colors"
       >
-        <ArrowLeftIcon style={{ width: '1rem', height: '1rem' }} />
+        <ArrowLeft className="h-4 w-4" />
         Back to Project
       </Link>
 
       {/* Header */}
-      <div className="ticket-detail__header">
-        <div className="ticket-detail__header-left">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="space-y-3">
           {/* State and badges */}
-          <div className="ticket-detail__badges">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
               <select
                 value={ticket.state}
                 onChange={(e) => handleStateChange(e.target.value as TicketState)}
                 disabled={updateState.isPending}
                 className={cn(
-                  'appearance-none cursor-pointer inline-flex items-center gap-1.5 pl-3 pr-8 py-1 rounded-full text-sm font-medium border-0 focus:outline-none focus:ring-2 focus:ring-ring',
+                  'appearance-none cursor-pointer inline-flex items-center gap-1.5 pl-3 pr-8 py-1.5 rounded-full text-sm font-medium border-0 outline-none focus:ring-2 focus:ring-indigo-500',
                   stateStyles[ticket.state],
                   updateState.isPending && 'opacity-50 cursor-wait'
                 )}
@@ -216,17 +218,17 @@ export function TicketDetail() {
                 <option value="review">Review</option>
                 <option value="done">Done</option>
               </select>
-              <ChevronDownIcon className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none" />
+              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none" />
             </div>
 
             {ticket.is_adhoc && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/15 text-purple-400">
                 ADHOC
               </span>
             )}
 
             {ticket.external_id && (
-              <span className="text-sm text-muted-foreground font-mono">
+              <span className="text-sm text-content-muted font-mono">
                 {ticket.external_id}
               </span>
             )}
@@ -234,7 +236,7 @@ export function TicketDetail() {
 
           {/* Title */}
           {isEditingTitle ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={editTitle}
@@ -243,29 +245,27 @@ export function TicketDetail() {
                   if (e.key === 'Enter') handleUpdateTitle();
                   if (e.key === 'Escape') setIsEditingTitle(false);
                 }}
-                className="form-input"
-                style={{ fontSize: '1.5rem', fontWeight: 'bold' }}
+                className="flex-1 px-3 py-2 text-xl font-bold bg-surface-secondary border border-line rounded-lg text-content-primary outline-none focus:ring-2 focus:ring-indigo-500"
                 autoFocus
               />
               <button
                 onClick={handleUpdateTitle}
                 disabled={updateTitle.isPending}
-                className="icon-btn"
-                style={{ color: 'var(--success)' }}
+                className="p-2 rounded-lg text-green-500 hover:bg-green-500/10 transition-colors"
                 title="Save"
               >
-                <CheckIcon style={{ width: '1.25rem', height: '1.25rem' }} />
+                <Check className="h-5 w-5" />
               </button>
               <button
                 onClick={() => setIsEditingTitle(false)}
-                className="icon-btn"
+                className="p-2 rounded-lg text-content-secondary hover:bg-surface-tertiary transition-colors"
                 title="Cancel"
               >
-                <XIcon style={{ width: '1.25rem', height: '1.25rem' }} />
+                <X className="h-5 w-5" />
               </button>
             </div>
           ) : (
-            <h1 className="ticket-detail__title">
+            <h1 className="text-2xl font-bold text-content-primary flex items-center gap-2">
               {ticket.title}
               {ticket.is_adhoc && (
                 <button
@@ -273,40 +273,43 @@ export function TicketDetail() {
                     setEditTitle(ticket.title);
                     setIsEditingTitle(true);
                   }}
-                  className="icon-btn"
+                  className="p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-tertiary transition-colors"
                   title="Edit title"
                 >
-                  <PencilIcon style={{ width: '1rem', height: '1rem' }} />
+                  <Pencil className="h-4 w-4" />
                 </button>
               )}
             </h1>
           )}
 
           {/* File path */}
-          <p className="ticket-detail__path">
-            <FileTextIcon style={{ width: '1rem', height: '1rem' }} />
+          <p className="flex items-center gap-2 text-sm text-content-muted">
+            <FileText className="h-4 w-4" />
             {ticket.file_path}
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="ticket-detail__actions">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Start Session button */}
           {!hasRunningSession && ticket.state !== 'done' && (
             <button
               onClick={handleStartSession}
               disabled={startTicket.isPending}
-              className="btn btn--primary"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600 transition-colors disabled:opacity-50"
             >
-              <PlayIcon style={{ width: '1rem', height: '1rem' }} />
+              <Play className="h-4 w-4" />
               {startTicket.isPending ? 'Starting...' : 'Start Session'}
             </button>
           )}
 
           {/* View Sessions link if running */}
           {hasRunningSession && (
-            <Link to="/sessions" className="btn btn--info">
-              <ExternalLinkIcon style={{ width: '1rem', height: '1rem' }} />
+            <Link
+              to="/sessions"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
               View Sessions
             </Link>
           )}
@@ -316,25 +319,25 @@ export function TicketDetail() {
             <>
               <Link
                 to={`/projects/${projectId}/tickets/${ticketId}/review`}
-                className="btn btn--secondary"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-lg text-sm font-medium hover:bg-surface-secondary transition-colors"
               >
-                <ExternalLinkIcon style={{ width: '1rem', height: '1rem' }} />
+                <ExternalLink className="h-4 w-4" />
                 Review Changes
               </Link>
               <button
                 onClick={handleApprove}
                 disabled={approveTicket.isPending || rejectTicket.isPending}
-                className="btn btn--success"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                <CheckCircleIcon style={{ width: '1rem', height: '1rem' }} />
+                <CheckCircle className="h-4 w-4" />
                 {approveTicket.isPending ? 'Approving...' : 'Approve'}
               </button>
               <button
                 onClick={() => setShowRejectModal(true)}
                 disabled={approveTicket.isPending || rejectTicket.isPending}
-                className="btn btn--danger"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
               >
-                <XCircleIcon style={{ width: '1rem', height: '1rem' }} />
+                <XCircle className="h-4 w-4" />
                 Reject
               </button>
             </>
@@ -342,8 +345,8 @@ export function TicketDetail() {
 
           {/* Done state indicator */}
           {ticket.state === 'done' && (
-            <span className="badge badge--success" style={{ padding: '0.5rem 1rem' }}>
-              <CheckCircleIcon style={{ width: '1rem', height: '1rem' }} />
+            <span className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/15 text-green-500 rounded-lg text-sm font-medium">
+              <CheckCircle className="h-4 w-4" />
               Completed
             </span>
           )}
@@ -352,10 +355,10 @@ export function TicketDetail() {
           {!hasRunningSession && (
             <button
               onClick={() => setShowDeleteModal(true)}
-              className="btn btn--danger-outline"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-transparent text-red-500 border border-red-500/50 rounded-lg text-sm font-medium hover:bg-red-500/10 transition-colors"
               title="Delete ticket"
             >
-              <TrashIcon style={{ width: '1rem', height: '1rem' }} />
+              <Trash2 className="h-4 w-4" />
               Delete
             </button>
           )}
@@ -363,91 +366,90 @@ export function TicketDetail() {
       </div>
 
       {/* Ticket Content */}
-      <div className="ticket-detail__card">
-        <div className="ticket-detail__card-header">
-          <h2>Ticket Content</h2>
+      <div className="bg-surface-secondary border border-line rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line">
+          <h2 className="text-lg font-semibold text-content-primary">Ticket Content</h2>
           {!isEditing && (
             <button
               onClick={() => {
                 setEditContent(ticketContent?.content || ticket.content);
                 setIsEditing(true);
               }}
-              className="btn btn--secondary btn--sm"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-surface-tertiary text-content-primary border border-line rounded-lg text-sm font-medium hover:bg-line transition-colors"
             >
-              <PencilIcon className="h-4 w-4" />
+              <Pencil className="h-4 w-4" />
               Edit
             </button>
           )}
         </div>
         {isEditing ? (
-          <div className="ticket-detail__card-body">
+          <div className="p-5">
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              className="form-textarea"
-              style={{ height: '24rem', fontFamily: 'monospace' }}
+              className="w-full h-96 px-4 py-3 bg-surface-primary border border-line rounded-lg text-content-primary font-mono text-sm resize-none outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Enter ticket content in markdown..."
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+            <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setIsEditing(false)}
-                className="btn btn--secondary"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-lg text-sm font-medium hover:bg-line transition-colors"
               >
-                <XIcon className="h-4 w-4" />
+                <X className="h-4 w-4" />
                 Cancel
               </button>
               <button
                 onClick={handleUpdateContent}
                 disabled={updateContent.isPending}
-                className="btn btn--primary"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600 transition-colors disabled:opacity-50"
               >
-                <SaveIcon className="h-4 w-4" />
+                <Save className="h-4 w-4" />
                 {updateContent.isPending ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>
         ) : (
-          <div className="ticket-detail__card-body">
+          <div className="p-5">
             <MarkdownContent>{ticket.content}</MarkdownContent>
           </div>
         )}
       </div>
 
       {/* Timestamps */}
-      <div className="ticket-detail__timestamps">
-        <div className="ticket-detail__timestamps-grid">
+      <div className="bg-surface-secondary border border-line rounded-xl p-5">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div>
-            <p className="ticket-detail__timestamp-label">Created</p>
-            <p className="ticket-detail__timestamp-value">
+            <p className="text-xs text-content-muted uppercase tracking-wide mb-1">Created</p>
+            <p className="text-sm text-content-primary">
               {new Date(ticket.created_at).toLocaleString()}
             </p>
           </div>
           <div>
-            <p className="ticket-detail__timestamp-label">Updated</p>
-            <p className="ticket-detail__timestamp-value">
+            <p className="text-xs text-content-muted uppercase tracking-wide mb-1">Updated</p>
+            <p className="text-sm text-content-primary">
               {new Date(ticket.updated_at).toLocaleString()}
             </p>
           </div>
           {ticket.started_at && (
             <div>
-              <p className="ticket-detail__timestamp-label">Started</p>
-              <p className="ticket-detail__timestamp-value">
+              <p className="text-xs text-content-muted uppercase tracking-wide mb-1">Started</p>
+              <p className="text-sm text-content-primary">
                 {new Date(ticket.started_at).toLocaleString()}
               </p>
             </div>
           )}
           {reviewedAt && (
             <div>
-              <p className="ticket-detail__timestamp-label">Moved to Review</p>
-              <span className="badge badge--warning">
+              <p className="text-xs text-content-muted uppercase tracking-wide mb-1">Moved to Review</p>
+              <span className="inline-flex px-2 py-0.5 bg-yellow-500/15 text-yellow-500 rounded text-xs">
                 {new Date(reviewedAt).toLocaleString()}
               </span>
             </div>
           )}
           {ticket.completed_at && (
             <div>
-              <p className="ticket-detail__timestamp-label">Completed</p>
-              <p className="ticket-detail__timestamp-value">
+              <p className="text-xs text-content-muted uppercase tracking-wide mb-1">Completed</p>
+              <p className="text-sm text-content-primary">
                 {new Date(ticket.completed_at).toLocaleString()}
               </p>
             </div>
@@ -459,11 +461,11 @@ export function TicketDetail() {
       {latestSession && (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <SparklesIcon className="h-5 w-5 text-purple-500" />
-            <h2 className="text-lg font-semibold">AI Analysis</h2>
+            <Sparkles className="h-5 w-5 text-purple-500" />
+            <h2 className="text-lg font-semibold text-content-primary">AI Analysis</h2>
             <Link
               to={`/sessions/${latestSession.id}`}
-              className="text-sm text-muted-foreground hover:text-foreground ml-auto"
+              className="text-sm text-content-muted hover:text-content-primary ml-auto"
             >
               View Session
             </Link>
@@ -484,9 +486,9 @@ export function TicketDetail() {
       {/* Reject Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-gray-800 rounded-lg border border-gray-700 shadow-lg p-6 w-full max-w-md mx-4">
-            <h3 className="text-lg font-semibold mb-4 text-gray-100">Reject Ticket</h3>
-            <p className="text-sm text-gray-400 mb-4">
+          <div className="bg-surface-secondary rounded-xl border border-line shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4 text-content-primary">Reject Ticket</h3>
+            <p className="text-sm text-content-secondary mb-4">
               Please provide feedback explaining why this ticket is being rejected.
               This will be sent back to the session for revision.
             </p>
@@ -494,7 +496,7 @@ export function TicketDetail() {
               value={rejectFeedback}
               onChange={(e) => setRejectFeedback(e.target.value)}
               placeholder="Enter feedback..."
-              className="w-full h-32 rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-200"
+              className="w-full h-32 px-3 py-2 bg-surface-primary border border-line rounded-lg text-sm text-content-primary resize-none outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <div className="flex justify-end gap-2 mt-4">
               <button
@@ -502,14 +504,14 @@ export function TicketDetail() {
                   setShowRejectModal(false);
                   setRejectFeedback('');
                 }}
-                className="px-4 py-2 text-sm rounded-md border border-gray-600 hover:bg-gray-700 text-gray-200"
+                className="px-4 py-2 text-sm rounded-lg border border-line hover:bg-surface-tertiary text-content-primary transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleReject}
                 disabled={!rejectFeedback.trim() || rejectTicket.isPending}
-                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 {rejectTicket.isPending ? 'Rejecting...' : 'Reject'}
               </button>
@@ -521,30 +523,30 @@ export function TicketDetail() {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-gray-800 rounded-lg border border-gray-700 shadow-lg p-6 w-full max-w-md mx-4">
+          <div className="bg-surface-secondary rounded-xl border border-line shadow-xl p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-red-500">
-              <TrashIcon className="h-5 w-5" />
+              <Trash2 className="h-5 w-5" />
               Delete Ticket
             </h3>
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-content-secondary mb-4">
               Are you sure you want to delete this ticket? This action cannot be undone.
               The ticket file and all associated data will be permanently removed.
             </p>
-            <div className="rounded-md bg-gray-900 p-3 mb-4">
-              <p className="font-medium text-sm text-gray-200">{ticket.title}</p>
-              <p className="text-xs text-gray-500">{ticket.file_path}</p>
+            <div className="rounded-lg bg-surface-primary p-3 mb-4">
+              <p className="font-medium text-sm text-content-primary">{ticket.title}</p>
+              <p className="text-xs text-content-muted">{ticket.file_path}</p>
             </div>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 text-sm rounded-md border border-gray-600 hover:bg-gray-700 text-gray-200"
+                className="px-4 py-2 text-sm rounded-lg border border-line hover:bg-surface-tertiary text-content-primary transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={deleteTicket.isPending}
-                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 {deleteTicket.isPending ? 'Deleting...' : 'Delete'}
               </button>
@@ -553,129 +555,5 @@ export function TicketDetail() {
         </div>
       )}
     </div>
-  );
-}
-
-// Icon components using inline SVG for consistency with Tailwind approach
-type IconProps = { className?: string; style?: React.CSSProperties };
-
-function ArrowLeftIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="19" y1="12" x2="5" y2="12" />
-      <polyline points="12 19 5 12 12 5" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
-
-function CheckIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function XIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
-  );
-}
-
-function PencilIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
-
-function FileTextIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
-    </svg>
-  );
-}
-
-function PlayIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="5 3 19 12 5 21 5 3" />
-    </svg>
-  );
-}
-
-function ExternalLinkIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  );
-}
-
-function CheckCircleIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-      <polyline points="22 4 12 14.01 9 11.01" />
-    </svg>
-  );
-}
-
-function XCircleIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="15" y1="9" x2="9" y2="15" />
-      <line x1="9" y1="9" x2="15" y2="15" />
-    </svg>
-  );
-}
-
-function TrashIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <line x1="10" y1="11" x2="10" y2="17" />
-      <line x1="14" y1="11" x2="14" y2="17" />
-    </svg>
-  );
-}
-
-function SaveIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-      <polyline points="17 21 17 13 7 13 7 21" />
-      <polyline points="7 3 7 8 15 8" />
-    </svg>
-  );
-}
-
-function SparklesIcon({ className, style }: IconProps) {
-  return (
-    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
   );
 }

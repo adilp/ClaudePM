@@ -7,7 +7,7 @@ import { SessionList } from '../components/SessionList';
 
 export function Sessions() {
   return (
-    <div className="page page--sessions">
+    <div className="p-6">
       <SessionList />
     </div>
   );

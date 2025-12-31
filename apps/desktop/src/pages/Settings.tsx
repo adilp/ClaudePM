@@ -61,27 +61,43 @@ export function Settings() {
   }, [apiUrl]);
 
   return (
-    <div className="page page--settings">
-      <div className="settings-page">
-        <h1 className="settings-page__title">Settings</h1>
+    <div className="p-6">
+      <div className="max-w-[500px] mx-auto">
+        <h1 className="text-2xl font-semibold text-content-primary mb-6">Settings</h1>
 
-        <div className="settings-page__content">
-          <div className="settings-section">
-            <h3>Notifications</h3>
-            <label className="settings-toggle">
-              <span>Desktop Notifications</span>
+        <div className="bg-surface-secondary border border-line rounded-xl p-6">
+          {/* Notifications Section */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-content-secondary uppercase tracking-wide mb-3">
+              Notifications
+            </h3>
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-sm text-content-primary">Desktop Notifications</span>
               <input
                 type="checkbox"
                 checked={notificationsEnabled}
                 onChange={handleNotificationsToggle}
+                className="hidden"
               />
-              <span className="toggle-slider" />
+              <span
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  notificationsEnabled ? 'bg-indigo-500' : 'bg-surface-tertiary'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${
+                    notificationsEnabled
+                      ? 'translate-x-5 bg-white'
+                      : 'translate-x-0 bg-content-secondary'
+                  }`}
+                />
+              </span>
             </label>
-            <p className="settings-description">
+            <p className="text-xs text-content-muted mt-2 leading-relaxed">
               Receive notifications when sessions complete, require input, or encounter errors.
             </p>
             <button
-              className="settings-test-button"
+              className="mt-3 px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-md text-[13px] cursor-pointer transition-colors hover:bg-line"
               onClick={async () => {
                 try {
                   console.log('Testing notification...');
@@ -116,21 +132,25 @@ export function Settings() {
             </button>
           </div>
 
-          <div className="settings-section">
-            <h3>Server</h3>
-            <label className="settings-input-label">
-              <span>API URL</span>
-              <div className="settings-input-row">
+          {/* Server Section */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-content-secondary uppercase tracking-wide mb-3">
+              Server
+            </h3>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm text-content-primary">API URL</span>
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={apiUrl}
                   onChange={handleApiUrlChange}
                   placeholder="http://localhost:4847"
+                  className="flex-1 px-3 py-2 bg-surface-tertiary border border-line rounded-md text-content-primary text-sm outline-none transition-colors focus:border-indigo-500 placeholder:text-content-muted"
                 />
                 <button
                   onClick={handleApiUrlSave}
                   disabled={saving}
-                  className="settings-save-button"
+                  className="px-4 py-2 bg-indigo-500 text-white rounded-md text-sm font-medium cursor-pointer transition-colors whitespace-nowrap hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {saving ? 'Saving...' : 'Save'}
                 </button>
@@ -138,32 +158,35 @@ export function Settings() {
             </label>
           </div>
 
-          <div className="settings-section">
-            <h3>UI Components</h3>
-            <p className="settings-description" style={{ marginBottom: '0.75rem' }}>
+          {/* UI Components Section */}
+          <div>
+            <h3 className="text-sm font-semibold text-content-secondary uppercase tracking-wide mb-3">
+              UI Components
+            </h3>
+            <p className="text-xs text-content-muted mb-3 leading-relaxed">
               Test toast notifications with different variants.
             </p>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div className="flex gap-2 flex-wrap">
               <button
-                className="settings-test-button"
+                className="px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-md text-[13px] cursor-pointer transition-colors hover:bg-line"
                 onClick={() => toast.success('Success', 'Operation completed successfully!')}
               >
                 Test Success Toast
               </button>
               <button
-                className="settings-test-button"
+                className="px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-md text-[13px] cursor-pointer transition-colors hover:bg-line"
                 onClick={() => toast.error('Error', 'Something went wrong!')}
               >
                 Test Error Toast
               </button>
               <button
-                className="settings-test-button"
+                className="px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-md text-[13px] cursor-pointer transition-colors hover:bg-line"
                 onClick={() => toast.warning('Warning', 'Please check your input.')}
               >
                 Test Warning Toast
               </button>
               <button
-                className="settings-test-button"
+                className="px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-md text-[13px] cursor-pointer transition-colors hover:bg-line"
                 onClick={() => toast.info('Info', 'Here is some information.')}
               >
                 Test Info Toast

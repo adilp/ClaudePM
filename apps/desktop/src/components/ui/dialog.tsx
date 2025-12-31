@@ -3,7 +3,7 @@
  * Modal dialog for confirmations and forms
  */
 
-import clsx from 'clsx';
+import { cn } from '../../lib/utils';
 import { useEffect, useCallback, type ReactNode } from 'react';
 
 interface DialogProps {
@@ -41,9 +41,16 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
   }
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
       <div
-        className={clsx('dialog', className)}
+        className={cn(
+          'relative bg-surface-secondary border border-line rounded-xl shadow-xl',
+          'w-full max-w-md mx-4 animate-[dialog-fade-in_0.2s_ease-out]',
+          className
+        )}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -60,7 +67,11 @@ interface DialogHeaderProps {
 }
 
 export function DialogHeader({ children, className }: DialogHeaderProps) {
-  return <div className={clsx('dialog__header', className)}>{children}</div>;
+  return (
+    <div className={cn('px-6 pt-6 pb-2', className)}>
+      {children}
+    </div>
+  );
 }
 
 interface DialogTitleProps {
@@ -69,7 +80,11 @@ interface DialogTitleProps {
 }
 
 export function DialogTitle({ children, className }: DialogTitleProps) {
-  return <h2 className={clsx('dialog__title', className)}>{children}</h2>;
+  return (
+    <h2 className={cn('text-lg font-semibold text-content-primary', className)}>
+      {children}
+    </h2>
+  );
 }
 
 interface DialogDescriptionProps {
@@ -78,7 +93,11 @@ interface DialogDescriptionProps {
 }
 
 export function DialogDescription({ children, className }: DialogDescriptionProps) {
-  return <p className={clsx('dialog__description', className)}>{children}</p>;
+  return (
+    <p className={cn('text-sm text-content-secondary mt-1', className)}>
+      {children}
+    </p>
+  );
 }
 
 interface DialogContentProps {
@@ -87,7 +106,11 @@ interface DialogContentProps {
 }
 
 export function DialogContent({ children, className }: DialogContentProps) {
-  return <div className={clsx('dialog__content', className)}>{children}</div>;
+  return (
+    <div className={cn('px-6 py-4', className)}>
+      {children}
+    </div>
+  );
 }
 
 interface DialogFooterProps {
@@ -96,7 +119,11 @@ interface DialogFooterProps {
 }
 
 export function DialogFooter({ children, className }: DialogFooterProps) {
-  return <div className={clsx('dialog__footer', className)}>{children}</div>;
+  return (
+    <div className={cn('flex items-center justify-end gap-3 px-6 pb-6', className)}>
+      {children}
+    </div>
+  );
 }
 
 interface DialogCloseProps {
@@ -107,7 +134,12 @@ interface DialogCloseProps {
 export function DialogClose({ onClick, className }: DialogCloseProps) {
   return (
     <button
-      className={clsx('dialog__close', className)}
+      className={cn(
+        'absolute top-4 right-4 flex items-center justify-center w-8 h-8',
+        'bg-transparent border-none rounded-md text-content-muted cursor-pointer',
+        'transition-colors hover:bg-surface-tertiary hover:text-content-primary',
+        className
+      )}
       onClick={onClick}
       aria-label="Close dialog"
     >

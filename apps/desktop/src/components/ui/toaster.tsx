@@ -14,7 +14,7 @@ export function Toaster() {
   }
 
   return (
-    <div className="toaster">
+    <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-3 max-w-[400px] w-full pointer-events-auto">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}
