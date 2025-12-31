@@ -64,7 +64,7 @@ src/
 ### Current State (Mixed)
 - **Tailwind v4**: Used by kanban components (`KanbanBoard`, `KanbanCard`, etc.)
 - **Custom CSS**: Used by other pages/components (Dashboard, Sessions, Settings, etc.)
-- **CSS Overrides**: Kanban styling tweaks at end of `styles.css`
+- **CSS Overrides**: Kanban styling tweaks at end of `styles.css` kanban keeps overriding as global cauisng styling issues
 
 ### Theme Configuration
 Theme is defined in `styles.css`:

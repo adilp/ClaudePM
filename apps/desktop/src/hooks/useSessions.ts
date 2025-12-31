@@ -97,3 +97,82 @@ export function useSyncProject() {
     },
   });
 }
+
+// ============================================================================
+// Session Analysis Hooks (Claude SDK-powered)
+// ============================================================================
+
+/**
+ * Fetch AI-generated session summary
+ * Provides headline, description, actions taken, and files changed
+ */
+export function useSessionSummary(sessionId: string, enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.sessions.summary(sessionId),
+    queryFn: () => api.getSessionSummary(sessionId),
+    enabled: !!sessionId && enabled,
+    staleTime: Infinity, // Never mark as stale - summaries are cached in DB
+    retry: 1,
+  });
+}
+
+/**
+ * Regenerate session summary (forces new AI generation)
+ */
+export function useRegenerateSummary() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (sessionId: string) => api.getSessionSummary(sessionId, true),
+    onSuccess: (summary, sessionId) => {
+      queryClient.setQueryData(queryKeys.sessions.summary(sessionId), summary);
+    },
+  });
+}
+
+/**
+ * Fetch AI-generated review report for a session
+ * Provides completion status, accomplishments, concerns, and suggested commit/PR
+ */
+export function useSessionReviewReport(sessionId: string, enabled = false) {
+  return useQuery({
+    queryKey: queryKeys.sessions.reviewReport(sessionId),
+    queryFn: () => api.getSessionReviewReport(sessionId),
+    enabled: !!sessionId && enabled,
+    staleTime: Infinity, // Never mark as stale - reports are cached in DB
+    retry: 1,
+  });
+}
+
+/**
+ * Regenerate review report (forces new AI generation)
+ */
+export function useRegenerateReviewReport() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (sessionId: string) => api.getSessionReviewReport(sessionId, true),
+    onSuccess: (report, sessionId) => {
+      queryClient.setQueryData(queryKeys.sessions.reviewReport(sessionId), report);
+    },
+  });
+}
+
+/**
+ * Generate commit message for session's changes
+ */
+export function useGenerateCommitMessage() {
+  return useMutation({
+    mutationFn: (sessionId: string) => api.generateCommitMessage(sessionId),
+  });
+}
+
+/**
+ * Generate PR description for session's work
+ */
+export function useGeneratePrDescription() {
+  return useMutation({
+    mutationFn: ({ sessionId, baseBranch }: { sessionId: string; baseBranch?: string }) =>
+      api.generatePrDescription(sessionId, baseBranch),
+  });
+}

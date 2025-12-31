@@ -343,3 +343,55 @@ export async function dismissNotification(id: string): Promise<void> {
 export async function dismissAllNotifications(): Promise<void> {
   return request<void>('/api/notifications', { method: 'DELETE' });
 }
+
+// ============================================================================
+// Session Analysis (Claude SDK-powered)
+// ============================================================================
+
+import type {
+  SessionSummary,
+  ReviewReport,
+  SessionActivity,
+} from '../types/api';
+
+export async function getSessionSummary(
+  sessionId: string,
+  regenerate = false
+): Promise<SessionSummary> {
+  const query = regenerate ? '?regenerate=true' : '';
+  return request<SessionSummary>(`/api/sessions/${sessionId}/summary${query}`);
+}
+
+export async function getSessionReviewReport(
+  sessionId: string,
+  regenerate = false
+): Promise<ReviewReport> {
+  const query = regenerate ? '?regenerate=true' : '';
+  return request<ReviewReport>(`/api/sessions/${sessionId}/review-report${query}`);
+}
+
+export async function getSessionActivity(
+  sessionId: string,
+  lines = 100
+): Promise<SessionActivity> {
+  return request<SessionActivity>(`/api/sessions/${sessionId}/activity?lines=${lines}`);
+}
+
+export async function generateCommitMessage(
+  sessionId: string
+): Promise<{ message: string }> {
+  return request<{ message: string }>(`/api/sessions/${sessionId}/commit-message`, {
+    method: 'POST',
+  });
+}
+
+export async function generatePrDescription(
+  sessionId: string,
+  baseBranch?: string
+): Promise<{ title: string; body: string }> {
+  const query = baseBranch ? `?base_branch=${baseBranch}` : '';
+  return request<{ title: string; body: string }>(
+    `/api/sessions/${sessionId}/pr-description${query}`,
+    { method: 'POST' }
+  );
+}
