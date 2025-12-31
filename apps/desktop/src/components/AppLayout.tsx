@@ -18,7 +18,7 @@ import { NotificationsPanel } from './NotificationsPanel';
 
 export function AppLayout() {
   const location = useLocation();
-  const { connectionState, lastMessage } = useWebSocket();
+  const { connectionState, lastMessage, connect } = useWebSocket();
   const { isSectionExpanded, toggleSection } = useUIStore();
   const isProjectsExpanded = isSectionExpanded('projects');
   const { data: notificationCount } = useNotificationCount();
@@ -237,8 +237,32 @@ export function AppLayout() {
                 </svg>
                 <span className="text-xs text-content-muted">Connected</span>
               </>
-            ) : (
+            ) : connectionState === 'connecting' ? (
               <>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="shrink-0 text-yellow-500 animate-pulse"
+                >
+                  <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                  <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                  <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                  <line x1="12" y1="20" x2="12.01" y2="20" />
+                </svg>
+                <span className="text-xs text-content-muted">Connecting...</span>
+              </>
+            ) : (
+              <button
+                onClick={connect}
+                className="flex items-center gap-2 w-full bg-transparent border-none p-0 cursor-pointer text-left group"
+                title="Click to reconnect"
+              >
                 <svg
                   width="16"
                   height="16"
@@ -258,12 +282,10 @@ export function AppLayout() {
                   <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
                   <line x1="12" y1="20" x2="12.01" y2="20" />
                 </svg>
-                <span className="text-xs text-content-muted">
-                  {connectionState === 'connecting'
-                    ? 'Connecting...'
-                    : 'Disconnected'}
+                <span className="text-xs text-content-muted group-hover:text-content-secondary">
+                  Disconnected · Click to reconnect
                 </span>
-              </>
+              </button>
             )}
           </div>
         </div>

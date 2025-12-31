@@ -17,6 +17,7 @@ import {
 } from '../services/api';
 import { ensureNotificationPermission } from '../hooks/useDesktopNotifications';
 import { toast } from '../hooks/use-toast';
+import { wsManager } from '../hooks/useWebSocket';
 
 export function Settings() {
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
@@ -55,6 +56,10 @@ export function Settings() {
     setSaving(true);
     try {
       await setApiUrl(apiUrl);
+      // Reset WebSocket to reconnect with new URL
+      wsManager.reset();
+      void wsManager.connect();
+      toast.success('Settings Saved', 'Reconnecting to server...');
     } finally {
       setSaving(false);
     }

@@ -212,57 +212,125 @@ npm run tauri dev
 - **Storage**: localStorage (persisted by Tauri)
 - **Window Management**: Native window controls
 
-## Notification System
+## WebSocket Connection
 
-Notifications use **WebSocket** for real-time updates (not polling).
+Real-time updates use a **singleton WebSocket manager** to maintain a single persistent connection.
 
 ### Architecture
 ```
-Server                           Desktop App
-   │                                  │
-   │──WebSocket: notification────────►│
-   │                                  │
-   │                    useServerNotifications()
-   │                           │
-   │                    ┌──────┴──────┐
-   │                    ▼             ▼
-   │              Invalidate     Show Desktop
-   │            React Query       Notification
-   │               Cache          (Tauri)
-   │                    │
-   │                    ▼
-   │              UI Updates
-   │              Instantly
+┌─────────────────────────────────────────────────────────────┐
+│              WebSocketManager (singleton)                    │
+│                    wsManager instance                        │
+├─────────────────────────────────────────────────────────────┤
+│  - Single WebSocket connection for entire app               │
+│  - Auto-reconnect with max 10 attempts (3s delay)           │
+│  - Caches API URL/key for fast reconnects                   │
+│  - Error events for toast notifications                     │
+├─────────────────────────────────────────────────────────────┤
+│  Subscribers:                                                │
+│  - stateListeners: connection state changes                 │
+│  - messageListeners: incoming server messages               │
+│  - errorListeners: connection errors for UI feedback        │
+└─────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 useWebSocket() hook                          │
+├─────────────────────────────────────────────────────────────┤
+│  - useSyncExternalStore for connection state                │
+│  - Subscribes to messages, updates session store            │
+│  - Shows toast notifications on errors                      │
+│  - Returns: { connectionState, lastMessage, connect }       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why Singleton Pattern?
+
+**Problem with per-component WebSocket:**
+```typescript
+// BAD - causes reconnect loops
+function useWebSocket() {
+  const updateStore = useStore(s => s.update);
+  useEffect(() => {
+    const ws = new WebSocket(url);
+    return () => ws.close();
+  }, [updateStore]);  // Re-runs when store changes → disconnect/reconnect!
+}
+```
+
+**Solution - singleton manager:**
+```typescript
+// GOOD - single connection, hooks subscribe to it
+const wsManager = new WebSocketManager();  // Module-level singleton
+
+function useWebSocket() {
+  const state = useSyncExternalStore(
+    (cb) => wsManager.subscribeToState(cb),
+    () => wsManager.getConnectionState()
+  );
+}
 ```
 
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `hooks/useWebSocket.ts` | WebSocket connection, exposes `lastMessage` |
-| `hooks/useServerNotifications.ts` | Listens to `notification` messages, invalidates cache, shows alerts |
-| `hooks/useNotifications.ts` | React Query hooks for notification list/count |
-| `components/NotificationsPanel.tsx` | UI for notification list |
-| `components/AppLayout.tsx` | Wires up `useServerNotifications({ lastMessage })` |
+| `hooks/useWebSocket.ts` | Singleton manager + hook, error handling |
+| `hooks/useServerNotifications.ts` | Listens to `notification` messages |
+| `hooks/useTicketStateListener.ts` | Listens to `ticket:state` messages |
+| `components/AppLayout.tsx` | Consumes hook, shows connection status |
+| `pages/Settings.tsx` | Resets WebSocket on URL change |
 
-### WebSocket Message Type
+### Connection States
+| State | Sidebar Display | User Action |
+|-------|-----------------|-------------|
+| `connected` | Green icon, "Connected" | None |
+| `connecting` | Yellow pulsing, "Connecting..." | Wait |
+| `disconnected` | Red icon, "Click to reconnect" | Click to retry |
+| `error` | Red icon, "Click to reconnect" | Click to retry |
+
+### Error Handling (Toast Notifications)
+| Event | Toast |
+|-------|-------|
+| Initial connection fails | Error: "Connection Failed" |
+| Connection lost | Warning: "Reconnecting..." |
+| Connection restored | Success: "Connected" |
+| Max reconnects (10) reached | Error: "Connection Lost" |
+
+### Manager API
 ```typescript
-interface NotificationWsMessage {
-  type: 'notification';
-  payload: {
-    id: string;
-    title: string;
-    body: string;
-    timestamp: string;
-  };
-}
+import { wsManager } from '../hooks/useWebSocket';
+
+// After changing server URL in Settings
+wsManager.reset();       // Disconnect + clear cached URL
+wsManager.connect();     // Reconnect with new URL
+
+// Direct access if needed
+wsManager.clearCache();  // Clear URL/key cache only
+wsManager.isConnected(); // Check connection state
 ```
 
-### How It Works
-1. Server broadcasts `notification` message via WebSocket
-2. `useServerNotifications` receives via `lastMessage` prop
-3. Invalidates `notificationKeys.all` → React Query refetches
-4. Dashboard count and NotificationsPanel update instantly
-5. Desktop notification shown via Tauri
+### Message Flow
+```
+Server                           Desktop App
+   │                                  │
+   │──WebSocket message──────────────►│
+   │                                  │
+   │                    useWebSocket() receives
+   │                           │
+   │              ┌────────────┼────────────┐
+   │              ▼            ▼            ▼
+   │        lastMessage   sessionStore   errorListeners
+   │              │        (status)       (toasts)
+   │              ▼
+   │     useServerNotifications()
+   │     useTicketStateListener()
+   │              │
+   │       ┌──────┴──────┐
+   │       ▼             ▼
+   │   Invalidate    Desktop
+   │   React Query   Notification
+   │      Cache      (Tauri)
+```
 
 ### Fallback Polling
 React Query still polls every 2 minutes as fallback if WebSocket disconnects.
