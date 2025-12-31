@@ -51,7 +51,8 @@ apps/ios/
 │   │   ├── APIClient.swift                # Network layer (actor-based)
 │   │   ├── KeychainHelper.swift           # Secure credential storage
 │   │   ├── WebSocketClient.swift          # Real-time updates & message handling
-│   │   └── NotificationManager.swift      # In-app notification state
+│   │   ├── NotificationManager.swift      # In-app notification state
+│   │   └── PtyConnection.swift            # Terminal PTY WebSocket connection
 │   ├── ViewModels/
 │   │   ├── ConnectionViewModel.swift      # Connection state management
 │   │   ├── SessionListViewModel.swift     # Session list state
@@ -63,6 +64,7 @@ apps/ios/
 │   │   ├── SettingsView.swift             # Backend URL & API key config
 │   │   ├── NotificationBannerView.swift   # Toast-style notification banner
 │   │   ├── NotificationsListView.swift    # Bell icon dropdown list
+│   │   ├── TerminalView.swift             # SwiftTerm terminal wrapper
 │   │   └── Tickets/                       # Ticket board views
 │   │       ├── TicketBoardView.swift
 │   │       ├── TicketColumnView.swift
@@ -141,6 +143,44 @@ WebSocketClient.shared.onSessionUpdate = { update in
 | `pong` | Heartbeat response | No |
 | `error` | Logs error | Yes |
 
+### PtyConnection (`Services/PtyConnection.swift`)
+Manages PTY WebSocket connection for terminal I/O. Creates a separate WebSocket connection to attach to a session's terminal.
+
+```swift
+// Create connection for a session
+let connection = PtyConnection(sessionId: "session-id")
+
+// Connect to WebSocket and attach to PTY
+connection.connect()
+connection.attach(cols: 80, rows: 24)
+
+// Handle terminal output
+connection.onData = { data in
+    terminal.feed(byteArray: Array(data.utf8))
+}
+
+// Send user input
+connection.send("ls -la\n")
+
+// Resize terminal
+connection.resize(cols: 120, rows: 40)
+
+// Disconnect when done
+connection.disconnect()
+```
+
+**PTY Message Types:**
+| Message | Direction | Purpose |
+|---------|-----------|---------|
+| `pty:attach` | Client → Server | Attach to session's PTY |
+| `pty:attached` | Server → Client | Confirmation with cols/rows |
+| `pty:detach` | Client → Server | Detach from PTY |
+| `pty:detached` | Server → Client | Confirmation |
+| `pty:data` | Client → Server | Terminal input |
+| `pty:output` | Server → Client | Terminal output |
+| `pty:resize` | Client → Server | Resize terminal |
+| `pty:exit` | Server → Client | PTY process exited |
+
 ### NotificationManager (`Services/NotificationManager.swift`)
 Singleton `@Observable` class managing in-app notifications.
 
@@ -201,6 +241,32 @@ Half-screen sheet showing all notifications.
 - Relative timestamps ("2m ago")
 - Unread dot indicator
 - Empty state with bell.slash icon
+
+## Terminal View
+
+### TerminalView (`Views/TerminalView.swift`)
+SwiftUI wrapper for SwiftTerm that displays live terminal output from Claude sessions.
+
+```swift
+// Use TerminalContainerView which manages the PtyConnection
+TerminalContainerView(sessionId: session.id)
+    .frame(height: 300)
+```
+
+**Features:**
+- Live terminal output via WebSocket PTY connection
+- Touch scrolling through terminal history
+- Automatic resize on device rotation
+- Monospace font optimized for Retina displays
+- Connection status overlay (connecting/attaching/error states)
+- Haptic feedback on terminal bell
+- URL link handling (opens in Safari)
+
+**SwiftTerm Integration:**
+- Uses [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) library (same as Blink Shell, a-Shell)
+- `TerminalView` is a `UIViewRepresentable` wrapping `SwiftTerm.TerminalView`
+- `TerminalContainerView` adds connection status UI and manages `PtyConnection` lifecycle
+- Coordinator handles `TerminalViewDelegate` for input/resize/clipboard
 
 ### NotificationBellButton
 Toolbar button with unread count badge.

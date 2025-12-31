@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		A1000001A1000001A1000001 /* ClaudePMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001A1000001A1000000 /* ClaudePMApp.swift */; };
 		A1000002A1000002A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002A1000002A1000000 /* ContentView.swift */; };
+		A100001DA100001DA100001D /* PtyConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001DA100001DA1000000 /* PtyConnection.swift */; };
+		A100001EA100001EA100001E /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001EA100001EA1000000 /* TerminalView.swift */; };
 		A1000003A1000003A1000003 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000003A1000003A1000000 /* SettingsView.swift */; };
 		A1000004A1000004A1000004 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004A1000004A1000000 /* Session.swift */; };
 		A1000005A1000005A1000005 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000005A1000005A1000000 /* APIClient.swift */; };
@@ -48,6 +50,8 @@
 /* Begin PBXFileReference section */
 		A1000001A1000001A1000000 /* ClaudePMApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePMApp.swift; sourceTree = "<group>"; };
 		A1000002A1000002A1000000 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A100001DA100001DA1000000 /* PtyConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PtyConnection.swift; sourceTree = "<group>"; };
+		A100001EA100001EA1000000 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		A1000003A1000003A1000000 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1000004A1000004A1000000 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		A1000005A1000005A1000000 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 				A1000006A1000006A1000000 /* KeychainHelper.swift */,
 				A1000009A1000009A1000000 /* WebSocketClient.swift */,
 				A100001AA100001AA1000000 /* NotificationManager.swift */,
+				A100001DA100001DA1000000 /* PtyConnection.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -166,6 +171,7 @@
 				A1000003A1000003A1000000 /* SettingsView.swift */,
 				A100001BA100001BA1000000 /* NotificationBannerView.swift */,
 				A100001CA100001CA1000000 /* NotificationsListView.swift */,
+				A100001EA100001EA1000000 /* TerminalView.swift */,
 				A1000470A1000470A1000000 /* Tickets */,
 			);
 			path = Views;
@@ -224,6 +230,9 @@
 			dependencies = (
 			);
 			name = ClaudePM;
+			packageProductDependencies = (
+				A1000701A1000701A1000701 /* SwiftTerm */,
+			);
 			productName = ClaudePM;
 			productReference = A1000200A1000200A1000001 /* ClaudePM.app */;
 			productType = "com.apple.product-type.application";
@@ -274,6 +283,9 @@
 				Base,
 			);
 			mainGroup = A1000100A1000100A1000000;
+			packageReferences = (
+				A1000700A1000700A1000700 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+			);
 			productRefGroup = A1000600A1000600A1000000 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -331,6 +343,8 @@
 				A100001AA100001AA100001A /* NotificationManager.swift in Sources */,
 				A100001BA100001BA100001B /* NotificationBannerView.swift in Sources */,
 				A100001CA100001CA100001C /* NotificationsListView.swift in Sources */,
+				A100001DA100001DA100001D /* PtyConnection.swift in Sources */,
+				A100001EA100001EA100001E /* TerminalView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -597,6 +611,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1000700A1000700A1000700 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1000701A1000701A1000701 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1000700A1000700A1000700 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A1000100A1000100A1000100 /* Project object */;
 }

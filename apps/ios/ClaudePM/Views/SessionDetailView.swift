@@ -264,7 +264,7 @@ struct SessionDetailView: View {
             Text("Terminal")
                 .font(.headline)
 
-            TerminalPlaceholder()
+            TerminalContainerView(sessionId: currentSession.id)
                 .frame(height: 300)
         }
     }
@@ -299,27 +299,6 @@ struct SessionDetailView: View {
             return .yellow
         }
         return .green
-    }
-}
-
-// MARK: - Terminal Placeholder
-
-/// Placeholder view for terminal display (to be implemented in NAT-015)
-struct TerminalPlaceholder: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color(.systemGray6))
-            .overlay {
-                VStack(spacing: 8) {
-                    Image(systemName: "terminal")
-                        .font(.system(size: 40))
-                    Text("Terminal")
-                        .font(.headline)
-                    Text("Coming in a future update")
-                        .font(.caption)
-                }
-                .foregroundStyle(.secondary)
-            }
     }
 }
 
