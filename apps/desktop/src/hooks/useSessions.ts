@@ -176,3 +176,15 @@ export function useGeneratePrDescription() {
       api.generatePrDescription(sessionId, baseBranch),
   });
 }
+
+/**
+ * Fetch session activity events (parsed tool usage timeline)
+ */
+export function useSessionActivity(sessionId: string, lines = 100) {
+  return useQuery({
+    queryKey: queryKeys.sessions.activity(sessionId),
+    queryFn: () => api.getSessionActivity(sessionId, lines),
+    enabled: !!sessionId,
+    staleTime: 30 * 1000, // 30 seconds
+  });
+}

@@ -102,7 +102,7 @@ export interface ReviewerSubagentConfig {
   timeoutMs: number;
   /** Number of session output lines to include (default: 100) */
   sessionOutputLines: number;
-  /** Whether to enable automatic reviews on stop hook (default: true) */
+  /** Whether to enable automatic reviews on stop hook (default: false) */
   enableStopHookReview: boolean;
   /** Idle time in ms before triggering review (default: 60000) */
   idleTimeoutMs: number;
@@ -117,7 +117,7 @@ export interface ReviewerSubagentConfig {
 export const DEFAULT_REVIEWER_CONFIG: ReviewerSubagentConfig = {
   timeoutMs: 30_000,
   sessionOutputLines: 100,
-  enableStopHookReview: true,
+  enableStopHookReview: false, // Disabled to reduce API costs - only review on idle
   idleTimeoutMs: 60_000,
   enableIdleReview: true,
   claudeCliPath: 'claude',

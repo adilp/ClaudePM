@@ -345,10 +345,26 @@ export interface SessionStatusPayload {
   context_percent?: number;
 }
 
+/** AI analysis status message */
+export type AiAnalysisType = 'summary' | 'review_report';
+export type AiAnalysisStatus = 'generating' | 'complete' | 'error';
+
+export interface AiAnalysisStatusMessage {
+  type: 'ai:analysis_status';
+  payload: {
+    sessionId: string;
+    analysisType: AiAnalysisType;
+    status: AiAnalysisStatus;
+    timestamp: string;
+    error?: string;
+  };
+}
+
 /** Union of all incoming WebSocket message types */
 export type IncomingMessage =
   | SessionStatusMessage
   | SessionWaitingMessage
+  | AiAnalysisStatusMessage
   | WebSocketMessage;
 
 // ============================================================================

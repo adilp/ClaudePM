@@ -8,6 +8,7 @@ import {
   useSessionSummary,
   useRegenerateSummary,
 } from '../../hooks/useSessions';
+import { useAiAnalysisStatus } from '../../hooks/useAiAnalysisStatus';
 import type { SessionAction, FileChange } from '../../types/api';
 
 interface SessionSummaryCardProps {
@@ -39,6 +40,8 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
     isFetching,
   } = useSessionSummary(sessionId, true);
   const regenerateMutation = useRegenerateSummary();
+  const { isSummaryGenerating } = useAiAnalysisStatus();
+  const isGenerating = isSummaryGenerating(sessionId);
 
   const handleRegenerate = () => {
     regenerateMutation.mutate(sessionId);
@@ -46,10 +49,31 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
 
   const isRegenerating = regenerateMutation.isPending;
 
+  // Show generating state if AI is actively generating
+  if (isGenerating) {
+    return (
+      <div className="bg-surface-secondary rounded-lg p-4 border border-purple-500/50">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <SparklesIcon className="w-5 h-5 text-purple-400" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-content-primary">Generating AI Summary</span>
+              <LoaderIcon className="w-4 h-4 animate-spin text-purple-400" />
+            </div>
+            <p className="text-xs text-content-muted mt-0.5">Analyzing session activity...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
-      <div className="bg-[#1a1a2e] rounded-lg p-4 border border-gray-600">
-        <div className="flex items-center gap-2 text-gray-400">
+      <div className="bg-surface-secondary rounded-lg p-4 border border-line">
+        <div className="flex items-center gap-2 text-content-muted">
           <LoaderIcon className="w-4 h-4 animate-spin" />
           <span className="text-sm">Loading summary...</span>
         </div>
@@ -59,7 +83,7 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
 
   if (error) {
     return (
-      <div className="bg-[#1a1a2e] rounded-lg p-4 border border-gray-600">
+      <div className="bg-surface-secondary rounded-lg p-4 border border-line">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-red-400">
             <AlertCircleIcon className="w-4 h-4" />
@@ -81,16 +105,16 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
   const StatusIcon = statusConfig[summary.status].icon;
 
   return (
-    <div className="bg-[#1a1a2e] rounded-lg border border-gray-600 overflow-hidden">
+    <div className="bg-surface-secondary rounded-lg border border-line overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-600 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-line flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SparklesIcon className="w-4 h-4 text-purple-400" />
-          <span className="text-sm font-medium text-gray-200">AI Summary</span>
+          <span className="text-sm font-medium text-content-primary">AI Summary</span>
           <button
             onClick={handleRegenerate}
             disabled={isRegenerating || isFetching}
-            className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 disabled:opacity-50"
+            className="p-1 rounded hover:bg-surface-tertiary text-content-muted hover:text-content-primary disabled:opacity-50"
             title="Regenerate summary"
           >
             <RefreshIcon className={cn('w-3.5 h-3.5', isRegenerating && 'animate-spin')} />
@@ -110,28 +134,28 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
       <div className="p-4 space-y-4">
         {/* Headline */}
         <div>
-          <h3 className="text-base font-medium text-white">{summary.headline}</h3>
-          <p className="text-sm text-gray-400 mt-1">{summary.description}</p>
+          <h3 className="text-base font-medium text-content-primary">{summary.headline}</h3>
+          <p className="text-sm text-content-secondary mt-1">{summary.description}</p>
         </div>
 
         {/* Actions */}
         {summary.actions.length > 0 && (
           <div>
-            <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">Actions</h4>
+            <h4 className="text-xs font-medium text-content-muted uppercase mb-2">Actions</h4>
             <div className="space-y-1.5">
               {summary.actions.slice(0, 5).map((action, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
-                  <span className="text-gray-500">{actionIcons[action.type]}</span>
-                  <span className="text-gray-300">{action.description}</span>
+                  <span className="text-content-muted">{actionIcons[action.type]}</span>
+                  <span className="text-content-secondary">{action.description}</span>
                   {action.target && (
-                    <span className="text-gray-500 text-xs font-mono truncate max-w-[150px]">
+                    <span className="text-content-muted text-xs font-mono truncate max-w-[150px]">
                       {action.target}
                     </span>
                   )}
                 </div>
               ))}
               {summary.actions.length > 5 && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-content-muted">
                   +{summary.actions.length - 5} more
                 </span>
               )}
@@ -142,7 +166,7 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
         {/* Files Changed */}
         {summary.files_changed.length > 0 && (
           <div>
-            <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
+            <h4 className="text-xs font-medium text-content-muted uppercase mb-2">
               Files Changed ({summary.files_changed.length})
             </h4>
             <div className="space-y-1">
@@ -150,7 +174,7 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
                 <FileChangeItem key={i} file={file} />
               ))}
               {summary.files_changed.length > 5 && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-content-muted">
                   +{summary.files_changed.length - 5} more
                 </span>
               )}
@@ -159,7 +183,7 @@ export function SessionSummaryCard({ sessionId }: SessionSummaryCardProps) {
         )}
 
         {/* Timestamp */}
-        <div className="text-sm text-gray-400 pt-2 border-t border-gray-600">
+        <div className="text-sm text-content-secondary pt-2 border-t border-line">
           Analyzed {new Date(summary.analyzed_at).toLocaleString()}
         </div>
       </div>
@@ -179,7 +203,7 @@ function FileChangeItem({ file }: { file: FileChange }) {
       <span className={`text-xs ${changeColors[file.changeType]}`}>
         {file.changeType === 'created' ? '+' : file.changeType === 'deleted' ? '-' : '~'}
       </span>
-      <span className="text-gray-300 font-mono text-xs truncate">{file.path}</span>
+      <span className="text-content-secondary font-mono text-xs truncate">{file.path}</span>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   useGenerateCommitMessage,
   useGeneratePrDescription,
 } from '../../hooks/useSessions';
+import { useAiAnalysisStatus } from '../../hooks/useAiAnalysisStatus';
 
 interface ReviewReportPanelProps {
   sessionId: string;
@@ -32,6 +33,8 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
     isFetching,
   } = useSessionReviewReport(sessionId, true);
   const regenerateMutation = useRegenerateReviewReport();
+  const { isReviewReportGenerating } = useAiAnalysisStatus();
+  const isGenerating = isReviewReportGenerating(sessionId);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     accomplished: true,
@@ -60,14 +63,35 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
+  // Show generating state if AI is actively generating
+  if (isGenerating) {
+    return (
+      <div className="bg-surface-secondary rounded-lg p-4 border border-purple-500/50">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <SparklesIcon className="w-5 h-5 text-purple-400" />
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-content-primary">Generating Review Report</span>
+              <LoaderIcon className="w-4 h-4 animate-spin text-purple-400" />
+            </div>
+            <p className="text-xs text-content-muted mt-0.5">Analyzing ticket completion...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
-      <div className="bg-[#1a1a2e] rounded-lg p-6 border border-gray-600">
-        <div className="flex items-center gap-3 text-gray-400">
+      <div className="bg-surface-secondary rounded-lg p-6 border border-line">
+        <div className="flex items-center gap-3 text-content-muted">
           <LoaderIcon className="w-5 h-5 animate-spin" />
           <div>
             <p className="text-sm font-medium">Loading review report...</p>
-            <p className="text-xs text-gray-500">This may take a moment</p>
+            <p className="text-xs text-content-muted">This may take a moment</p>
           </div>
         </div>
       </div>
@@ -76,7 +100,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
 
   if (error) {
     return (
-      <div className="bg-[#1a1a2e] rounded-lg p-6 border border-gray-600">
+      <div className="bg-surface-secondary rounded-lg p-6 border border-line">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-red-400">
             <AlertCircleIcon className="w-5 h-5" />
@@ -98,17 +122,17 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
   const StatusIcon = statusConfig[report.completion_status].icon;
 
   return (
-    <div className="bg-[#1a1a2e] rounded-lg border border-gray-600 overflow-hidden">
+    <div className="bg-surface-secondary rounded-lg border border-line overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-600">
+      <div className="px-4 py-3 border-b border-line">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <SparklesIcon className="w-4 h-4 text-purple-400" />
-            <span className="text-sm font-medium text-gray-200">AI Review Report</span>
+            <span className="text-sm font-medium text-content-primary">AI Review Report</span>
             <button
               onClick={handleRegenerate}
               disabled={isRegenerating || isFetching}
-              className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 disabled:opacity-50"
+              className="p-1 rounded hover:bg-surface-tertiary text-content-muted hover:text-content-primary disabled:opacity-50"
               title="Regenerate report"
             >
               <RefreshIcon className={cn('w-3.5 h-3.5', isRegenerating && 'animate-spin')} />
@@ -117,7 +141,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
           <div className="flex items-center gap-3">
             {/* Confidence */}
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-500">Confidence:</span>
+              <span className="text-xs text-content-muted">Confidence:</span>
               <span className={cn(
                 'text-sm font-medium',
                 report.confidence >= 80 ? 'text-green-400' :
@@ -137,11 +161,11 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
             </div>
           </div>
         </div>
-        <p className="text-sm text-gray-400 mt-1">{report.ticket_title}</p>
+        <p className="text-sm text-content-secondary mt-1">{report.ticket_title}</p>
       </div>
 
       {/* Content */}
-      <div className="divide-y divide-gray-700">
+      <div className="divide-y divide-line">
         {/* Accomplished */}
         <CollapsibleSection
           title="Accomplished"
@@ -152,7 +176,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
         >
           <ul className="space-y-1.5">
             {report.accomplished.map((item, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+              <li key={i} className="flex items-start gap-2 text-sm text-content-secondary">
                 <CheckCircleIcon className="w-3.5 h-3.5 text-green-500 mt-0.5 shrink-0" />
                 {item}
               </li>
@@ -171,7 +195,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
           >
             <ul className="space-y-1.5">
               {report.remaining.map((item, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                <li key={i} className="flex items-start gap-2 text-sm text-content-secondary">
                   <AlertCircleIcon className="w-3.5 h-3.5 text-yellow-500 mt-0.5 shrink-0" />
                   {item}
                 </li>
@@ -191,7 +215,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
           >
             <ul className="space-y-1.5">
               {report.concerns.map((item, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                <li key={i} className="flex items-start gap-2 text-sm text-content-secondary">
                   <XCircleIcon className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" />
                   {item}
                 </li>
@@ -210,7 +234,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
         >
           <ol className="space-y-1.5 list-decimal list-inside">
             {report.next_steps.map((item, i) => (
-              <li key={i} className="text-sm text-gray-300">{item}</li>
+              <li key={i} className="text-sm text-content-secondary">{item}</li>
             ))}
           </ol>
         </CollapsibleSection>
@@ -218,12 +242,12 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
 
       {/* Suggestions */}
       {(report.suggested_commit_message || report.suggested_pr_description) && (
-        <div className="p-4 border-t border-gray-600 space-y-3">
+        <div className="p-4 border-t border-line space-y-3">
           {/* Commit Message */}
           {report.suggested_commit_message && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <div className="flex items-center gap-1.5 text-xs text-content-muted">
                   <GitCommitIcon className="w-3 h-3" />
                   Suggested Commit
                 </div>
@@ -235,7 +259,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
                   {copiedField === 'commit' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <code className="block text-sm text-gray-300 bg-gray-900 px-2 py-1.5 rounded font-mono">
+              <code className="block text-sm text-content-secondary bg-surface-primary px-2 py-1.5 rounded font-mono">
                 {report.suggested_commit_message}
               </code>
             </div>
@@ -245,7 +269,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
           {report.suggested_pr_description && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                <div className="flex items-center gap-1.5 text-xs text-content-muted">
                   <GitPullRequestIcon className="w-3 h-3" />
                   Suggested PR Description
                 </div>
@@ -257,7 +281,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
                   {copiedField === 'pr' ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <div className="text-sm text-gray-400 bg-gray-900 px-2 py-1.5 rounded max-h-24 overflow-y-auto">
+              <div className="text-sm text-content-secondary bg-surface-primary px-2 py-1.5 rounded max-h-24 overflow-y-auto">
                 <pre className="whitespace-pre-wrap font-mono text-xs">
                   {report.suggested_pr_description.slice(0, 200)}
                   {report.suggested_pr_description.length > 200 && '...'}
@@ -269,11 +293,11 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
       )}
 
       {/* Actions */}
-      <div className="px-4 py-3 border-t border-gray-600 flex items-center gap-2">
+      <div className="px-4 py-3 border-t border-line flex items-center gap-2">
         <button
           onClick={() => generateCommit.mutate(sessionId)}
           disabled={generateCommit.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 rounded text-gray-200 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-surface-tertiary hover:bg-line rounded text-content-primary disabled:opacity-50"
         >
           {generateCommit.isPending ? (
             <LoaderIcon className="w-3.5 h-3.5 animate-spin" />
@@ -285,7 +309,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
         <button
           onClick={() => generatePr.mutate({ sessionId })}
           disabled={generatePr.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 rounded text-gray-200 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-surface-tertiary hover:bg-line rounded text-content-primary disabled:opacity-50"
         >
           {generatePr.isPending ? (
             <LoaderIcon className="w-3.5 h-3.5 animate-spin" />
@@ -297,7 +321,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
       </div>
 
       {/* Timestamp */}
-      <div className="px-4 py-2 text-sm text-gray-400 border-t border-gray-600">
+      <div className="px-4 py-2 text-sm text-content-secondary border-t border-line">
         Generated {new Date(report.generated_at).toLocaleString()}
       </div>
     </div>
@@ -325,16 +349,16 @@ function CollapsibleSection({ title, count, expanded, onToggle, variant, childre
     <div>
       <button
         onClick={onToggle}
-        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-700/50"
+        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-surface-tertiary"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-200">{title}</span>
+          <span className="text-sm font-medium text-content-primary">{title}</span>
           <span className={`text-xs ${variantColors[variant]}`}>({count})</span>
         </div>
         {expanded ? (
-          <ChevronUpIcon className="w-4 h-4 text-gray-500" />
+          <ChevronUpIcon className="w-4 h-4 text-content-muted" />
         ) : (
-          <ChevronDownIcon className="w-4 h-4 text-gray-500" />
+          <ChevronDownIcon className="w-4 h-4 text-content-muted" />
         )}
       </button>
       {expanded && (
