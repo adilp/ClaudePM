@@ -5,6 +5,11 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification';
+import {
   getNotificationsEnabled,
   setNotificationsEnabled,
   getApiUrl,
@@ -80,31 +85,30 @@ export function Settings() {
               onClick={async () => {
                 try {
                   console.log('Testing notification...');
-                  const notifModule = await import('@tauri-apps/plugin-notification');
-                  console.log('Notification module:', notifModule);
 
-                  const permissionGranted = await notifModule.isPermissionGranted();
+                  const permissionGranted = await isPermissionGranted();
                   console.log('Permission granted:', permissionGranted);
 
                   if (!permissionGranted) {
                     console.log('Requesting permission...');
-                    const permission = await notifModule.requestPermission();
+                    const permission = await requestPermission();
                     console.log('Permission result:', permission);
                     if (permission !== 'granted') {
-                      alert('Notification permission denied: ' + permission);
+                      toast.error('Permission Denied', `Notification permission: ${permission}`);
                       return;
                     }
                   }
 
                   console.log('Sending notification...');
-                  await notifModule.sendNotification({
+                  await sendNotification({
                     title: 'Test Notification',
                     body: 'Desktop notifications are working!',
                   });
                   console.log('Notification sent!');
+                  toast.success('Notification Sent', 'Check your notification center');
                 } catch (error) {
                   console.error('Notification error:', error);
-                  alert('Error: ' + (error instanceof Error ? error.message : String(error)));
+                  toast.error('Notification Error', error instanceof Error ? error.message : String(error));
                 }
               }}
             >

@@ -22,11 +22,22 @@ import {
   ArrowRight,
   Bell,
   MessageCircleQuestion,
+  RefreshCw,
 } from 'lucide-react';
 
 export function Dashboard() {
-  const { data: projectsData, isLoading: projectsLoading } = useProjects();
-  const { data: sessions, isLoading: sessionsLoading } = useSessions();
+  const {
+    data: projectsData,
+    isLoading: projectsLoading,
+    error: projectsError,
+    refetch: refetchProjects,
+  } = useProjects();
+  const {
+    data: sessions,
+    isLoading: sessionsLoading,
+    error: sessionsError,
+    refetch: refetchSessions,
+  } = useSessions();
   const { data: notificationCount, refetch: refetchNotificationCount } =
     useNotificationCount();
   const { data: notifications, refetch: refetchNotifications } = useNotifications();
@@ -76,8 +87,38 @@ export function Dashboard() {
     );
   }
 
+  // Show error state if both API calls failed
+  if (projectsError && sessionsError) {
+    return (
+      <div className="page page--dashboard">
+        <div className="dashboard-error">
+          <AlertCircle size={48} className="dashboard-error__icon" />
+          <h2 className="dashboard-error__title">Unable to load dashboard</h2>
+          <p className="dashboard-error__text">
+            {projectsError instanceof Error
+              ? projectsError.message
+              : 'Failed to connect to server'}
+          </p>
+          <button
+            onClick={() => {
+              refetchProjects();
+              refetchSessions();
+            }}
+            className="btn btn--primary btn--md"
+          >
+            <RefreshCw size={16} />
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const unreadCount = notificationCount?.count ?? 0;
   const waitingCount = waitingSessions.size;
+
+  // Check for partial errors
+  const hasPartialError = projectsError || sessionsError;
 
   return (
     <div className="page page--dashboard">
@@ -88,6 +129,27 @@ export function Dashboard() {
           Overview of your projects and active sessions
         </p>
       </div>
+
+      {/* Partial error banner */}
+      {hasPartialError && (
+        <div className="dashboard-error-banner">
+          <AlertCircle size={16} />
+          <span>
+            {projectsError
+              ? 'Failed to load projects'
+              : 'Failed to load sessions'}
+          </span>
+          <button
+            onClick={() => {
+              if (projectsError) refetchProjects();
+              if (sessionsError) refetchSessions();
+            }}
+            className="dashboard-error-banner__retry"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="stats-grid">
