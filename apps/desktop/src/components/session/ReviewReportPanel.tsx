@@ -38,9 +38,9 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     accomplished: true,
-    remaining: false,
-    concerns: false,
-    nextSteps: false,
+    remaining: true,
+    concerns: true,
+    nextSteps: true,
   });
   const [copiedField, setCopiedField] = useState<string | null>(null);
 

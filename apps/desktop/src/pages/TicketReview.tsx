@@ -72,8 +72,10 @@ export function TicketReview() {
           <ArrowLeft className="h-4 w-4" />
           Back to Project
         </Link>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-6 text-center">
-          <p className="text-red-400">Ticket not found</p>
+        <div className="flex flex-col items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 p-8 text-center">
+          <AlertTriangle className="h-12 w-12 text-red-400 mb-3" />
+          <h3 className="text-lg font-semibold text-content-primary mb-2">Ticket not found</h3>
+          <p className="text-red-400 text-sm">The ticket you are looking for could not be loaded.</p>
         </div>
       </div>
     );

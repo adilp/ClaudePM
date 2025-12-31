@@ -120,7 +120,7 @@ export function KanbanColumn({
         ))}
 
         {tickets.length === 0 && (
-          <div className="flex items-center justify-center h-24 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+          <div className="flex items-center justify-center h-24 text-content-muted text-sm border-2 border-dashed border-line rounded-lg">
             Drop tickets here
           </div>
         )}

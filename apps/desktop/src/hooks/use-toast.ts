@@ -34,15 +34,24 @@ function generateId(): string {
   return `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+// Default toast durations based on type
+const DEFAULT_DURATIONS: Record<ToastType, number> = {
+  success: 3000,  // Success: 3 seconds
+  error: 5000,    // Error: 5 seconds (longer to read)
+  warning: 5000,  // Warning: 5 seconds
+  info: 4000,     // Info: 4 seconds
+};
+
 // Public API for triggering toasts from anywhere
 export function toast(options: ToastOptions): string {
   const id = generateId();
+  const type = options.type ?? 'info';
   const newToast: Toast = {
     id,
-    type: options.type ?? 'info',
+    type,
     title: options.title,
     message: options.message,
-    duration: options.duration ?? 5000,
+    duration: options.duration ?? DEFAULT_DURATIONS[type],
   };
 
   toasts = [...toasts, newToast];

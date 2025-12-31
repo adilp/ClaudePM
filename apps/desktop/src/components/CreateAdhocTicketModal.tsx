@@ -49,7 +49,8 @@ export function CreateAdhocTicketModal({
   const [slug, setSlug] = useState('');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [isExplore, setIsExplore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ title?: string; slug?: string; general?: string }>({});
+  const [touched, setTouched] = useState<{ title?: boolean; slug?: boolean }>({});
 
   // Reset form when modal opens
   useEffect(() => {
@@ -58,9 +59,30 @@ export function CreateAdhocTicketModal({
       setSlug('');
       setSlugManuallyEdited(false);
       setIsExplore(false);
-      setError(null);
+      setErrors({});
+      setTouched({});
     }
   }, [isOpen]);
+
+  // Validate fields
+  const validateField = (field: 'title' | 'slug', value: string): string | undefined => {
+    if (field === 'title') {
+      if (!value.trim()) return 'Title is required';
+      if (value.trim().length < 3) return 'Title must be at least 3 characters';
+    }
+    if (field === 'slug') {
+      if (!value.trim()) return 'Slug is required';
+      if (!/^[a-z0-9-]+$/.test(value)) return 'Slug can only contain lowercase letters, numbers, and hyphens';
+    }
+    return undefined;
+  };
+
+  const handleBlur = (field: 'title' | 'slug') => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    const value = field === 'title' ? title : slug;
+    const error = validateField(field, value);
+    setErrors((prev) => ({ ...prev, [field]: error }));
+  };
 
   // Auto-generate slug from title when not manually edited
   useEffect(() => {
@@ -76,15 +98,15 @@ export function CreateAdhocTicketModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
 
-    if (!title.trim()) {
-      setError('Title is required');
-      return;
-    }
+    // Validate all fields
+    const titleError = validateField('title', title);
+    const slugError = validateField('slug', slug);
 
-    if (!slug.trim()) {
-      setError('Slug is required');
+    setTouched({ title: true, slug: true });
+    setErrors({ title: titleError, slug: slugError, general: undefined });
+
+    if (titleError || slugError) {
       return;
     }
 
@@ -97,7 +119,10 @@ export function CreateAdhocTicketModal({
           navigate(`/projects/${projectId}/tickets/${ticket.id}`);
         },
         onError: (err) => {
-          setError(err instanceof Error ? err.message : 'Failed to create ticket');
+          setErrors((prev) => ({
+            ...prev,
+            general: err instanceof Error ? err.message : 'Failed to create ticket',
+          }));
         },
       }
     );
@@ -122,10 +147,20 @@ export function CreateAdhocTicketModal({
                 id="title"
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (touched.title) {
+                    setErrors((prev) => ({ ...prev, title: validateField('title', e.target.value) }));
+                  }
+                }}
+                onBlur={() => handleBlur('title')}
                 placeholder="Enter ticket title"
+                error={touched.title && !!errors.title}
                 autoFocus
               />
+              {touched.title && errors.title && (
+                <p className="text-xs text-red-400">{errors.title}</p>
+              )}
             </div>
 
             {/* Slug field */}
@@ -137,11 +172,22 @@ export function CreateAdhocTicketModal({
                 id="slug"
                 type="text"
                 value={slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
+                onChange={(e) => {
+                  handleSlugChange(e.target.value);
+                  if (touched.slug) {
+                    setErrors((prev) => ({ ...prev, slug: validateField('slug', e.target.value) }));
+                  }
+                }}
+                onBlur={() => handleBlur('slug')}
                 placeholder="ticket-slug"
                 className="font-mono"
+                error={touched.slug && !!errors.slug}
               />
-              <p className="text-xs text-content-muted">Used for the ticket filename and URL</p>
+              {touched.slug && errors.slug ? (
+                <p className="text-xs text-red-400">{errors.slug}</p>
+              ) : (
+                <p className="text-xs text-content-muted">Used for the ticket filename and URL</p>
+              )}
             </div>
 
             {/* Explore mode checkbox */}
@@ -158,11 +204,11 @@ export function CreateAdhocTicketModal({
               </span>
             </label>
 
-            {/* Error message */}
-            {error && (
+            {/* General error message */}
+            {errors.general && (
               <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                <p className="text-sm">{error}</p>
+                <p className="text-sm">{errors.general}</p>
               </div>
             )}
           </div>

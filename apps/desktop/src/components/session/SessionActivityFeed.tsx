@@ -21,7 +21,7 @@ const eventColors: Record<ActivityEvent['type'], string> = {
 };
 
 export function SessionActivityFeed({ sessionId, maxEvents = 20 }: SessionActivityFeedProps) {
-  const { data: activity, isLoading, error } = useSessionActivity(sessionId);
+  const { data: activity, isLoading, error, refetch } = useSessionActivity(sessionId);
 
   if (isLoading) {
     return (
@@ -34,17 +34,27 @@ export function SessionActivityFeed({ sessionId, maxEvents = 20 }: SessionActivi
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 text-red-400 p-4">
-        <AlertCircleIcon className="w-4 h-4" />
-        <span className="text-sm">Failed to load activity</span>
+      <div className="flex items-center justify-between p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+        <div className="flex items-center gap-2 text-red-400">
+          <AlertCircleIcon className="w-4 h-4" />
+          <span className="text-sm">Failed to load activity</span>
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-500/30 rounded hover:bg-red-500/10 transition-colors"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
   if (!activity || activity.events.length === 0) {
     return (
-      <div className="text-content-muted text-sm p-4">
-        No activity detected yet
+      <div className="flex flex-col items-center justify-center p-8 text-center bg-surface-tertiary/50 rounded-lg">
+        <TerminalIcon className="w-8 h-8 text-content-muted mb-2" />
+        <p className="text-content-muted text-sm">No activity detected yet</p>
+        <p className="text-content-muted text-xs mt-1">Activity will appear as the session progresses</p>
       </div>
     );
   }

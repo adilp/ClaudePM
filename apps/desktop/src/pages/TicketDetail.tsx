@@ -175,12 +175,18 @@ export function TicketDetail() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-center p-8">
         <AlertCircle className="h-12 w-12 text-red-500" />
-        <h2 className="text-xl font-semibold text-content-primary">Ticket not found</h2>
+        <h2 className="text-xl font-semibold text-content-primary">
+          {error ? 'Failed to load ticket' : 'Ticket not found'}
+        </h2>
+        <p className="text-content-secondary text-sm max-w-md">
+          {error instanceof Error ? error.message : 'The ticket you are looking for could not be loaded.'}
+        </p>
         <Link
           to={`/projects/${projectId}`}
-          className="text-indigo-500 hover:text-indigo-400"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-surface-tertiary text-content-primary border border-line rounded-lg text-sm font-medium hover:bg-line transition-colors"
         >
-          ← Back to Project
+          <ArrowLeft className="h-4 w-4" />
+          Back to Project
         </Link>
       </div>
     );

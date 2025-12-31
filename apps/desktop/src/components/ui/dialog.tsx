@@ -4,7 +4,7 @@
  */
 
 import { cn } from '../../lib/utils';
-import { useEffect, useCallback, type ReactNode } from 'react';
+import { useEffect, useCallback, useRef, type ReactNode } from 'react';
 
 interface DialogProps {
   open: boolean;
@@ -13,7 +13,13 @@ interface DialogProps {
   className?: string;
 }
 
+const FOCUSABLE_ELEMENTS =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function Dialog({ open, onClose, children, className }: DialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
   // Handle escape key
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
@@ -24,17 +30,59 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
     [onClose]
   );
 
+  // Handle focus trap
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key !== 'Tab' || !dialogRef.current) return;
+
+    const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_ELEMENTS);
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    if (!firstElement) return;
+
+    if (e.shiftKey) {
+      if (document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement?.focus();
+      }
+    } else {
+      if (document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement?.focus();
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (open) {
+      // Store the previously focused element
+      previousActiveElement.current = document.activeElement as HTMLElement;
+
       document.addEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleKeyDown);
       // Prevent body scroll
       document.body.style.overflow = 'hidden';
+
+      // Focus the first focusable element in the dialog
+      requestAnimationFrame(() => {
+        if (dialogRef.current) {
+          const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_ELEMENTS);
+          const firstElement = focusableElements[0];
+          firstElement?.focus();
+        }
+      });
     }
     return () => {
       document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
+
+      // Restore focus to the previously focused element
+      if (previousActiveElement.current) {
+        previousActiveElement.current.focus();
+      }
     };
-  }, [open, handleEscape]);
+  }, [open, handleEscape, handleKeyDown]);
 
   if (!open) {
     return null;
@@ -46,6 +94,7 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         className={cn(
           'relative bg-surface-secondary border border-line rounded-xl shadow-xl',
           'w-full max-w-md mx-4 animate-[dialog-fade-in_0.2s_ease-out]',

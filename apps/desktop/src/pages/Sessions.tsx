@@ -436,7 +436,25 @@ export function Sessions() {
 
         {tmuxError ? (
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-center">
-            <p className="text-red-400 text-sm">Failed to load tmux sessions</p>
+            <p className="text-red-400 text-sm mb-3">Failed to load tmux sessions</p>
+            <button
+              onClick={() => refetchTmux()}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-400 border border-red-500/30 rounded-md hover:bg-red-500/10 transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
+              Retry
+            </button>
           </div>
         ) : tmuxLoading ? (
           <div className="flex items-center justify-center h-32">
@@ -476,9 +494,27 @@ export function Sessions() {
 
         {sessionsError ? (
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-center">
-            <p className="text-red-400 text-sm">
+            <p className="text-red-400 text-sm mb-3">
               Failed to load managed sessions
             </p>
+            <button
+              onClick={() => refetchSessions()}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-400 border border-red-500/30 rounded-md hover:bg-red-500/10 transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
+              Retry
+            </button>
           </div>
         ) : sessionsLoading && !sessions ? (
           <div className="flex items-center justify-center h-32">
