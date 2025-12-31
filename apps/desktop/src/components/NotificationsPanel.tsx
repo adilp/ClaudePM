@@ -9,6 +9,7 @@ import {
   useDismissNotification,
   useDismissAllNotifications,
 } from '../hooks/useNotifications';
+import { focusSessionAndActivate } from '../services/session-controller';
 import {
   Bell,
   X,
@@ -105,6 +106,18 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
 
   const handleDismissAll = () => {
     dismissAll.mutate();
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // If notification has a session, focus it and activate Alacritty
+    if (notification.session?.id) {
+      try {
+        await focusSessionAndActivate(notification.session.id);
+        onClose();
+      } catch (error) {
+        console.error('Failed to focus session:', error);
+      }
+    }
   };
 
   return (
@@ -212,6 +225,20 @@ export function NotificationsPanel({ isOpen, onClose }: NotificationsPanelProps)
                   </div>
                 );
 
+                // If notification has a session, make it clickable to focus + activate Alacritty
+                if (notification.session?.id) {
+                  return (
+                    <button
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      className="w-full text-left bg-transparent border-none p-0 cursor-pointer"
+                    >
+                      {content}
+                    </button>
+                  );
+                }
+
+                // For ticket notifications without sessions, use Link
                 if (link) {
                   return (
                     <Link

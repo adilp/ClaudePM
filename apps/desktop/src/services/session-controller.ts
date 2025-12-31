@@ -87,3 +87,16 @@ export async function showNotification(
 export async function showErrorNotification(message: string): Promise<void> {
   await showNotification('Error', message);
 }
+
+/**
+ * Focus a session AND show notification to switch to terminal
+ * Note: Auto-activating Alacritty requires additional Tauri shell scoping
+ * For now, we show a notification prompting the user to Cmd+Tab
+ */
+export async function focusSessionAndActivate(sessionId: string): Promise<FocusResult> {
+  // Focus the tmux pane
+  const result = await focusSession(sessionId);
+
+  // The focusSession already shows "Cmd+Tab to your terminal" notification
+  return result;
+}
