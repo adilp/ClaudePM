@@ -1,24 +1,52 @@
 import SwiftUI
 
-/// Root content view that wraps the session list with settings access
+/// Tabs available in the app
+enum AppTab: Hashable {
+    case sessions
+    case tickets
+}
+
+/// Root content view with tab bar navigation
 struct ContentView: View {
     @State private var connectionViewModel = ConnectionViewModel()
     @State private var showingSettings = false
+    @State private var selectedTab: AppTab = .sessions
+    private var notificationManager = NotificationManager.shared
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Main content: Session list with integrated navigation
-            MainSessionListView(
-                connectionViewModel: connectionViewModel,
-                showingSettings: $showingSettings
-            )
+            // Main tab view
+            TabView(selection: $selectedTab) {
+                // Sessions tab
+                SessionsTabView(
+                    connectionViewModel: connectionViewModel,
+                    showingSettings: $showingSettings
+                )
+                .tabItem {
+                    Label("Sessions", systemImage: "terminal")
+                }
+                .tag(AppTab.sessions)
 
-            // WebSocket reconnecting banner overlay
-            if connectionViewModel.isWebSocketReconnecting {
-                reconnectingBanner
-                    .padding(.horizontal)
-                    .padding(.top, 4)
+                // Tickets tab
+                TicketBoardView()
+                    .tabItem {
+                        Label("Tickets", systemImage: "list.bullet.rectangle.portrait")
+                    }
+                    .tag(AppTab.tickets)
             }
+
+            // Notification banner overlay (appears above everything)
+            VStack(spacing: 4) {
+                // WebSocket reconnecting banner
+                if connectionViewModel.isWebSocketReconnecting {
+                    reconnectingBanner
+                        .padding(.horizontal)
+                }
+
+                // In-app notification banner
+                NotificationBannerContainer(notificationManager: notificationManager)
+            }
+            .padding(.top, 4)
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: connectionViewModel)
@@ -50,11 +78,12 @@ struct ContentView: View {
     }
 }
 
-/// Main session list view with navigation and toolbar
-struct MainSessionListView: View {
+/// Sessions tab content (previously MainSessionListView)
+struct SessionsTabView: View {
     var connectionViewModel: ConnectionViewModel
     @Binding var showingSettings: Bool
     @State private var viewModel = SessionListViewModel()
+    @State private var showingNotifications = false
 
     var body: some View {
         NavigationStack {
@@ -66,6 +95,9 @@ struct MainSessionListView: View {
                 .navigationDestination(for: Session.self) { session in
                     SessionDetailView(session: session)
                 }
+        }
+        .sheet(isPresented: $showingNotifications) {
+            NotificationsListView(notificationManager: NotificationManager.shared)
         }
         .task {
             // Check connection first, then load sessions
@@ -98,10 +130,18 @@ struct MainSessionListView: View {
             connectionStatusIndicator
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showingSettings = true
-            } label: {
-                Image(systemName: "gear")
+            HStack(spacing: 16) {
+                // Notifications bell
+                NotificationBellButton(unreadCount: NotificationManager.shared.unreadCount) {
+                    showingNotifications = true
+                }
+
+                // Settings gear
+                Button {
+                    showingSettings = true
+                } label: {
+                    Image(systemName: "gear")
+                }
             }
         }
     }

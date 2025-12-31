@@ -250,20 +250,58 @@ final class WebSocketClient {
         }
 
         switch type {
+        // Session updates
         case "session:status":
             handleSessionStatus(payload)
         case "session:waiting":
             handleSessionWaiting(payload)
         case "session:context":
             handleSessionContext(payload)
+        case "session:output":
+            handleSessionOutput(payload)
+
+        // Review and analysis
+        case "review:result":
+            handleReviewResult(payload)
+        case "ai:analysis_status":
+            handleAnalysisStatus(payload)
+
+        // Ticket updates
+        case "ticket:state":
+            handleTicketState(payload)
+
+        // Generic notification
         case "notification":
             handleNotification(payload)
+
+        // Subscription confirmations
+        case "subscribed":
+            handleSubscribed(payload)
+        case "unsubscribed":
+            handleUnsubscribed(payload)
+
+        // PTY (terminal) messages - log only for now
+        case "pty:attached":
+            handlePtyAttached(payload)
+        case "pty:detached":
+            handlePtyDetached(payload)
+        case "pty:output":
+            // High-frequency, just ignore
+            break
+        case "pty:exit":
+            handlePtyExit(payload)
+
+        // Heartbeat
         case "pong":
-            print("[WebSocket] Received pong")
+            // Expected response, no logging needed
+            break
+
+        // Errors
         case "error":
             handleError(payload)
+
         default:
-            print("[WebSocket] Unknown message type: \(type)")
+            print("[WebSocket] Unhandled message type: \(type)")
         }
     }
 
@@ -288,6 +326,15 @@ final class WebSocketClient {
         )
 
         onSessionUpdate?(update)
+
+        // Create in-app notification for significant status changes
+        if newStatusRaw == "error" || newStatusRaw == "completed" {
+            NotificationManager.shared.notifySessionStatus(
+                sessionId: sessionId,
+                previousStatus: previousStatusRaw,
+                newStatus: newStatusRaw
+            )
+        }
     }
 
     /// Handle session waiting message
@@ -311,6 +358,13 @@ final class WebSocketClient {
         )
 
         onSessionUpdate?(update)
+
+        // Create in-app notification when waiting for input
+        NotificationManager.shared.notifySessionWaiting(
+            sessionId: sessionId,
+            waiting: waiting,
+            reason: reason
+        )
     }
 
     /// Handle session context update message
@@ -341,8 +395,12 @@ final class WebSocketClient {
             return
         }
 
+        let id = payload["id"] as? String ?? UUID().uuidString
+
         print("[WebSocket] Notification: \(title) - \(body)")
-        // Notifications are handled via push notifications or can be shown in-app
+
+        // Create in-app notification
+        NotificationManager.shared.notifyGeneric(id: id, title: title, body: body)
     }
 
     /// Handle error message
@@ -350,7 +408,121 @@ final class WebSocketClient {
         let code = payload["code"] as? String ?? "UNKNOWN"
         let message = payload["message"] as? String ?? "Unknown error"
         print("[WebSocket] Error [\(code)]: \(message)")
+
+        // Create in-app notification for errors
+        NotificationManager.shared.notifyError(code: code, message: message)
     }
+
+    // MARK: - New Message Handlers
+
+    /// Handle session output (terminal lines)
+    private func handleSessionOutput(_ payload: [String: Any]) {
+        // High-frequency message, just log occasionally for debugging
+        guard let sessionId = payload["sessionId"] as? String else { return }
+        // Don't create notifications for output - too noisy
+        _ = sessionId
+    }
+
+    /// Handle review result from subagent
+    private func handleReviewResult(_ payload: [String: Any]) {
+        guard let sessionId = payload["sessionId"] as? String,
+              let ticketId = payload["ticketId"] as? String,
+              let decision = payload["decision"] as? String,
+              let reasoning = payload["reasoning"] as? String else {
+            return
+        }
+
+        let trigger = payload["trigger"] as? String ?? "unknown"
+        print("[WebSocket] Review result for ticket \(ticketId): \(decision) (trigger: \(trigger))")
+
+        // Create in-app notification
+        NotificationManager.shared.notifyReviewResult(
+            sessionId: sessionId,
+            ticketId: ticketId,
+            decision: decision,
+            reasoning: reasoning
+        )
+    }
+
+    /// Handle AI analysis status (summary/report generation)
+    private func handleAnalysisStatus(_ payload: [String: Any]) {
+        guard let sessionId = payload["sessionId"] as? String,
+              let analysisType = payload["analysisType"] as? String,
+              let status = payload["status"] as? String else {
+            return
+        }
+
+        let ticketId = payload["ticketId"] as? String
+        let error = payload["error"] as? String
+
+        print("[WebSocket] Analysis \(analysisType) for session \(sessionId): \(status)")
+
+        // Create in-app notification
+        NotificationManager.shared.notifyAnalysisStatus(
+            sessionId: sessionId,
+            ticketId: ticketId,
+            analysisType: analysisType,
+            status: status,
+            error: error
+        )
+    }
+
+    /// Handle ticket state change
+    private func handleTicketState(_ payload: [String: Any]) {
+        guard let ticketId = payload["ticketId"] as? String,
+              let previousState = payload["previousState"] as? String,
+              let newState = payload["newState"] as? String else {
+            return
+        }
+
+        let reason = payload["reason"] as? String
+        let trigger = payload["trigger"] as? String
+
+        print("[WebSocket] Ticket \(ticketId) state: \(previousState) -> \(newState) (\(trigger ?? "?"))")
+
+        // Create in-app notification
+        NotificationManager.shared.notifyTicketState(
+            ticketId: ticketId,
+            previousState: previousState,
+            newState: newState,
+            reason: reason
+        )
+    }
+
+    /// Handle subscription confirmation
+    private func handleSubscribed(_ payload: [String: Any]) {
+        guard let sessionId = payload["sessionId"] as? String else { return }
+        print("[WebSocket] Subscribed to session \(sessionId)")
+    }
+
+    /// Handle unsubscription confirmation
+    private func handleUnsubscribed(_ payload: [String: Any]) {
+        guard let sessionId = payload["sessionId"] as? String else { return }
+        print("[WebSocket] Unsubscribed from session \(sessionId)")
+    }
+
+    /// Handle PTY attached confirmation
+    private func handlePtyAttached(_ payload: [String: Any]) {
+        guard let sessionId = payload["sessionId"] as? String else { return }
+        let cols = payload["cols"] as? Int ?? 0
+        let rows = payload["rows"] as? Int ?? 0
+        print("[WebSocket] PTY attached to session \(sessionId) (\(cols)x\(rows))")
+    }
+
+    /// Handle PTY detached confirmation
+    private func handlePtyDetached(_ payload: [String: Any]) {
+        guard let sessionId = payload["sessionId"] as? String else { return }
+        print("[WebSocket] PTY detached from session \(sessionId)")
+    }
+
+    /// Handle PTY exit
+    private func handlePtyExit(_ payload: [String: Any]) {
+        guard let sessionId = payload["sessionId"] as? String else { return }
+        let exitCode = payload["exitCode"] as? Int ?? -1
+        print("[WebSocket] PTY exited for session \(sessionId) with code \(exitCode)")
+    }
+
+    // MARK: - Disconnection Handling
 
     /// Handle disconnection and schedule reconnect
     private func handleDisconnect() {

@@ -1,16 +1,37 @@
 # Claude PM iOS App
 
 ## Overview
-Native iOS app for Claude Session Manager. Provides remote monitoring of Claude Code sessions, connection status, and session counts.
+Native iOS app for Claude Session Manager. Provides remote monitoring of Claude Code sessions, real-time notifications, and ticket management.
 
 **NOTE: Currently focused on iPhone only. iPad support is deferred.**
 
 ## Tech Stack
-- **Language**: Swift 5
+- **Language**: Swift 5.9+
 - **UI Framework**: SwiftUI
 - **Minimum iOS**: 17.0
+- **Target iOS**: 26 (with Liquid Glass design)
 - **Architecture**: MVVM with @Observable
 - **Target Device**: iPhone (iPad deferred)
+
+## Design Patterns (iOS 26)
+
+### Liquid Glass Design Language
+iOS 26 introduced "Liquid Glass" - translucent, glass-like materials for UI components. We use:
+- `.regularMaterial` / `.ultraThinMaterial` for translucent backgrounds
+- `.presentationBackground(.regularMaterial)` for sheet glass effects
+- System blur effects adapt to content behind them
+
+### Presentation Patterns
+| Pattern | Use Case | Implementation |
+|---------|----------|----------------|
+| **Sheet** | Modal content, notifications list | `.sheet()` with `.presentationDetents([.medium, .large])` |
+| **Banner** | Transient alerts, toast notifications | Custom overlay with animation |
+| **Popover** | Contextual info (iPad) | Auto-converts to sheet on iPhone |
+
+### Navigation
+- `NavigationStack` for hierarchical navigation
+- `TabView` for top-level sections (Sessions, Tickets)
+- Sheets for modal content (Settings, Notifications)
 
 ## Project Structure
 
@@ -19,22 +40,35 @@ apps/ios/
 ├── ClaudePM.xcodeproj/
 ├── ClaudePM/
 │   ├── App/
-│   │   └── ClaudePMApp.swift           # App entry point, lifecycle management
+│   │   └── ClaudePMApp.swift              # App entry point, lifecycle management
 │   ├── Models/
-│   │   ├── Session.swift               # API response models
-│   │   └── SessionUpdate.swift         # WebSocket update models
+│   │   ├── Session.swift                  # Session API response models
+│   │   ├── SessionUpdate.swift            # WebSocket update models
+│   │   ├── Ticket.swift                   # Ticket models
+│   │   ├── Project.swift                  # Project models
+│   │   └── InAppNotification.swift        # In-app notification model
 │   ├── Services/
-│   │   ├── APIClient.swift             # Network layer (actor-based)
-│   │   ├── KeychainHelper.swift        # Secure credential storage
-│   │   └── WebSocketClient.swift       # Real-time session updates
+│   │   ├── APIClient.swift                # Network layer (actor-based)
+│   │   ├── KeychainHelper.swift           # Secure credential storage
+│   │   ├── WebSocketClient.swift          # Real-time updates & message handling
+│   │   └── NotificationManager.swift      # In-app notification state
 │   ├── ViewModels/
-│   │   ├── ConnectionViewModel.swift   # Connection state management
-│   │   └── SessionListViewModel.swift  # Session list state & WebSocket updates
+│   │   ├── ConnectionViewModel.swift      # Connection state management
+│   │   ├── SessionListViewModel.swift     # Session list state
+│   │   └── TicketBoardViewModel.swift     # Ticket board state
 │   ├── Views/
-│   │   ├── ContentView.swift           # Root view with session list
-│   │   ├── SessionRowView.swift        # Session row with status badge
-│   │   ├── SessionDetailView.swift     # Session detail screen
-│   │   └── SettingsView.swift          # Backend URL & API key config
+│   │   ├── ContentView.swift              # Root TabView (Sessions, Tickets)
+│   │   ├── SessionRowView.swift           # Session row with status badge
+│   │   ├── SessionDetailView.swift        # Session detail screen
+│   │   ├── SettingsView.swift             # Backend URL & API key config
+│   │   ├── NotificationBannerView.swift   # Toast-style notification banner
+│   │   ├── NotificationsListView.swift    # Bell icon dropdown list
+│   │   └── Tickets/                       # Ticket board views
+│   │       ├── TicketBoardView.swift
+│   │       ├── TicketColumnView.swift
+│   │       ├── TicketCardView.swift
+│   │       ├── TicketDetailSheet.swift
+│   │       └── FilterChipsView.swift
 │   └── Resources/
 │       └── Assets.xcassets
 └── ClaudePMTests/
@@ -66,7 +100,7 @@ KeychainHelper.delete()
 ```
 
 ### WebSocketClient (`Services/WebSocketClient.swift`)
-Singleton WebSocket client for real-time session updates.
+Singleton WebSocket client for real-time updates. Handles all server message types.
 
 ```swift
 // Lifecycle: Connects when app foregrounds, disconnects on background
@@ -90,7 +124,96 @@ WebSocketClient.shared.onSessionUpdate = { update in
 - Auto-reconnect with exponential backoff (1s, 2s, 4s... max 30s)
 - Automatic ping/pong for connection health
 - API key authentication via query parameter
-- Handles `session:status`, `session:waiting`, `session:context` messages
+
+**Handled Message Types:**
+| Message Type | Handler | Creates Notification |
+|--------------|---------|---------------------|
+| `session:status` | Updates session in list | Yes (on error/complete) |
+| `session:waiting` | Updates waiting state | Yes (when waiting) |
+| `session:context` | Updates context % | No |
+| `session:output` | Ignored (high-frequency) | No |
+| `review:result` | Logs result | Yes |
+| `ai:analysis_status` | Logs status | Yes |
+| `ticket:state` | Logs transition | Yes |
+| `notification` | Generic notification | Yes |
+| `subscribed/unsubscribed` | Logs confirmation | No |
+| `pty:*` | Terminal events | No |
+| `pong` | Heartbeat response | No |
+| `error` | Logs error | Yes |
+
+### NotificationManager (`Services/NotificationManager.swift`)
+Singleton `@Observable` class managing in-app notifications.
+
+```swift
+// Access the shared instance
+NotificationManager.shared.notifications      // All notifications
+NotificationManager.shared.unreadCount        // Badge count
+NotificationManager.shared.showBanner         // Auto-dismiss banner visible
+NotificationManager.shared.currentBannerNotification  // Current toast
+
+// Actions
+NotificationManager.shared.add(notification)
+NotificationManager.shared.markAsRead(id)
+NotificationManager.shared.dismissBanner()
+NotificationManager.shared.clearAll()
+```
+
+**Notification Priority Levels:**
+- `.low` - Informational (subscribed, analysis generating)
+- `.normal` - Standard updates (ticket state, analysis complete)
+- `.high` - Requires attention (waiting, review not complete)
+- `.urgent` - Immediate action (errors, clarification needed)
+
+**Auto-dismiss:** High+ priority notifications show a banner for 5 seconds.
+
+## Notification UI
+
+### NotificationBannerView (`Views/NotificationBannerView.swift`)
+Toast-style banner that slides down from top of screen.
+
+```swift
+// Container manages show/hide with animation
+NotificationBannerContainer(notificationManager: NotificationManager.shared)
+```
+
+**Features:**
+- Color-coded by priority (blue/orange/red borders)
+- Icon per category (terminal, ticket, sparkles, bell)
+- Auto-dismisses after 5 seconds
+- Tap to dismiss or act
+- Spring animation on appear/disappear
+
+### NotificationsListView (`Views/NotificationsListView.swift`)
+Half-screen sheet showing all notifications.
+
+```swift
+// Presented as sheet from bell icon
+.sheet(isPresented: $showingNotifications) {
+    NotificationsListView(notificationManager: NotificationManager.shared)
+}
+```
+
+**Features:**
+- `.presentationDetents([.medium, .large])` - starts half-screen, drag to full
+- `.presentationBackground(.regularMaterial)` - iOS 26 Liquid Glass
+- Swipe-to-dismiss individual notifications
+- "Clear All" button
+- Relative timestamps ("2m ago")
+- Unread dot indicator
+- Empty state with bell.slash icon
+
+### NotificationBellButton
+Toolbar button with unread count badge.
+
+```swift
+NotificationBellButton(unreadCount: NotificationManager.shared.unreadCount) {
+    showingNotifications = true
+}
+```
+
+**Features:**
+- Red badge with count (caps at "99+")
+- Hidden when count is 0
 
 ### ConnectionViewModel (`ViewModels/ConnectionViewModel.swift`)
 Uses `@Observable` macro (iOS 17+) for reactive state management.
