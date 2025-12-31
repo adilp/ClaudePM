@@ -4,19 +4,24 @@
  * Ported from web app with desktop-specific adaptations
  */
 
+import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
 import { useServerNotifications } from '../hooks/useServerNotifications';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useNotificationCount } from '../hooks/useNotifications';
 import { useUIStore } from '../stores/uiStore';
 import { cn } from '../lib/utils';
 import { SidebarProjectsList } from './SidebarProjectsList';
+import { NotificationsPanel } from './NotificationsPanel';
 
 export function AppLayout() {
   const location = useLocation();
   const { connectionState } = useWebSocket();
   const { isSectionExpanded, toggleSection } = useUIStore();
   const isProjectsExpanded = isSectionExpanded('projects');
+  const { data: notificationCount } = useNotificationCount();
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Initialize desktop notifications for session events (via WebSocket)
   useDesktopNotifications();
@@ -267,11 +272,11 @@ export function AppLayout() {
             {/* Page title can be added here dynamically if needed */}
           </div>
           <div className="flex items-center gap-2">
-            {/* Notification badge placeholder for DWP-016 */}
             <button
+              onClick={() => setShowNotifications(true)}
               className="flex items-center justify-center w-9 h-9 bg-transparent border-none rounded-md text-content-secondary cursor-pointer transition-colors relative hover:bg-surface-tertiary hover:text-content-primary"
               aria-label="Notifications"
-              title="Notifications (coming soon)"
+              title="Notifications"
             >
               <svg
                 width="20"
@@ -286,6 +291,11 @@ export function AppLayout() {
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
+              {notificationCount && notificationCount.count > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-semibold text-white bg-red-500 rounded-full">
+                  {notificationCount.count > 99 ? '99+' : notificationCount.count}
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -294,6 +304,12 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Notifications Panel */}
+      <NotificationsPanel
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
     </div>
   );
 }

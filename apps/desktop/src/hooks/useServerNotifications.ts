@@ -63,7 +63,9 @@ async function fetchNotifications(): Promise<ServerNotification[]> {
     throw new Error(`Failed to fetch notifications: ${response.status}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  // API returns { data: [...], count: N }
+  return result.data || [];
 }
 
 /**
@@ -77,34 +79,41 @@ export function useServerNotifications() {
   const checkNotifications = useCallback(async () => {
     try {
       const enabled = await getNotificationsEnabled();
+      console.log('[ServerNotif] Notifications enabled:', enabled);
       if (!enabled) {
         return;
       }
 
       const notifications = await fetchNotifications();
+      console.log('[ServerNotif] Fetched notifications:', notifications.length);
 
       // Filter to unread notifications we haven't shown yet
       const newNotifications = notifications.filter(
         (n) => !n.read && !shownIdsRef.current.has(n.id)
       );
 
+      console.log('[ServerNotif] New unread notifications:', newNotifications.length);
+
       if (newNotifications.length === 0) {
         return;
       }
 
       const granted = await ensureNotificationPermission();
+      console.log('[ServerNotif] Permission granted:', granted);
       if (!granted) {
         return;
       }
 
       // Show desktop notification for each new one
       for (const notif of newNotifications) {
+        console.log('[ServerNotif] Showing notification:', notif.type, notif.message);
         shownIdsRef.current.add(notif.id);
 
-        sendNotification({
+        await sendNotification({
           title: getNotificationTitle(notif.type),
           body: notif.message || notif.title,
         });
+        console.log('[ServerNotif] Notification sent for:', notif.id);
       }
 
       // Limit the size of shown IDs set to prevent memory growth

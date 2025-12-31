@@ -41,14 +41,20 @@ async function sendDesktopNotification(
   body: string
 ): Promise<void> {
   try {
+    console.log('[DesktopNotif] Attempting to send:', { title, body });
+
     const enabled = await getNotificationsEnabled();
+    console.log('[DesktopNotif] Notifications enabled:', enabled);
     if (!enabled) {
       return;
     }
 
     const granted = await ensureNotificationPermission();
+    console.log('[DesktopNotif] Permission granted:', granted);
     if (granted) {
-      sendNotification({ title, body });
+      console.log('[DesktopNotif] Sending notification now...');
+      await sendNotification({ title, body });
+      console.log('[DesktopNotif] Notification sent successfully');
     }
   } catch (error) {
     console.warn('Failed to send notification:', error);
@@ -133,11 +139,14 @@ export function useDesktopNotifications() {
       return;
     }
 
+    console.log('[DesktopNotif] Received WebSocket message:', lastMessage.type, lastMessage);
+
     // Create a unique key for this message to avoid duplicate notifications
     const messageKey = JSON.stringify(lastMessage);
 
     // Skip if we've already processed this exact message
     if (processedRef.current.has(messageKey)) {
+      console.log('[DesktopNotif] Skipping duplicate message');
       return;
     }
 
@@ -151,6 +160,7 @@ export function useDesktopNotifications() {
     }
 
     // Process the message
+    console.log('[DesktopNotif] Processing message...');
     processMessage(lastMessage, sessions);
   }, [lastMessage, sessions]);
 }
