@@ -1,3 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(222.2 84% 4.9%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(222.2 84% 4.9%);
+  --color-popover: hsl(0 0% 100%);
+  --color-popover-foreground: hsl(222.2 84% 4.9%);
+  --color-primary: hsl(222.2 47.4% 11.2%);
+  --color-primary-foreground: hsl(210 40% 98%);
+  --color-secondary: hsl(210 40% 96.1%);
+  --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-muted: hsl(210 40% 96.1%);
+  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-accent: hsl(210 40% 96.1%);
+  --color-accent-foreground: hsl(222.2 47.4% 11.2%);
+  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(214.3 31.8% 91.4%);
+  --color-input: hsl(214.3 31.8% 91.4%);
+  --color-ring: hsl(222.2 84% 4.9%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.dark {
+  --color-background: hsl(222.2 84% 4.9%);
+  --color-foreground: hsl(210 40% 98%);
+  --color-card: hsl(220 20% 10%);
+  --color-card-foreground: hsl(210 40% 98%);
+  --color-popover: hsl(222.2 84% 4.9%);
+  --color-popover-foreground: hsl(210 40% 98%);
+  --color-primary: hsl(210 40% 98%);
+  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
+  --color-secondary: hsl(217.2 32.6% 17.5%);
+  --color-secondary-foreground: hsl(210 40% 98%);
+  --color-muted: hsl(217.2 32.6% 17.5%);
+  --color-muted-foreground: hsl(215 20.2% 65.1%);
+  --color-accent: hsl(217.2 32.6% 17.5%);
+  --color-accent-foreground: hsl(210 40% 98%);
+  --color-destructive: hsl(0 62.8% 30.6%);
+  --color-destructive-foreground: hsl(210 40% 98%);
+  --color-border: hsl(217.2 32.6% 17.5%);
+  --color-input: hsl(217.2 32.6% 17.5%);
+  --color-ring: hsl(212.7 26.8% 83.9%);
+}
+
 :root {
   --bg-primary: #0f0f0f;
   --bg-secondary: #1a1a1a;
@@ -2469,4 +2525,481 @@ body {
 .notification-item__dismiss:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ============================================================================
+   Project Detail Page
+   ============================================================================ */
+
+.project-detail {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.project-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.project-detail__header-left {
+  min-width: 0;
+}
+
+.project-detail__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0.5rem 0 0.25rem 0;
+}
+
+.project-detail__path {
+  font-size: 0.813rem;
+  color: var(--text-muted);
+  margin: 0;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  word-break: break-all;
+}
+
+.project-detail__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Back Link */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.813rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.back-link:hover {
+  color: var(--text-primary);
+}
+
+/* Session Indicator */
+.session-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background-color: var(--bg-secondary);
+}
+
+.session-indicator--empty {
+  border-style: dashed;
+}
+
+.session-indicator--active {
+  border-color: var(--success);
+  background-color: rgba(34, 197, 94, 0.08);
+  text-decoration: none;
+  transition: background-color 0.15s;
+}
+
+.session-indicator--active:hover {
+  background-color: rgba(34, 197, 94, 0.12);
+}
+
+.session-indicator__content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.session-indicator__pulse {
+  width: 10px;
+  height: 10px;
+  background-color: var(--success);
+  border-radius: 50%;
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0);
+  }
+}
+
+.session-indicator__label {
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Context Meter */
+.context-meter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 80px;
+}
+
+.context-meter__bar {
+  flex: 1;
+  height: 4px;
+  background-color: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.context-meter__fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.context-meter__label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Board Section */
+.project-detail__board {
+  margin-bottom: 2rem;
+}
+
+.project-detail__board-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.project-detail__board-header h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.project-detail__ticket-count {
+  font-size: 0.813rem;
+  color: var(--text-muted);
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  text-align: center;
+}
+
+.empty-state svg {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-state p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 1.5rem 0;
+  max-width: 400px;
+}
+
+.empty-state__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Loading and Error States */
+.page--loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 400px;
+}
+
+.page--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.error-content svg {
+  color: var(--error);
+  margin-bottom: 0.5rem;
+}
+
+.error-content h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.error-content p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0 0 1rem 0;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--bg-tertiary);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Spin Animation for icons */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Form Styles (for CreateAdhocTicketModal) */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 0.125rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.checkbox-label span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.checkbox-label strong {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.checkbox-label small {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Alert Styles */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.alert--error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.alert--error p {
+  font-size: 0.813rem;
+  color: var(--error);
+  margin: 0;
+}
+
+/* ============================================================================
+   Kanban Board Overrides
+   ============================================================================ */
+
+/* Make columns wider */
+.w-72 {
+  width: 20rem !important;
+}
+
+/* Ensure cards have visible backgrounds */
+.bg-card {
+  background-color: hsl(220 20% 12%) !important;
+}
+
+/* Better card shadows for visibility */
+.shadow-sm {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* More spacing between cards */
+.space-y-2 > * + * {
+  margin-top: 0.75rem !important;
+}
+
+/* Wider gaps between columns */
+.gap-4 {
+  gap: 1.25rem !important;
+}
+
+/* Ensure flex layout works */
+.flex {
+  display: flex;
+}
+
+.flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+/* Card padding */
+.p-3 {
+  padding: 1rem !important;
+}
+
+.p-2 {
+  padding: 0.625rem !important;
+}
+
+/* Card content padding - more room for text */
+.pl-5 {
+  padding-left: 0.5rem !important;
+}
+
+.pr-6 {
+  padding-right: 2.5rem !important;
+}
+
+/* Play button padding */
+.p-1\.5 {
+  padding: 0.375rem !important;
+}
+
+/* Icon sizes in cards */
+.h-4.w-4 {
+  height: 1.1rem !important;
+  width: 1.1rem !important;
+}
+
+/* Play button positioning */
+.right-2 {
+  right: 0.75rem !important;
+}
+
+/* More space between title and subtitle */
+.mt-1 {
+  margin-top: 0.375rem !important;
+}
+
+/* Better line height for card text */
+.leading-tight {
+  line-height: 1.4 !important;
+}
+
+/* Don't truncate titles - let them wrap */
+.line-clamp-2 {
+  display: block !important;
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+  overflow: visible !important;
+}
+
+/* Filter chip styling */
+.px-3 {
+  padding-left: 0.875rem !important;
+  padding-right: 0.875rem !important;
+}
+
+.py-1 {
+  padding-top: 0.375rem !important;
+  padding-bottom: 0.375rem !important;
+}
+
+.rounded-full {
+  border-radius: 9999px !important;
+}
+
+/* Muted background for chips */
+.bg-muted {
+  background-color: hsl(217.2 32.6% 20%) !important;
+}
+
+.text-muted-foreground {
+  color: hsl(215 20.2% 65.1%) !important;
+}
+
+/* Spacing between filter and board */
+.space-y-4 > * + * {
+  margin-top: 1.25rem !important;
+}
+
+/* Column header padding */
+.px-3.py-2 {
+  padding: 0.625rem 0.875rem !important;
+}
+
+/* Gap between filter chips */
+.gap-2 {
+  gap: 0.625rem !important;
+}
+
+/* Flex wrap for filter chips */
+.flex-wrap {
+  flex-wrap: wrap;
 }
