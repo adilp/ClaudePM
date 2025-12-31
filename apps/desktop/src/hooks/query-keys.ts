@@ -52,4 +52,13 @@ export const queryKeys = {
     sessions: () => [...queryKeys.tmux.all, 'sessions'] as const,
     session: (name: string) => [...queryKeys.tmux.all, 'session', name] as const,
   },
+
+  // Git
+  git: {
+    all: ['git'] as const,
+    diff: (projectId: string, baseBranch?: string) =>
+      [...queryKeys.git.all, 'diff', projectId, baseBranch] as const,
+    status: (projectId: string) => [...queryKeys.git.all, 'status', projectId] as const,
+    branch: (projectId: string) => [...queryKeys.git.all, 'branch', projectId] as const,
+  },
 };

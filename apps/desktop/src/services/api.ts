@@ -395,3 +395,25 @@ export async function generatePrDescription(
     { method: 'POST' }
   );
 }
+
+// ============================================================================
+// Git Operations
+// ============================================================================
+
+import type { DiffResult, GitStatus, BranchInfo } from '../types/api';
+
+export async function getGitDiff(
+  projectId: string,
+  baseBranch?: string
+): Promise<DiffResult> {
+  const query = baseBranch ? `?base_branch=${baseBranch}` : '';
+  return request<DiffResult>(`/api/projects/${projectId}/git/diff${query}`);
+}
+
+export async function getGitStatus(projectId: string): Promise<GitStatus> {
+  return request<GitStatus>(`/api/projects/${projectId}/git/status`);
+}
+
+export async function getBranchInfo(projectId: string): Promise<BranchInfo> {
+  return request<BranchInfo>(`/api/projects/${projectId}/git/branch`);
+}

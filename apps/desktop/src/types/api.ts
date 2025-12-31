@@ -121,6 +121,52 @@ export interface SyncTicketsResult {
 }
 
 // ============================================================================
+// Git Types
+// ============================================================================
+
+export interface DiffFile {
+  file_path: string;
+  old_file_path?: string;
+  change_type: 'added' | 'modified' | 'deleted' | 'renamed';
+  hunks: Array<{
+    old_start: number;
+    old_count: number;
+    new_start: number;
+    new_count: number;
+    content: string;
+  }>;
+}
+
+export interface DiffResult {
+  files: DiffFile[];
+  truncated: boolean;
+  total_lines: number;
+}
+
+export interface GitStatus {
+  branch: string | null;
+  upstream: string | null;
+  detached: boolean;
+  staged: Array<{ path: string; status: string }>;
+  unstaged: Array<{ path: string; status: string }>;
+  untracked: string[];
+  clean: boolean;
+  ahead: number;
+  behind: number;
+}
+
+export interface BranchInfo {
+  name: string;
+  remote: string | null;
+  is_main_branch: boolean;
+  recent_commits: Array<{
+    hash: string;
+    message: string;
+    date: string;
+  }>;
+}
+
+// ============================================================================
 // tmux Types
 // ============================================================================
 
