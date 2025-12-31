@@ -28,9 +28,9 @@ export const shortcuts: Shortcut[] = [
   { keys: '?', action: { type: 'toggleCheatsheet' }, description: 'Toggle shortcut cheatsheet' },
   { keys: 'Escape', action: { type: 'action', handler: 'escape' }, description: 'Close modal / Go back' },
 
-  // Quick Find
-  { keys: 'f p', action: { type: 'action', handler: 'findProject' }, description: 'Find project' },
-  { keys: 'f t', action: { type: 'action', handler: 'findTicket' }, description: 'Find ticket' },
+  // Quick Find (C-a prefix like tmux)
+  { keys: 'C-a s', action: { type: 'action', handler: 'findProject' }, description: 'Find project' },
+  { keys: 'C-a t', action: { type: 'action', handler: 'findTicket' }, description: 'Find ticket' },
 
   // Global Actions
   { keys: 's s', action: { type: 'action', handler: 'syncSessions' }, description: 'Sync all sessions' },

@@ -109,8 +109,17 @@ export function ShortcutProvider({ children }: ShortcutProviderProps) {
         return;
       }
 
-      // Build key string
-      const key = e.key;
+      // Build key string with modifiers
+      let key = e.key;
+
+      // Handle Ctrl+key combinations (C-a style)
+      if (e.ctrlKey && key.length === 1) {
+        key = `C-${key.toLowerCase()}`;
+      }
+      // Handle Meta/Cmd+key combinations (M-a style)
+      else if (e.metaKey && key.length === 1) {
+        key = `M-${key.toLowerCase()}`;
+      }
 
       // Clear previous timer
       if (sequenceTimer.current) {

@@ -139,8 +139,9 @@ function ShortcutRow({ shortcut }: { shortcut: Shortcut }) {
 // Format keys for display
 function formatKeys(keys: string): string {
   return keys
+    .replace(/C-([a-z])/g, '⌃$1') // Ctrl+key
+    .replace(/M-([a-z])/g, '⌘$1') // Meta/Cmd+key
     .replace('Escape', 'Esc')
     .replace('Backspace', '⌫')
-    .replace('Enter', '↵')
-    .replace(' ', ' ');
+    .replace('Enter', '↵');
 }

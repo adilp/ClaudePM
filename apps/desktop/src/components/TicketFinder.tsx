@@ -73,11 +73,13 @@ export function TicketFinder({ isOpen, onClose }: TicketFinderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Fuzzy filter tickets
+  // Filter tickets - prioritize exact matches, then substring matches
   const filteredTickets = useMemo(() => {
     if (!query.trim()) return tickets.slice(0, 50); // Limit initial results
 
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = query.toLowerCase().trim();
+    const queryWords = lowerQuery.split(/\s+/);
+
     return tickets
       .map((ticket) => {
         const title = ticket.title.toLowerCase();
@@ -86,27 +88,27 @@ export function TicketFinder({ isOpen, onClose }: TicketFinderProps) {
 
         let score = 0;
 
-        // External ID exact match gets highest score
-        if (externalId === lowerQuery) score += 100;
-        else if (externalId.startsWith(lowerQuery)) score += 80;
-        else if (externalId.includes(lowerQuery)) score += 50;
+        // External ID matching (highest priority)
+        if (externalId === lowerQuery) score += 1000;
+        else if (externalId.startsWith(lowerQuery)) score += 500;
+        else if (externalId.includes(lowerQuery)) score += 200;
 
-        // Title matching
-        if (title === lowerQuery) score += 70;
-        else if (title.startsWith(lowerQuery)) score += 40;
-        else if (title.includes(lowerQuery)) score += 20;
-
-        // Project name matching
-        if (projectName.includes(lowerQuery)) score += 10;
-
-        // Fuzzy character matching on title
-        let queryIndex = 0;
-        for (const char of title) {
-          if (queryIndex < lowerQuery.length && char === lowerQuery[queryIndex]) {
-            score += 2;
-            queryIndex++;
-          }
+        // Title exact match
+        if (title === lowerQuery) score += 400;
+        // Title starts with query
+        else if (title.startsWith(lowerQuery)) score += 300;
+        // Title contains query as substring
+        else if (title.includes(lowerQuery)) score += 150;
+        // All query words appear in title (in any order)
+        else if (queryWords.every(word => title.includes(word))) score += 100;
+        // Some query words appear in title
+        else {
+          const matchedWords = queryWords.filter(word => title.includes(word));
+          score += matchedWords.length * 30;
         }
+
+        // Project name contains query (lower priority)
+        if (projectName.includes(lowerQuery)) score += 20;
 
         return { ticket, score };
       })
