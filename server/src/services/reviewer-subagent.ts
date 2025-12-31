@@ -13,6 +13,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { prisma } from '../config/db.js';
 import { sessionSupervisor } from './session-supervisor.js';
+import { sessionAnalyzer } from './session-analyzer.js';
 import { ticketStateMachine } from './ticket-state-machine.js';
 import { waitingDetector } from './waiting-detector.js';
 import {
@@ -213,11 +214,6 @@ export class ReviewerSubagent extends TypedEventEmitter {
 
     if (!session.ticketId || !session.ticket) {
       // Session is not associated with a ticket, skip review
-      return null;
-    }
-
-    // Only review tickets that are in_progress
-    if (session.ticket.state !== 'in_progress') {
       return null;
     }
 
@@ -560,6 +556,18 @@ export class ReviewerSubagent extends TypedEventEmitter {
         // Move ticket to review state
         try {
           await ticketStateMachine.moveToReview(ticketId, sessionId);
+
+          // Generate summary and review report now that work is complete
+          // Run in parallel since they're independent
+          console.log(`[ReviewerSubagent] Generating summary and review report for session ${sessionId}`);
+          await Promise.all([
+            sessionAnalyzer.generateSummary(sessionId, true).catch((err) => {
+              console.error(`[ReviewerSubagent] Failed to generate summary:`, err);
+            }),
+            sessionAnalyzer.generateReviewReport(sessionId, true).catch((err) => {
+              console.error(`[ReviewerSubagent] Failed to generate review report:`, err);
+            }),
+          ]);
 
           // Create notification
           await this.createNotification(ticketId, result);
