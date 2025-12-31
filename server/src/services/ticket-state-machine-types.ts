@@ -81,6 +81,7 @@ export interface TransitionRequest {
   reason: TransitionReason;
   feedback?: string;       // Required for rejections
   triggeredBy?: string;    // Session ID or user identifier
+  force?: boolean;         // Skip validation (for manual drag-drop)
 }
 
 /**

@@ -30,6 +30,8 @@ import type {
   SessionActivity,
   NotificationsResponse,
   NotificationCountResponse,
+  ReviewHistoryResponse,
+  TriggerReviewResponse,
 } from '@/types/api';
 
 // ============================================================================
@@ -237,6 +239,12 @@ class ApiClient {
     return this.request(`/sessions/${sessionId}/activity?lines=${lines}`);
   }
 
+  async triggerReview(sessionId: string): Promise<TriggerReviewResponse> {
+    return this.request(`/sessions/${sessionId}/trigger-review`, {
+      method: 'POST',
+    });
+  }
+
   // Git
   async getDiff(projectId: string, baseBranch?: string): Promise<DiffResult> {
     const query = baseBranch ? `?base_branch=${baseBranch}` : '';
@@ -266,6 +274,10 @@ class ApiClient {
   async getTicketHistory(ticketId: string): Promise<StateHistoryEntry[]> {
     const response = await this.request<{ data: StateHistoryEntry[] }>(`/tickets/${ticketId}/history`);
     return response.data;
+  }
+
+  async getTicketReviewHistory(ticketId: string): Promise<ReviewHistoryResponse> {
+    return this.request(`/tickets/${ticketId}/review-history`);
   }
 
   // tmux Discovery

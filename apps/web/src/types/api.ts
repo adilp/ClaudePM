@@ -307,6 +307,37 @@ export interface SessionActivity {
 }
 
 // ============================================================================
+// Review Result Types
+// ============================================================================
+
+export type ReviewDecision = 'complete' | 'not_complete' | 'needs_clarification';
+export type ReviewTrigger = 'stop_hook' | 'idle_timeout' | 'completion_signal' | 'manual';
+
+export interface ReviewResultEntry {
+  id: string;
+  session_id: string;
+  trigger: ReviewTrigger;
+  decision: ReviewDecision;
+  reasoning: string;
+  created_at: string;
+  session_status?: SessionStatus;
+}
+
+export interface ReviewHistoryResponse {
+  ticketId: string;
+  results: ReviewResultEntry[];
+}
+
+export interface TriggerReviewResponse {
+  session_id: string;
+  ticket_id: string;
+  trigger: ReviewTrigger;
+  decision: ReviewDecision;
+  reasoning: string;
+  timestamp: string;
+}
+
+// ============================================================================
 // Notification Types
 // ============================================================================
 

@@ -238,7 +238,8 @@ export type TicketTransitionReason =
   | 'session_started'
   | 'completion_detected'
   | 'user_approved'
-  | 'user_rejected';
+  | 'user_rejected'
+  | 'user_updated';
 
 /**
  * Ticket state change message

@@ -36,6 +36,7 @@ import {
   AnalysisTimeoutError,
   AnalysisParseError,
 } from '../services/session-analyzer.js';
+import { reviewerSubagent, ReviewerError } from '../services/reviewer-subagent.js';
 import type { Session } from '../generated/prisma/index.js';
 
 const router = Router();
@@ -846,6 +847,64 @@ router.post(
     } catch (err) {
       console.error('[Scroll API] Error:', err);
       res.status(500).json({ error: 'Failed to execute scroll action' });
+    }
+  })
+);
+
+/**
+ * Manually trigger a review for a session
+ * POST /sessions/:id/trigger-review
+ *
+ * Triggers the reviewer subagent to evaluate if the ticket work is complete.
+ * Returns the review result with decision and reasoning.
+ */
+router.post(
+  '/sessions/:id/trigger-review',
+  asyncHandler(async (req, res) => {
+    const { id } = sessionIdSchema.parse(req.params);
+
+    // Get session with ticket info
+    const { prisma } = await import('../config/db.js');
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: { ticket: true },
+    });
+
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    if (!session.ticketId) {
+      res.status(400).json({ error: 'Session is not associated with a ticket' });
+      return;
+    }
+
+    try {
+      const result = await reviewerSubagent.review({
+        sessionId: id,
+        ticketId: session.ticketId,
+        trigger: 'manual',
+      });
+
+      res.json({
+        session_id: id,
+        ticket_id: session.ticketId,
+        trigger: 'manual',
+        decision: result.decision,
+        reasoning: result.reasoning,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err) {
+      if (err instanceof ReviewerError) {
+        if (err.code === 'REVIEW_IN_PROGRESS') {
+          res.status(409).json({ error: 'Review already in progress for this session' });
+          return;
+        }
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      throw err;
     }
   })
 );

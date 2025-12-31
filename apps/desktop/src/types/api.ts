@@ -371,12 +371,80 @@ export interface NotificationWsMessage {
   };
 }
 
+/** Ticket state transition trigger */
+export type TicketTransitionTrigger = 'auto' | 'manual';
+
+/** Ticket state transition reason */
+export type TicketTransitionReason =
+  | 'session_started'
+  | 'completion_detected'
+  | 'user_approved'
+  | 'user_rejected'
+  | 'user_updated';
+
+/** WebSocket ticket state change message (broadcasted when ticket state changes) */
+export interface TicketStateMessage {
+  type: 'ticket:state';
+  payload: {
+    ticketId: string;
+    previousState: TicketState;
+    newState: TicketState;
+    trigger: TicketTransitionTrigger;
+    reason: TicketTransitionReason;
+    timestamp: string;
+    feedback?: string;
+    triggeredBy?: string;
+  };
+}
+
+/** Review result types */
+export type ReviewDecision = 'complete' | 'not_complete' | 'needs_clarification';
+export type ReviewTrigger = 'stop_hook' | 'idle_timeout' | 'completion_signal' | 'manual';
+
+export interface ReviewResultMessage {
+  type: 'review:result';
+  payload: {
+    sessionId: string;
+    ticketId: string;
+    trigger: ReviewTrigger;
+    decision: ReviewDecision;
+    reasoning: string;
+    timestamp: string;
+  };
+}
+
+export interface ReviewResultEntry {
+  id: string;
+  session_id: string;
+  trigger: ReviewTrigger;
+  decision: ReviewDecision;
+  reasoning: string;
+  created_at: string;
+  session_status?: SessionStatus;
+}
+
+export interface ReviewHistoryResponse {
+  ticketId: string;
+  results: ReviewResultEntry[];
+}
+
+export interface TriggerReviewResponse {
+  session_id: string;
+  ticket_id: string;
+  trigger: ReviewTrigger;
+  decision: ReviewDecision;
+  reasoning: string;
+  timestamp: string;
+}
+
 /** Union of all incoming WebSocket message types */
 export type IncomingMessage =
   | SessionStatusMessage
   | SessionWaitingMessage
   | AiAnalysisStatusMessage
   | NotificationWsMessage
+  | TicketStateMessage
+  | ReviewResultMessage
   | WebSocketMessage;
 
 // ============================================================================

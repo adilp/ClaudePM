@@ -267,6 +267,22 @@ export async function getTicketHistory(
   return response.data;
 }
 
+import type { ReviewHistoryResponse, TriggerReviewResponse } from '../types/api';
+
+export async function getTicketReviewHistory(
+  ticketId: string
+): Promise<ReviewHistoryResponse> {
+  return request<ReviewHistoryResponse>(`/api/tickets/${ticketId}/review-history`);
+}
+
+export async function triggerReview(
+  sessionId: string
+): Promise<TriggerReviewResponse> {
+  return request<TriggerReviewResponse>(`/api/sessions/${sessionId}/trigger-review`, {
+    method: 'POST',
+  });
+}
+
 // ============================================================================
 // Sessions
 // ============================================================================

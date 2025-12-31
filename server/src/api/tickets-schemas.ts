@@ -55,6 +55,7 @@ export const transitionReasonEnum = z.enum([
   'completion_detected',
   'user_approved',
   'user_rejected',
+  'user_updated',
 ]);
 
 // Types derived from schemas

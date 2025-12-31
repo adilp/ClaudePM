@@ -944,6 +944,9 @@ export class WebSocketManager {
       payload,
     };
 
+    console.log(
+      `[WebSocket] Broadcasting ticket:state - ${payload.ticketId} moved from ${payload.previousState} to ${payload.newState}`
+    );
     this.broadcast(message);
   }
 

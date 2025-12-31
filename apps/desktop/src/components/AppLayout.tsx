@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
 import { useServerNotifications } from '../hooks/useServerNotifications';
+import { useTicketStateListener } from '../hooks/useTicketStateListener';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useNotificationCount } from '../hooks/useNotifications';
 import { useUIStore } from '../stores/uiStore';
@@ -28,6 +29,9 @@ export function AppLayout() {
 
   // Listen to WebSocket for real-time notifications
   useServerNotifications({ lastMessage });
+
+  // Listen to WebSocket for real-time ticket state changes (kanban board updates)
+  useTicketStateListener({ lastMessage });
 
   // Check if Projects nav item is active
   const isProjectsActive =

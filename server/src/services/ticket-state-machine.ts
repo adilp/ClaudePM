@@ -103,7 +103,7 @@ export class TicketStateMachine extends TypedEventEmitter {
    * Transition a ticket to a new state
    */
   async transition(request: TransitionRequest): Promise<TransitionResult> {
-    const { ticketId, targetState, trigger, reason, feedback, triggeredBy } = request;
+    const { ticketId, targetState, trigger, reason, feedback, triggeredBy, force } = request;
 
     // Fetch current ticket
     const ticket = await prisma.ticket.findUnique({
@@ -116,8 +116,8 @@ export class TicketStateMachine extends TypedEventEmitter {
 
     const fromState = ticket.state;
 
-    // Validate transition
-    if (!this.canTransition(fromState, targetState)) {
+    // Validate transition (unless force is true for manual operations)
+    if (!force && !this.canTransition(fromState, targetState)) {
       throw new InvalidTransitionError(fromState, targetState);
     }
 

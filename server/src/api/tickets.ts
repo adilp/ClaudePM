@@ -300,7 +300,7 @@ router.post(
 
 /**
  * PATCH /api/tickets/:id
- * Update ticket state
+ * Update ticket state (uses state machine for proper event emission)
  */
 router.patch(
   '/tickets/:id',
@@ -308,12 +308,29 @@ router.patch(
     const { id } = ticketIdParamSchema.parse(req.params);
     const input = updateTicketSchema.parse(req.body);
 
-    const updateData: { state?: typeof input.state } = {};
-    if (input.state !== undefined) {
-      updateData.state = input.state;
-    }
+    let ticket: Ticket;
 
-    const ticket = await updateTicket(id, updateData);
+    if (input.state !== undefined) {
+      // Use state machine for state changes to emit events for real-time updates
+      // force: true allows any transition for manual drag-drop operations
+      await ticketStateMachine.transition({
+        ticketId: id,
+        targetState: input.state,
+        trigger: 'manual',
+        reason: 'user_updated',
+        force: true,
+      });
+
+      // Fetch the updated ticket
+      const updated = await prisma.ticket.findUnique({ where: { id } });
+      if (!updated) {
+        throw new TicketNotFoundError(id);
+      }
+      ticket = updated;
+    } else {
+      // No state change, use direct update
+      ticket = await updateTicket(id, {});
+    }
 
     res.json(toTicketSummaryResponse(ticket));
   })

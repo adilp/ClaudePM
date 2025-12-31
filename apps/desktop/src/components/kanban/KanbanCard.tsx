@@ -7,6 +7,7 @@ import { useDraggable } from '@dnd-kit/core';
 import { useNavigate } from 'react-router-dom';
 import { GripVertical, FileText, Play, Search } from 'lucide-react';
 import { useStartTicket } from '../../hooks/useTickets';
+import { useUIStore } from '../../stores/uiStore';
 import type { Ticket } from '../../types/api';
 
 interface KanbanCardProps {
@@ -22,6 +23,8 @@ export function KanbanCard({
 }: KanbanCardProps) {
   const navigate = useNavigate();
   const startTicket = useStartTicket();
+  const highlightedTicketId = useUIStore((state) => state.highlightedTicketId);
+  const isHighlighted = highlightedTicketId === ticket.id;
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: ticket.id,
     data: {
@@ -64,6 +67,7 @@ export function KanbanCard({
         hover:border-primary/50 hover:shadow-md transition-colors transition-shadow
         ${ticket.is_explore ? 'bg-indigo-50 dark:bg-indigo-950 border-indigo-200 dark:border-indigo-800' : 'bg-card'}
         ${isDragging ? 'shadow-lg ring-2 ring-primary z-50' : ''}
+        ${isHighlighted ? 'ticket-highlight' : ''}
       `}
     >
       {/* Drag Handle Icon (visual indicator) */}

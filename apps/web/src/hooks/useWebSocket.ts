@@ -105,12 +105,28 @@ export interface AiAnalysisStatusMessage {
   };
 }
 
+export type ReviewDecision = 'complete' | 'not_complete' | 'needs_clarification';
+export type ReviewTrigger = 'stop_hook' | 'idle_timeout' | 'completion_signal' | 'manual';
+
+export interface ReviewResultMessage {
+  type: 'review:result';
+  payload: {
+    sessionId: string;
+    ticketId: string;
+    trigger: ReviewTrigger;
+    decision: ReviewDecision;
+    reasoning: string;
+    timestamp: string;
+  };
+}
+
 export type IncomingMessage =
   | SessionOutputMessage
   | SessionStatusMessage
   | SessionWaitingMessage
   | TicketStateMessage
   | AiAnalysisStatusMessage
+  | ReviewResultMessage
   | PtyAttachedMessage
   | PtyDetachedMessage
   | PtyOutputMessage

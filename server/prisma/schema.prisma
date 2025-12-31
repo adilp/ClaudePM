@@ -50,6 +50,7 @@ enum TransitionReason {
   completion_detected
   user_approved
   user_rejected
+  user_updated
 }
 
 // Models

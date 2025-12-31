@@ -8,6 +8,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { SessionSummaryCard, ReviewReportPanel } from '../components/session';
+import { ReviewResultBanner } from '../components/ticket/ReviewResultBanner';
+import { ReviewHistoryPanel } from '../components/ticket/ReviewHistoryPanel';
 import {
   useTicket,
   useTicketContent,
@@ -21,6 +23,8 @@ import {
   useStartTicket,
 } from '../hooks/useTickets';
 import { useSessions } from '../hooks/useSessions';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { useReviewResults, useTriggerReview } from '../hooks/useReviewResults';
 import type { TicketState } from '../types/api';
 import {
   ArrowLeft,
@@ -37,6 +41,8 @@ import {
   Save,
   Sparkles,
   AlertCircle,
+  ClipboardCheck,
+  Loader2,
 } from 'lucide-react';
 
 const stateStyles: Record<TicketState, string> = {
@@ -56,6 +62,7 @@ export function TicketDetail() {
   const { data: ticketContent } = useTicketContent(ticketId!);
   const { data: ticketHistory } = useTicketHistory(ticketId!);
   const { data: sessions } = useSessions(projectId);
+  const { lastMessage } = useWebSocket();
 
   // Mutations
   const updateState = useUpdateTicketState();
@@ -66,6 +73,10 @@ export function TicketDetail() {
   const deleteTicket = useDeleteTicket();
   const startTicket = useStartTicket();
 
+  // Review results with real-time WebSocket updates
+  const { latestResult, results: reviewResults, isLoading: reviewResultsLoading, refresh: refreshReviewResults } = useReviewResults(ticketId, lastMessage);
+  const triggerReview = useTriggerReview(ticketId);
+
   // Local state
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectFeedback, setRejectFeedback] = useState('');
@@ -75,21 +86,19 @@ export function TicketDetail() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
 
-  // Check if this ticket has a running session
-  const hasRunningSession =
-    sessions?.some(
-      (s) => s.ticket_id === ticketId && s.status === 'running'
-    ) ?? false;
+  // Get sessions for this ticket
+  const ticketSessions = sessions?.filter((s) => s.ticket_id === ticketId) ?? [];
 
-  // Get the most recent session for this ticket
-  const ticketSessions =
-    sessions?.filter((s) => s.ticket_id === ticketId) ?? [];
-  const latestSession =
-    ticketSessions.length > 0
-      ? ticketSessions.reduce((latest, s) =>
-          new Date(s.created_at) > new Date(latest.created_at) ? s : latest
-        )
-      : null;
+  // Check if this ticket has a running session
+  const runningSession = ticketSessions.find((s) => s.status === 'running');
+  const hasRunningSession = !!runningSession;
+
+  // Get the most recent session for this ticket (prefer running, then latest)
+  const latestSession = runningSession ?? (ticketSessions.length > 0
+    ? ticketSessions.reduce((latest, s) =>
+        new Date(s.created_at) > new Date(latest.created_at) ? s : latest
+      )
+    : null);
 
   // Find when ticket was moved to review status
   const reviewedAtEntry = ticketHistory?.find(
@@ -320,6 +329,23 @@ export function TicketDetail() {
             </Link>
           )}
 
+          {/* Trigger Review button - show when there's a session for this ticket */}
+          {latestSession && ticket.state !== 'done' && (
+            <button
+              onClick={() => triggerReview.mutate(latestSession.id)}
+              disabled={triggerReview.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-500/15 text-purple-400 border border-purple-500/30 rounded-lg text-sm font-medium hover:bg-purple-500/25 transition-colors disabled:opacity-50"
+              title="Manually trigger a review to check if work is complete"
+            >
+              {triggerReview.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ClipboardCheck className="h-4 w-4" />
+              )}
+              {triggerReview.isPending ? 'Reviewing...' : 'Trigger Review'}
+            </button>
+          )}
+
           {/* Review state buttons */}
           {ticket.state === 'review' && (
             <>
@@ -370,6 +396,11 @@ export function TicketDetail() {
           )}
         </div>
       </div>
+
+      {/* Latest Review Result Banner */}
+      {latestResult && (
+        <ReviewResultBanner result={latestResult} />
+      )}
 
       {/* Ticket Content */}
       <div className="bg-surface-secondary border border-line rounded-xl overflow-hidden">
@@ -486,6 +517,15 @@ export function TicketDetail() {
               <ReviewReportPanel sessionId={latestSession.id} />
             )}
           </div>
+
+          {/* Review History - Show all review attempts */}
+          {reviewResults.length > 0 && (
+            <ReviewHistoryPanel
+              results={reviewResults}
+              isLoading={reviewResultsLoading}
+              onRefresh={refreshReviewResults}
+            />
+          )}
         </div>
       )}
 
