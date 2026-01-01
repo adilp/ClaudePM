@@ -9,8 +9,6 @@
 /* Begin PBXBuildFile section */
 		A1000001A1000001A1000001 /* ClaudePMApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001A1000001A1000000 /* ClaudePMApp.swift */; };
 		A1000002A1000002A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002A1000002A1000000 /* ContentView.swift */; };
-		A100001DA100001DA100001D /* PtyConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001DA100001DA1000000 /* PtyConnection.swift */; };
-		A100001EA100001EA100001E /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001EA100001EA1000000 /* TerminalView.swift */; };
 		A1000003A1000003A1000003 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000003A1000003A1000000 /* SettingsView.swift */; };
 		A1000004A1000004A1000004 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004A1000004A1000000 /* Session.swift */; };
 		A1000005A1000005A1000005 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000005A1000005A1000000 /* APIClient.swift */; };
@@ -35,6 +33,11 @@
 		A100001AA100001AA100001A /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001AA100001AA1000000 /* NotificationManager.swift */; };
 		A100001BA100001BA100001B /* NotificationBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001BA100001BA1000000 /* NotificationBannerView.swift */; };
 		A100001CA100001CA100001C /* NotificationsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001CA100001CA1000000 /* NotificationsListView.swift */; };
+		A100001DA100001DA100001D /* PtyConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001DA100001DA1000000 /* PtyConnection.swift */; };
+		A100001EA100001EA100001E /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100001EA100001EA1000000 /* TerminalView.swift */; };
+		C52F58572F06082F00531618 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = A1000701A1000701A1000701 /* SwiftTerm */; };
+		C52F585A2F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C52F58582F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Bold.ttf */; };
+		C52F585B2F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C52F58592F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,8 +53,6 @@
 /* Begin PBXFileReference section */
 		A1000001A1000001A1000000 /* ClaudePMApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePMApp.swift; sourceTree = "<group>"; };
 		A1000002A1000002A1000000 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A100001DA100001DA1000000 /* PtyConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PtyConnection.swift; sourceTree = "<group>"; };
-		A100001EA100001EA1000000 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		A1000003A1000003A1000000 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A1000004A1000004A1000000 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		A1000005A1000005A1000000 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -76,8 +77,12 @@
 		A100001AA100001AA1000000 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		A100001BA100001BA1000000 /* NotificationBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationBannerView.swift; sourceTree = "<group>"; };
 		A100001CA100001CA1000000 /* NotificationsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsListView.swift; sourceTree = "<group>"; };
+		A100001DA100001DA1000000 /* PtyConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PtyConnection.swift; sourceTree = "<group>"; };
+		A100001EA100001EA1000000 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		A1000200A1000200A1000001 /* ClaudePM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClaudePM.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000300A1000300A1000001 /* ClaudePMTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ClaudePMTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C52F58582F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMonoNerdFontMono-Bold.ttf"; sourceTree = "<group>"; };
+		C52F58592F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMonoNerdFontMono-Regular.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +90,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C52F58572F06082F00531618 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +186,8 @@
 		A1000460A1000460A1000000 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				C52F58582F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Bold.ttf */,
+				C52F58592F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf */,
 				A1000008A1000008A1000000 /* Assets.xcassets */,
 			);
 			path = Resources;
@@ -301,6 +309,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C52F585A2F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Bold.ttf in Resources */,
+				C52F585B2F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf in Resources */,
 				A1000008A1000008A1000008 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
