@@ -331,7 +331,8 @@ export async function listTickets(
   } else {
     // No prefix filter - show all non-deleted tickets
     where.OR = [
-      { externalId: null }, // Include adhoc tickets
+      { isAdhoc: true }, // Include all adhoc tickets
+      { externalId: null }, // Include tickets with null externalId
       { externalId: { not: { startsWith: 'DELETED:' } } }, // Include non-deleted regular tickets
     ];
   }

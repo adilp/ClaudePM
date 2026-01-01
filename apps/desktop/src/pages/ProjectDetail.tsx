@@ -15,6 +15,7 @@ import { CreateAdhocTicketModal } from '../components/CreateAdhocTicketModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { Button } from '../components/ui/button';
 import { toast } from '../hooks/use-toast';
+import { activateAlacritty } from '../services/window-manager';
 import type { Session, Ticket, TicketState } from '../types/api';
 
 // Column order for keyboard navigation
@@ -242,7 +243,13 @@ export function ProjectDetail() {
         onSuccess: (session) => {
           // Focus the session in tmux
           focusSessionMutation.mutate(session.id, {
-            onSuccess: () => {
+            onSuccess: async () => {
+              // Switch to Alacritty
+              try {
+                await activateAlacritty();
+              } catch (e) {
+                console.warn('Failed to activate Alacritty:', e);
+              }
               toast.success('Session started', 'Adhoc session created and focused');
             },
             onError: () => {
@@ -261,7 +268,13 @@ export function ProjectDetail() {
   // Focus an existing session
   const handleFocusSession = useCallback((sessionId: string) => {
     focusSessionMutation.mutate(sessionId, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Switch to Alacritty
+        try {
+          await activateAlacritty();
+        } catch (e) {
+          console.warn('Failed to activate Alacritty:', e);
+        }
         toast.success('Session focused', 'Pane selected and zoomed');
       },
       onError: (err: Error) => {

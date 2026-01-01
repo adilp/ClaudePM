@@ -63,9 +63,16 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
       // Prevent body scroll
       document.body.style.overflow = 'hidden';
 
-      // Focus the first focusable element in the dialog
+      // Focus element with autoFocus, or fall back to first focusable element
       requestAnimationFrame(() => {
         if (dialogRef.current) {
+          // First try to find an element with autoFocus attribute
+          const autoFocusElement = dialogRef.current.querySelector<HTMLElement>('[autofocus]');
+          if (autoFocusElement) {
+            autoFocusElement.focus();
+            return;
+          }
+          // Fall back to first focusable element
           const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_ELEMENTS);
           const firstElement = focusableElements[0];
           firstElement?.focus();

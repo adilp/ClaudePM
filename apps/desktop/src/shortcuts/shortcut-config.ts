@@ -43,7 +43,6 @@ export const shortcuts: Shortcut[] = [
   { keys: 'h', action: { type: 'action', handler: 'prevColumn' }, description: 'Previous column', scope: 'projectDetail' },
   { keys: 'l', action: { type: 'action', handler: 'nextColumn' }, description: 'Next column', scope: 'projectDetail' },
   { keys: 'Enter', action: { type: 'action', handler: 'openTicket' }, description: 'Open ticket', scope: 'projectDetail' },
-  { keys: 's', action: { type: 'action', handler: 'startTicket' }, description: 'Start session', scope: 'projectDetail' },
   { keys: 'n', action: { type: 'action', handler: 'newAdhoc' }, description: 'New adhoc ticket', scope: 'projectDetail' },
   { keys: 'r', action: { type: 'action', handler: 'sync' }, description: 'Sync project', scope: 'projectDetail' },
 

@@ -3,11 +3,12 @@
  * Comprehensive ticket view with state management, content editing, and AI analysis
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useShortcutScope } from '../shortcuts';
 import { cn } from '../lib/utils';
 import { MarkdownContent } from '../components/MarkdownContent';
+import { VimEditor } from '../components/VimEditor';
 import { SessionSummaryCard, ReviewReportPanel } from '../components/session';
 import { ReviewResultBanner } from '../components/ticket/ReviewResultBanner';
 import { ReviewHistoryPanel } from '../components/ticket/ReviewHistoryPanel';
@@ -23,7 +24,9 @@ import {
   useDeleteTicket,
   useStartTicket,
 } from '../hooks/useTickets';
-import { useSessions } from '../hooks/useSessions';
+import { useSessions, useFocusSession } from '../hooks/useSessions';
+import { activateAlacritty } from '../services/window-manager';
+import { toast } from '../hooks/use-toast';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useReviewResults, useTriggerReview } from '../hooks/useReviewResults';
 import type { TicketState } from '../types/api';
@@ -73,6 +76,7 @@ export function TicketDetail() {
   const rejectTicket = useRejectTicket();
   const deleteTicket = useDeleteTicket();
   const startTicket = useStartTicket();
+  const focusSession = useFocusSession();
 
   // Review results with real-time WebSocket updates
   const { latestResult, results: reviewResults, isLoading: reviewResultsLoading, refresh: refreshReviewResults } = useReviewResults(ticketId, lastMessage);
@@ -82,10 +86,79 @@ export function TicketDetail() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectFeedback, setRejectFeedback] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+
+  // Scroll container ref
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Vim-style keyboard scrolling
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't scroll when editing or in a modal
+      if (isEditing || isEditingTitle || showRejectModal || showDeleteModal || showStartConfirm) {
+        return;
+      }
+
+      // Don't scroll when focused on input elements
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+        return;
+      }
+
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      const lineHeight = 40; // Approximate line height for small scrolls
+      const pageHeight = container.clientHeight * 0.5; // Half-page for Ctrl+u/d
+
+      switch (e.key) {
+        case 'j':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            container.scrollBy({ top: lineHeight, behavior: 'smooth' });
+          }
+          break;
+        case 'k':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            container.scrollBy({ top: -lineHeight, behavior: 'smooth' });
+          }
+          break;
+        case 'd':
+          if (e.ctrlKey) {
+            e.preventDefault();
+            container.scrollBy({ top: pageHeight, behavior: 'smooth' });
+          }
+          break;
+        case 'u':
+          if (e.ctrlKey) {
+            e.preventDefault();
+            container.scrollBy({ top: -pageHeight, behavior: 'smooth' });
+          }
+          break;
+        case 'g':
+          if (!e.ctrlKey && !e.metaKey) {
+            // gg - go to top (double g, but we'll use single g for simplicity)
+            e.preventDefault();
+            container.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          break;
+        case 'G':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEditing, isEditingTitle, showRejectModal, showDeleteModal, showStartConfirm]);
 
   // Get sessions for this ticket
   const ticketSessions = sessions?.filter((s) => s.ticket_id === ticketId) ?? [];
@@ -101,13 +174,9 @@ export function TicketDetail() {
 
   const handleStartWithShortcut = useCallback(() => {
     if (ticket && !hasRunningSession && ticket.state !== 'done') {
-      startTicket.mutate(ticketId!, {
-        onSuccess: (result) => {
-          navigate(`/sessions/${result.session.id}`);
-        },
-      });
+      setShowStartConfirm(true);
     }
-  }, [ticket, hasRunningSession, ticketId, startTicket, navigate]);
+  }, [ticket, hasRunningSession]);
 
   const handleApproveWithShortcut = useCallback(() => {
     if (ticket?.state === 'review') {
@@ -157,9 +226,31 @@ export function TicketDetail() {
   };
 
   const handleStartSession = () => {
+    setShowStartConfirm(true);
+  };
+
+  const confirmStartSession = () => {
+    setShowStartConfirm(false);
     startTicket.mutate(ticketId!, {
       onSuccess: (result) => {
-        navigate(`/sessions/${result.session.id}`);
+        // Focus the session in tmux and switch to Alacritty
+        focusSession.mutate(result.session.id, {
+          onSuccess: async () => {
+            try {
+              await activateAlacritty();
+              toast.success('Session started', `Ticket ${ticket?.external_id || ticketId} is now running`);
+            } catch (e) {
+              console.warn('Failed to activate Alacritty:', e);
+              toast.success('Session started', 'Session created and focused');
+            }
+          },
+          onError: () => {
+            toast.success('Session started', 'Session created');
+          },
+        });
+      },
+      onError: (err: Error) => {
+        toast.error('Failed to start session', err.message);
       },
     });
   };
@@ -246,6 +337,10 @@ export function TicketDetail() {
   }
 
   return (
+    <div
+      ref={scrollContainerRef}
+      className="h-full overflow-y-auto"
+    >
     <div className="p-6 max-w-[1200px] mx-auto space-y-6">
       {/* Breadcrumb */}
       <Link
@@ -465,12 +560,15 @@ export function TicketDetail() {
         </div>
         {isEditing ? (
           <div className="p-5">
-            <textarea
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              className="w-full h-96 px-4 py-3 bg-surface-primary border border-line rounded-lg text-content-primary font-mono text-sm resize-none outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="Enter ticket content in markdown..."
-            />
+            <div className="h-96">
+              <VimEditor
+                value={editContent}
+                onChange={setEditContent}
+                placeholder="Enter ticket content in markdown..."
+                onSave={handleUpdateContent}
+                onCancel={() => setIsEditing(false)}
+              />
+            </div>
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setIsEditing(false)}
@@ -644,6 +742,52 @@ export function TicketDetail() {
           </div>
         </div>
       )}
+
+      {/* Start Session Confirmation Modal */}
+      {showStartConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              confirmStartSession();
+            } else if (e.key === 'Escape') {
+              setShowStartConfirm(false);
+            }
+          }}
+        >
+          <div className="bg-surface-secondary rounded-xl border border-line shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-content-primary">
+              <Play className="h-5 w-5 text-green-500" />
+              Start Session
+            </h3>
+            <p className="text-sm text-content-secondary mb-4">
+              Start a Claude session for this ticket? This will open Alacritty and focus the tmux pane.
+            </p>
+            <div className="rounded-lg bg-surface-primary p-3 mb-4">
+              <p className="font-medium text-sm text-content-primary">{ticket?.title}</p>
+              <p className="text-xs text-content-muted">{ticket?.external_id}</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowStartConfirm(false)}
+                className="px-4 py-2 text-sm rounded-lg border border-line hover:bg-surface-tertiary text-content-primary transition-colors"
+              >
+                Cancel <span className="text-content-muted ml-1">(Esc)</span>
+              </button>
+              <button
+                onClick={confirmStartSession}
+                disabled={startTicket.isPending}
+                autoFocus
+                className="px-4 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {startTicket.isPending ? 'Starting...' : 'Start'} <span className="opacity-70 ml-1">(Enter)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }
