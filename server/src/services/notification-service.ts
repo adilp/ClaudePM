@@ -4,8 +4,8 @@
  * Handles database persistence, WebSocket broadcast, and push notifications
  */
 
-import { EventEmitter } from 'events';
 import { prisma } from '../config/db.js';
+import { TypedEventEmitter } from '../utils/typed-event-emitter.js';
 import type { Notification, NotificationType } from '../generated/prisma/index.js';
 
 // ============================================================================
@@ -51,33 +51,6 @@ export interface PushNotificationPayload {
 }
 
 // ============================================================================
-// Typed EventEmitter
-// ============================================================================
-
-class TypedEventEmitter extends EventEmitter {
-  on<K extends keyof NotificationServiceEvents>(
-    event: K,
-    listener: NotificationServiceEvents[K]
-  ): this {
-    return super.on(event, listener);
-  }
-
-  off<K extends keyof NotificationServiceEvents>(
-    event: K,
-    listener: NotificationServiceEvents[K]
-  ): this {
-    return super.off(event, listener);
-  }
-
-  emit<K extends keyof NotificationServiceEvents>(
-    event: K,
-    ...args: Parameters<NotificationServiceEvents[K]>
-  ): boolean {
-    return super.emit(event, ...args);
-  }
-}
-
-// ============================================================================
 // Notification Service
 // ============================================================================
 
@@ -85,7 +58,7 @@ interface WebSocketManagerInterface {
   sendNotification: (id: string, title: string, body: string) => void;
 }
 
-export class NotificationService extends TypedEventEmitter {
+export class NotificationService extends TypedEventEmitter<NotificationServiceEvents> {
   private wsManager: WebSocketManagerInterface | null = null;
 
   constructor() {

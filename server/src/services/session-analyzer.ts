@@ -5,7 +5,7 @@
  */
 
 import { query, type SDKMessage, type SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
-import { EventEmitter } from 'events';
+import { TypedEventEmitter } from '../utils/typed-event-emitter.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { readFile } from 'fs/promises';
@@ -36,37 +36,10 @@ import {
 const execAsync = promisify(exec);
 
 // ============================================================================
-// Typed EventEmitter
-// ============================================================================
-
-class TypedEventEmitter extends EventEmitter {
-  on<K extends keyof SessionAnalyzerEvents>(
-    event: K,
-    listener: SessionAnalyzerEvents[K]
-  ): this {
-    return super.on(event, listener);
-  }
-
-  off<K extends keyof SessionAnalyzerEvents>(
-    event: K,
-    listener: SessionAnalyzerEvents[K]
-  ): this {
-    return super.off(event, listener);
-  }
-
-  emit<K extends keyof SessionAnalyzerEvents>(
-    event: K,
-    ...args: Parameters<SessionAnalyzerEvents[K]>
-  ): boolean {
-    return super.emit(event, ...args);
-  }
-}
-
-// ============================================================================
 // Session Analyzer Service
 // ============================================================================
 
-export class SessionAnalyzer extends TypedEventEmitter {
+export class SessionAnalyzer extends TypedEventEmitter<SessionAnalyzerEvents> {
   private config: SessionAnalyzerConfig;
   private started = false;
 

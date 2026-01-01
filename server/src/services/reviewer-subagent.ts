@@ -5,7 +5,7 @@
 
 /* global AbortController, AbortSignal */
 
-import { EventEmitter } from 'events';
+import { TypedEventEmitter } from '../utils/typed-event-emitter.js';
 import { exec, spawn, type ExecException } from 'child_process';
 import { promisify } from 'util';
 import { readFile } from 'fs/promises';
@@ -40,37 +40,10 @@ import {
 const execAsync = promisify(exec);
 
 // ============================================================================
-// Typed EventEmitter
-// ============================================================================
-
-class TypedEventEmitter extends EventEmitter {
-  on<K extends keyof ReviewerSubagentEvents>(
-    event: K,
-    listener: ReviewerSubagentEvents[K]
-  ): this {
-    return super.on(event, listener);
-  }
-
-  off<K extends keyof ReviewerSubagentEvents>(
-    event: K,
-    listener: ReviewerSubagentEvents[K]
-  ): this {
-    return super.off(event, listener);
-  }
-
-  emit<K extends keyof ReviewerSubagentEvents>(
-    event: K,
-    ...args: Parameters<ReviewerSubagentEvents[K]>
-  ): boolean {
-    return super.emit(event, ...args);
-  }
-}
-
-// ============================================================================
 // Reviewer Subagent Service
 // ============================================================================
 
-export class ReviewerSubagent extends TypedEventEmitter {
+export class ReviewerSubagent extends TypedEventEmitter<ReviewerSubagentEvents> {
   private config: ReviewerSubagentConfig;
   private started = false;
 

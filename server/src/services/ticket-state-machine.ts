@@ -3,7 +3,7 @@
  * Manages ticket state transitions with validation, history tracking, and events
  */
 
-import { EventEmitter } from 'events';
+import { TypedEventEmitter } from '../utils/typed-event-emitter.js';
 import { prisma } from '../config/db.js';
 import type { TicketStateHistory } from '../generated/prisma/index.js';
 import { sessionSupervisor } from './session-supervisor.js';
@@ -29,37 +29,10 @@ import {
 } from './ticket-state-machine-types.js';
 
 // ============================================================================
-// Typed EventEmitter
-// ============================================================================
-
-class TypedEventEmitter extends EventEmitter {
-  on<K extends keyof TicketStateMachineEvents>(
-    event: K,
-    listener: TicketStateMachineEvents[K]
-  ): this {
-    return super.on(event, listener);
-  }
-
-  off<K extends keyof TicketStateMachineEvents>(
-    event: K,
-    listener: TicketStateMachineEvents[K]
-  ): this {
-    return super.off(event, listener);
-  }
-
-  emit<K extends keyof TicketStateMachineEvents>(
-    event: K,
-    ...args: Parameters<TicketStateMachineEvents[K]>
-  ): boolean {
-    return super.emit(event, ...args);
-  }
-}
-
-// ============================================================================
 // State Machine Service
 // ============================================================================
 
-export class TicketStateMachine extends TypedEventEmitter {
+export class TicketStateMachine extends TypedEventEmitter<TicketStateMachineEvents> {
   private config: StateMachineConfig;
   private started = false;
 
