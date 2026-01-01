@@ -63,6 +63,12 @@ final class WebSocketClient {
     /// Callback for session updates
     var onSessionUpdate: ((SessionUpdate) -> Void)?
 
+    /// Callback when WebSocket connects (initial or reconnect)
+    var onConnected: (() -> Void)?
+
+    /// Callback for ticket state changes (ticketId, newState)
+    var onTicketStateChange: ((String, String) -> Void)?
+
     // MARK: - Singleton
 
     static let shared = WebSocketClient()
@@ -132,6 +138,9 @@ final class WebSocketClient {
             self.state = .connected
             self.reconnectAttempts = 0
             print("[WebSocket] Connected successfully to \(url.absoluteString)")
+
+            // Notify listeners that we're connected (for auto-refresh)
+            self.onConnected?()
         }
     }
 
@@ -487,6 +496,9 @@ final class WebSocketClient {
             newState: newState,
             reason: reason
         )
+
+        // Notify listeners to refresh ticket board
+        onTicketStateChange?(ticketId, newState)
     }
 
     /// Handle subscription confirmation

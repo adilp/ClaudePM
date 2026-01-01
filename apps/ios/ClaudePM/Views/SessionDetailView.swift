@@ -522,6 +522,14 @@ struct FullScreenTerminalView: View {
                 keyboardHeight = 0
             }
         }
+        .onAppear {
+            // Keep screen on while viewing terminal
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+        .onDisappear {
+            // Restore normal screen dimming behavior
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
     }
 
     private func dismissKeyboard() {

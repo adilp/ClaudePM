@@ -102,6 +102,37 @@ struct TicketBoardView: View {
         .task {
             await viewModel.loadProjects()
         }
+        .onAppear {
+            setupWebSocketCallbacks()
+        }
+        .onDisappear {
+            clearWebSocketCallbacks()
+        }
+    }
+
+    // MARK: - WebSocket Integration
+
+    /// Set up WebSocket callbacks for real-time updates
+    private func setupWebSocketCallbacks() {
+        // Auto-refresh when WebSocket connects (initial or reconnect)
+        WebSocketClient.shared.onConnected = { [viewModel] in
+            Task {
+                await viewModel.loadTickets()
+            }
+        }
+
+        // Refresh when ticket state changes
+        WebSocketClient.shared.onTicketStateChange = { [viewModel] _, _ in
+            Task {
+                await viewModel.loadTickets()
+            }
+        }
+    }
+
+    /// Clear WebSocket callbacks when view disappears
+    private func clearWebSocketCallbacks() {
+        WebSocketClient.shared.onConnected = nil
+        WebSocketClient.shared.onTicketStateChange = nil
     }
 
     // MARK: - Board Content
@@ -228,8 +259,21 @@ struct TicketBoardView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            if viewModel.isLoading {
-                ProgressView()
+            HStack(spacing: 16) {
+                // Refresh button
+                Button {
+                    Task {
+                        await viewModel.loadTickets()
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .disabled(viewModel.isLoading)
+
+                // Loading indicator
+                if viewModel.isLoading {
+                    ProgressView()
+                }
             }
         }
     }

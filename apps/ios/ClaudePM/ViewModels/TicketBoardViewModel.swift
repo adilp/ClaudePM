@@ -46,8 +46,7 @@ class TicketBoardViewModel {
             return tickets
         }
         return tickets.filter { ticket in
-            guard let prefix = ticket.prefix else { return false }
-            return selectedPrefixes.contains(prefix)
+            selectedPrefixes.contains(ticket.prefix)
         }
     }
 
