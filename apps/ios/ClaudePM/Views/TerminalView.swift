@@ -42,11 +42,19 @@ struct TerminalView: UIViewRepresentable {
     /// Callback when terminal dimensions are known
     var onDimensionsReady: ((Int, Int) -> Void)?
 
-    init(sessionId: String, connection: PtyConnection, fontSize: CGFloat = TerminalFont.defaultSize, onDimensionsReady: ((Int, Int) -> Void)? = nil) {
+    /// Callback when scroll mode changes
+    var onScrollModeChanged: ((Bool) -> Void)?
+
+    /// Reference to coordinator for external control (e.g., exit scroll mode button)
+    var coordinatorRef: ((Coordinator) -> Void)?
+
+    init(sessionId: String, connection: PtyConnection, fontSize: CGFloat = TerminalFont.defaultSize, onDimensionsReady: ((Int, Int) -> Void)? = nil, onScrollModeChanged: ((Bool) -> Void)? = nil, coordinatorRef: ((Coordinator) -> Void)? = nil) {
         self.sessionId = sessionId
         self.connection = connection
         self.fontSize = fontSize
         self.onDimensionsReady = onDimensionsReady
+        self.onScrollModeChanged = onScrollModeChanged
+        self.coordinatorRef = coordinatorRef
     }
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
@@ -59,11 +67,13 @@ struct TerminalView: UIViewRepresentable {
         terminal.nativeBackgroundColor = UIColor.black
         terminal.nativeForegroundColor = UIColor.white
 
-        // Allow scrolling and selection
-        terminal.allowMouseReporting = false
+        // Allow mouse reporting for tmux scroll support (works with tmux's `set -g mouse on`)
+        terminal.allowMouseReporting = true
+        print("[TerminalView] Created terminal with allowMouseReporting=\(terminal.allowMouseReporting)")
 
-        // Store terminal reference in coordinator
+        // Store terminal reference and sessionId in coordinator
         context.coordinator.terminal = terminal
+        context.coordinator.sessionId = sessionId
 
         // Register with focus manager for keyboard dismissal
         TerminalFocusManager.shared.activeTerminal = terminal
@@ -78,6 +88,18 @@ struct TerminalView: UIViewRepresentable {
         // Set the terminal delegate for input handling
         terminal.terminalDelegate = context.coordinator
 
+        // Wire up scroll mode callback
+        context.coordinator.onScrollModeChanged = onScrollModeChanged
+
+        // Expose coordinator reference for external control
+        coordinatorRef?(context.coordinator)
+
+        // Add pan gesture recognizer for scroll support
+        let panGesture = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePanGesture(_:)))
+        panGesture.delegate = context.coordinator
+        terminal.addGestureRecognizer(panGesture)
+        print("[TerminalView] Added pan gesture recognizer")
+
         return terminal
     }
 
@@ -86,6 +108,13 @@ struct TerminalView: UIViewRepresentable {
         if uiView.font.pointSize != fontSize {
             uiView.font = TerminalFont.regular(size: fontSize)
         }
+
+        // Keep callbacks updated (SwiftUI may recreate closures)
+        context.coordinator.onScrollModeChanged = onScrollModeChanged
+        context.coordinator.sessionId = sessionId
+
+        // Re-expose coordinator reference if needed
+        coordinatorRef?(context.coordinator)
     }
 
     static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: Coordinator) {
@@ -99,21 +128,192 @@ struct TerminalView: UIViewRepresentable {
 
     // MARK: - Coordinator
 
-    class Coordinator: NSObject, TerminalViewDelegate {
+    class Coordinator: NSObject, TerminalViewDelegate, UIGestureRecognizerDelegate {
         let connection: PtyConnection
         var terminal: SwiftTerm.TerminalView?
+        var sessionId: String?
         var onDimensionsReady: ((Int, Int) -> Void)?
         private var hasReportedDimensions = false
+
+        // Scroll gesture tracking
+        private var lastScrollY: CGFloat = 0
+        private var accumulatedScrollDelta: CGFloat = 0
+        private let scrollThreshold: CGFloat = 10 // Points needed to trigger a scroll action (very responsive)
+
+        // Scroll mode state
+        private(set) var isInScrollMode = false
+        var onScrollModeChanged: ((Bool) -> Void)?
+
+        // Haptic feedback generators
+        private let lightHaptic = UIImpactFeedbackGenerator(style: .light)
+        private let mediumHaptic = UIImpactFeedbackGenerator(style: .medium)
+
+        // Momentum scrolling
+        private var momentumTimer: Timer?
+        private var currentVelocity: CGFloat = 0
+        private let velocityDecay: CGFloat = 0.85
+        private let minVelocityThreshold: CGFloat = 100
 
         init(connection: PtyConnection, onDimensionsReady: ((Int, Int) -> Void)?) {
             self.connection = connection
             self.onDimensionsReady = onDimensionsReady
             super.init()
+            // Prepare haptic engines
+            lightHaptic.prepare()
+            mediumHaptic.prepare()
+        }
+
+        // MARK: - Gesture Handling
+
+        /// Allow pan gesture to work alongside other gestures
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            return true
+        }
+
+        @objc func handlePanGesture(_ gesture: UIPanGestureRecognizer) {
+            let translation = gesture.translation(in: gesture.view)
+            let velocity = gesture.velocity(in: gesture.view)
+
+            switch gesture.state {
+            case .began:
+                print("[TerminalView] Pan gesture BEGAN")
+                lastScrollY = 0
+                accumulatedScrollDelta = 0
+                // Stop any momentum scrolling
+                stopMomentumScrolling()
+
+            case .changed:
+                let deltaY = translation.y - lastScrollY
+                lastScrollY = translation.y
+                accumulatedScrollDelta += deltaY
+
+                // Trigger scroll when threshold is reached
+                if abs(accumulatedScrollDelta) >= scrollThreshold {
+                    // Note: Swipe DOWN means scroll UP (see older content), swipe UP means scroll DOWN
+                    let scrollDirection = accumulatedScrollDelta > 0 ? "up" : "down"
+
+                    // Enter scroll mode on first scroll
+                    if !isInScrollMode {
+                        enterScrollMode()
+                    }
+
+                    sendScrollCommand(direction: scrollDirection)
+
+                    // Light haptic feedback
+                    lightHaptic.impactOccurred()
+
+                    accumulatedScrollDelta = 0
+                }
+
+            case .ended, .cancelled:
+                print("[TerminalView] Pan gesture ENDED, velocity=\(velocity.y)")
+
+                // Start momentum scrolling if velocity is high enough
+                if abs(velocity.y) > minVelocityThreshold && isInScrollMode {
+                    startMomentumScrolling(initialVelocity: velocity.y)
+                }
+
+            default:
+                break
+            }
+        }
+
+        // MARK: - Scroll Mode Management
+
+        private func enterScrollMode() {
+            guard !isInScrollMode else { return }
+            isInScrollMode = true
+            mediumHaptic.impactOccurred()
+            print("[TerminalView] Entered scroll mode, callback exists: \(onScrollModeChanged != nil)")
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                print("[TerminalView] Calling onScrollModeChanged(true)")
+                self.onScrollModeChanged?(true)
+            }
+        }
+
+        func exitScrollMode() {
+            print("[TerminalView] exitScrollMode() called, isInScrollMode=\(isInScrollMode), sessionId=\(sessionId ?? "nil")")
+            guard isInScrollMode else {
+                print("[TerminalView] Not in scroll mode, ignoring exit")
+                return
+            }
+            stopMomentumScrolling()
+
+            guard let sessionId = sessionId else {
+                print("[TerminalView] No sessionId, cannot exit scroll mode")
+                return
+            }
+
+            Task {
+                do {
+                    try await APIClient.shared.sendScrollCommand(sessionId: sessionId, action: "exit")
+                    await MainActor.run { [weak self] in
+                        guard let self = self else { return }
+                        self.isInScrollMode = false
+                        self.mediumHaptic.impactOccurred()
+                        print("[TerminalView] Exited scroll mode, calling callback")
+                        self.onScrollModeChanged?(false)
+                    }
+                } catch {
+                    print("[TerminalView] Exit scroll mode failed: \(error)")
+                }
+            }
+        }
+
+        // MARK: - Momentum Scrolling
+
+        private func startMomentumScrolling(initialVelocity: CGFloat) {
+            currentVelocity = initialVelocity
+
+            momentumTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+                self?.performMomentumScroll()
+            }
+        }
+
+        private func stopMomentumScrolling() {
+            momentumTimer?.invalidate()
+            momentumTimer = nil
+            currentVelocity = 0
+        }
+
+        private func performMomentumScroll() {
+            // Decay velocity
+            currentVelocity *= velocityDecay
+
+            // Stop if velocity is too low
+            if abs(currentVelocity) < minVelocityThreshold {
+                stopMomentumScrolling()
+                return
+            }
+
+            // Scroll based on velocity direction
+            let scrollDirection = currentVelocity > 0 ? "up" : "down"
+            sendScrollCommand(direction: scrollDirection)
+        }
+
+        private func sendScrollCommand(direction: String) {
+            guard let sessionId = sessionId else {
+                print("[TerminalView] No sessionId for scroll command")
+                return
+            }
+
+            Task {
+                do {
+                    try await APIClient.shared.sendScrollCommand(sessionId: sessionId, action: direction)
+                    print("[TerminalView] Scroll command sent: \(direction)")
+                } catch {
+                    print("[TerminalView] Scroll command failed: \(error)")
+                }
+            }
         }
 
         /// Called when the terminal wants to send data (user input)
         func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
             let str = String(bytes: data, encoding: .utf8) ?? ""
+            // Debug: log what's being sent (hex for escape sequences)
+            let hexStr = data.map { String(format: "%02x", $0) }.joined(separator: " ")
+            print("[TerminalView] send: \"\(str.debugDescription)\" hex=[\(hexStr)]")
             connection.send(str)
         }
 
@@ -143,7 +343,7 @@ struct TerminalView: UIViewRepresentable {
 
         /// Called to request scrolling to a specific position
         func scrolled(source: SwiftTerm.TerminalView, position: Double) {
-            // Native scrolling is handled by SwiftTerm
+            print("[TerminalView] scrolled: position=\(position)")
         }
 
         /// Called when the host status changes (cursor shape, etc.)
@@ -168,7 +368,7 @@ struct TerminalView: UIViewRepresentable {
 
         /// Called when the selection changes
         func selectionChanged(source: SwiftTerm.TerminalView) {
-            // Selection handling for copy/paste
+            print("[TerminalView] selectionChanged")
         }
 
         /// Called to report the current working directory changed
@@ -183,7 +383,7 @@ struct TerminalView: UIViewRepresentable {
 
         /// Report the mouse mode has changed
         func mouseModeChanged(source: SwiftTerm.TerminalView, mode: Terminal.MouseMode) {
-            // Mouse mode handling
+            print("[TerminalView] mouseModeChanged: mode=\(mode)")
         }
 
         /// Clipboard request
@@ -205,7 +405,7 @@ struct TerminalView: UIViewRepresentable {
 
         /// Report rangeChanged event
         func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {
-            // Range changed
+            print("[TerminalView] rangeChanged: startY=\(startY) endY=\(endY)")
         }
     }
 }

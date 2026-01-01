@@ -420,6 +420,41 @@ actor APIClient {
         }
     }
 
+    // MARK: - Terminal Control Methods
+
+    /// Send a scroll command to the session's terminal (tmux copy-mode)
+    /// - Parameters:
+    ///   - sessionId: The session ID
+    ///   - action: Scroll action: "up", "down", "enter", or "exit"
+    func sendScrollCommand(sessionId: String, action: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)/scroll")
+
+        let body: [String: String] = ["action": action]
+        let jsonData = try JSONEncoder().encode(body)
+
+        let (_, response) = try await performRequest(url: url, method: "POST", body: jsonData, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.serverError(404)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// Perform a network request with optional method and body
