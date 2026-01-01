@@ -57,6 +57,12 @@ export function useStopSession() {
   });
 }
 
+export function useFocusSession() {
+  return useMutation({
+    mutationFn: (sessionId: string) => api.focusSession(sessionId),
+  });
+}
+
 export function useSendInput() {
   return useMutation({
     mutationFn: ({ sessionId, text }: { sessionId: string; text: string }) =>

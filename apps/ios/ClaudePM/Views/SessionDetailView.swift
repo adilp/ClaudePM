@@ -11,6 +11,12 @@ struct SessionDetailView: View {
     /// Whether terminal is in full-screen mode
     @State private var isTerminalFullScreen = false
 
+    /// Whether we're currently stopping the session
+    @State private var isStoppingSession = false
+
+    /// Environment to dismiss the view after stopping
+    @Environment(\.dismiss) private var dismiss
+
     init(session: Session) {
         self.session = session
         self._currentSession = State(initialValue: session)
@@ -40,6 +46,24 @@ struct SessionDetailView: View {
         }
         .navigationTitle(sessionTitle)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if isSessionActive {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        stopSession()
+                    } label: {
+                        if isStoppingSession {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "stop.fill")
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    .disabled(isStoppingSession)
+                }
+            }
+        }
         .onAppear {
             startWebSocketObserving()
         }
@@ -51,6 +75,48 @@ struct SessionDetailView: View {
                 session: currentSession,
                 isPresented: $isTerminalFullScreen
             )
+        }
+    }
+
+    /// Whether the session is currently active (can be stopped)
+    private var isSessionActive: Bool {
+        currentSession.status == .running || currentSession.status == .paused
+    }
+
+    /// Stop the current session
+    private func stopSession() {
+        isStoppingSession = true
+        Task {
+            do {
+                try await APIClient.shared.stopSession(sessionId: currentSession.id)
+                await MainActor.run {
+                    isStoppingSession = false
+                    // Update local state to reflect stopped status
+                    currentSession = Session(
+                        id: currentSession.id,
+                        projectId: currentSession.projectId,
+                        ticketId: currentSession.ticketId,
+                        type: currentSession.type,
+                        status: .completed,
+                        contextPercent: currentSession.contextPercent,
+                        paneId: currentSession.paneId,
+                        startedAt: currentSession.startedAt,
+                        endedAt: Date(),
+                        createdAt: currentSession.createdAt,
+                        updatedAt: Date(),
+                        project: currentSession.project,
+                        ticket: currentSession.ticket
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    isStoppingSession = false
+                    NotificationManager.shared.notifyError(
+                        code: "STOP_SESSION_FAILED",
+                        message: "Failed to stop session: \(error.localizedDescription)"
+                    )
+                }
+            }
         }
     }
 

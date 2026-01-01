@@ -55,6 +55,12 @@ class SessionListViewModel {
         }
     }
 
+    /// Add a newly created session to the list
+    func addSession(_ session: Session) {
+        // Insert at the beginning since it's the newest
+        sessions.insert(session, at: 0)
+    }
+
     // MARK: - WebSocket Updates
 
     /// Handle a session update from WebSocket

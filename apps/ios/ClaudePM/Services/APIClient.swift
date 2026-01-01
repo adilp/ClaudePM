@@ -358,6 +358,68 @@ actor APIClient {
         }
     }
 
+    // MARK: - Session Methods
+
+    /// Create an adhoc session for a project
+    /// - Parameter projectId: The project ID to create a session for
+    /// - Returns: The created Session
+    func createSession(projectId: String) async throws -> Session {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/sessions")
+        let (data, response) = try await performRequest(url: url, method: "POST", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(Session.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Stop a running session
+    /// - Parameter sessionId: The session ID to stop
+    func stopSession(sessionId: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)/stop")
+        let (_, response) = try await performRequest(url: url, method: "POST", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.serverError(404)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// Perform a network request with optional method and body

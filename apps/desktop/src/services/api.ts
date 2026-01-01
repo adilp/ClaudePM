@@ -312,6 +312,10 @@ export async function stopSession(sessionId: string): Promise<void> {
   return request<void>(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
 }
 
+export async function focusSession(sessionId: string): Promise<void> {
+  return request<void>(`/api/sessions/${sessionId}/focus`, { method: 'POST' });
+}
+
 export async function syncSessions(projectId?: string): Promise<SyncSessionsResult> {
   const query = projectId ? `?project_id=${projectId}` : '';
   return request<SyncSessionsResult>(`/api/sessions/sync${query}`, {

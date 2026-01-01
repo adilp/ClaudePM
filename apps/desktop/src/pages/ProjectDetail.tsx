@@ -7,7 +7,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProject } from '../hooks/useProjects';
 import { useTickets, useStartTicket } from '../hooks/useTickets';
-import { useSessions, useSyncProject } from '../hooks/useSessions';
+import { useSessions, useSyncProject, useStartSession, useFocusSession, useStopSession } from '../hooks/useSessions';
 import { useShortcutScope } from '../shortcuts';
 import { useUIStore } from '../stores/uiStore';
 import { KanbanBoard } from '../components/kanban/KanbanBoard';
@@ -46,9 +46,15 @@ function ContextMeter({ value }: { value: number | null }) {
 // Active session indicator component
 function ActiveSessionIndicator({
   sessions,
+  onFocus,
+  onStop,
+  isStopPending,
 }: {
   projectId: string;
   sessions: Session[] | undefined;
+  onFocus: (sessionId: string) => void;
+  onStop: (sessionId: string) => void;
+  isStopPending: boolean;
 }) {
   const activeSession = sessions?.find(
     (s) => s.status === 'running' || s.status === 'paused'
@@ -57,6 +63,18 @@ function ActiveSessionIndicator({
   if (!activeSession) {
     return null; // Don't show anything if no active session
   }
+
+  const handleFocus = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onFocus(activeSession.id);
+  };
+
+  const handleStop = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onStop(activeSession.id);
+  };
 
   return (
     <Link
@@ -76,22 +94,45 @@ function ActiveSessionIndicator({
         </span>
         <ContextMeter value={activeSession.context_percent} />
       </div>
-      <Button variant="secondary" size="sm">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      <div className="flex items-center gap-2">
+        <Button variant="secondary" size="sm" onClick={handleFocus}>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polygon points="10 8 16 12 10 16 10 8" />
+          </svg>
+          Focus
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleStop}
+          disabled={isStopPending}
+          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
         >
-          <circle cx="12" cy="12" r="10" />
-          <polygon points="10 8 16 12 10 16 10 8" />
-        </svg>
-        Focus
-      </Button>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+          {isStopPending ? 'Stopping...' : 'Stop'}
+        </Button>
+      </div>
     </Link>
   );
 }
@@ -104,6 +145,9 @@ export function ProjectDetail() {
   const { data: sessions } = useSessions(projectId!);
   const syncProject = useSyncProject();
   const startTicketMutation = useStartTicket();
+  const startSessionMutation = useStartSession();
+  const focusSessionMutation = useFocusSession();
+  const stopSessionMutation = useStopSession();
   const [showAdhocModal, setShowAdhocModal] = useState(false);
 
   // Keyboard navigation state
@@ -189,6 +233,54 @@ export function ProjectDetail() {
   const handleNewAdhoc = useCallback(() => {
     setShowAdhocModal(true);
   }, []);
+
+  // Start an adhoc session (no ticket)
+  const handleStartAdhocSession = useCallback(() => {
+    startSessionMutation.mutate(
+      { project_id: projectId! },
+      {
+        onSuccess: (session) => {
+          // Focus the session in tmux
+          focusSessionMutation.mutate(session.id, {
+            onSuccess: () => {
+              toast.success('Session started', 'Adhoc session created and focused');
+            },
+            onError: () => {
+              // Focus failed but session was created
+              toast.success('Session started', 'Adhoc session created');
+            },
+          });
+        },
+        onError: (err: Error) => {
+          toast.error('Failed to start session', err.message);
+        },
+      }
+    );
+  }, [projectId, startSessionMutation, focusSessionMutation]);
+
+  // Focus an existing session
+  const handleFocusSession = useCallback((sessionId: string) => {
+    focusSessionMutation.mutate(sessionId, {
+      onSuccess: () => {
+        toast.success('Session focused', 'Pane selected and zoomed');
+      },
+      onError: (err: Error) => {
+        toast.error('Failed to focus session', err.message);
+      },
+    });
+  }, [focusSessionMutation]);
+
+  // Stop a session
+  const handleStopSession = useCallback((sessionId: string) => {
+    stopSessionMutation.mutate(sessionId, {
+      onSuccess: () => {
+        toast.success('Session stopped', 'Session has been terminated');
+      },
+      onError: (err: Error) => {
+        toast.error('Failed to stop session', err.message);
+      },
+    });
+  }, [stopSessionMutation]);
 
   // Register keyboard shortcuts for this page
   useShortcutScope('projectDetail', {
@@ -344,11 +436,36 @@ export function ProjectDetail() {
             </svg>
             New Adhoc
           </Button>
+          <Button
+            variant="primary"
+            onClick={handleStartAdhocSession}
+            disabled={startSessionMutation.isPending}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            {startSessionMutation.isPending ? 'Starting...' : 'Start Session'}
+          </Button>
         </div>
       </header>
 
       {/* Active Session Indicator */}
-      <ActiveSessionIndicator projectId={projectId!} sessions={sessions} />
+      <ActiveSessionIndicator
+        projectId={projectId!}
+        sessions={sessions}
+        onFocus={handleFocusSession}
+        onStop={handleStopSession}
+        isStopPending={stopSessionMutation.isPending}
+      />
 
       {/* Sprint Board Section */}
       <section className="space-y-4">

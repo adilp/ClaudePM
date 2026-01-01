@@ -85,8 +85,16 @@ struct SessionsTabView: View {
     @State private var viewModel = SessionListViewModel()
     @State private var showingNotifications = false
 
+    // New session creation state
+    @State private var showingProjectPicker = false
+    @State private var projects: [Project] = []
+    @State private var isLoadingProjects = false
+    @State private var isCreatingSession = false
+    @State private var newlyCreatedSession: Session?
+    @State private var navigationPath = NavigationPath()
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             sessionListContent
                 .navigationTitle("Sessions")
                 .toolbar {
@@ -98,6 +106,16 @@ struct SessionsTabView: View {
         }
         .sheet(isPresented: $showingNotifications) {
             NotificationsListView(notificationManager: NotificationManager.shared)
+        }
+        .confirmationDialog("Select Project", isPresented: $showingProjectPicker, titleVisibility: .visible) {
+            ForEach(projects) { project in
+                Button(project.name) {
+                    createSession(for: project)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Choose a project to start an adhoc session")
         }
         .task {
             // Check connection first, then load sessions
@@ -131,6 +149,19 @@ struct SessionsTabView: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
+                // New session button
+                Button {
+                    loadProjectsAndShowPicker()
+                } label: {
+                    if isLoadingProjects || isCreatingSession {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "plus")
+                    }
+                }
+                .disabled(!connectionViewModel.connectionStatus.isConnected || isLoadingProjects || isCreatingSession)
+
                 // Notifications bell
                 NotificationBellButton(unreadCount: NotificationManager.shared.unreadCount) {
                     showingNotifications = true
@@ -304,6 +335,61 @@ struct SessionsTabView: View {
 
     private func stopWebSocketObserving() {
         WebSocketClient.shared.onSessionUpdate = nil
+    }
+
+    // MARK: - New Session Creation
+
+    private func loadProjectsAndShowPicker() {
+        isLoadingProjects = true
+        Task {
+            do {
+                let loadedProjects = try await APIClient.shared.getProjects()
+                await MainActor.run {
+                    projects = loadedProjects
+                    isLoadingProjects = false
+                    if projects.isEmpty {
+                        // No projects available
+                        NotificationManager.shared.notifyError(
+                            code: "NO_PROJECTS",
+                            message: "No projects available. Create a project first."
+                        )
+                    } else {
+                        showingProjectPicker = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isLoadingProjects = false
+                    NotificationManager.shared.notifyError(
+                        code: "LOAD_PROJECTS_FAILED",
+                        message: "Failed to load projects: \(error.localizedDescription)"
+                    )
+                }
+            }
+        }
+    }
+
+    private func createSession(for project: Project) {
+        isCreatingSession = true
+        Task {
+            do {
+                let session = try await APIClient.shared.createSession(projectId: project.id)
+                await MainActor.run {
+                    isCreatingSession = false
+                    // Add to session list and navigate
+                    viewModel.addSession(session)
+                    navigationPath.append(session)
+                }
+            } catch {
+                await MainActor.run {
+                    isCreatingSession = false
+                    NotificationManager.shared.notifyError(
+                        code: "CREATE_SESSION_FAILED",
+                        message: "Failed to create session: \(error.localizedDescription)"
+                    )
+                }
+            }
+        }
     }
 }
 
