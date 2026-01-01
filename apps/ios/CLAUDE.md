@@ -468,6 +468,70 @@ The app connects to the Claude PM backend server.
 ## Bundle Identifier
 `com.claudepm.ios`
 
+## Adding New Swift Files to Xcode Project
+
+**IMPORTANT:** When creating new `.swift` files, you MUST add them to the Xcode project file (`project.pbxproj`). Simply creating the file on disk is NOT enough - Xcode won't compile files it doesn't know about.
+
+### Required Steps for New Files
+
+When adding a new Swift file (e.g., `MyNewView.swift`), you must add **three entries** to `ClaudePM.xcodeproj/project.pbxproj`:
+
+#### 1. PBXBuildFile (in `/* Begin PBXBuildFile section */`)
+```
+MYNEWVIEW001MYNEWVIEW001 /* MyNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MYNEWVIEW000MYNEWVIEW000 /* MyNewView.swift */; };
+```
+
+#### 2. PBXFileReference (in `/* Begin PBXFileReference section */`)
+```
+MYNEWVIEW000MYNEWVIEW000 /* MyNewView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MyNewView.swift; sourceTree = "<group>"; };
+```
+
+#### 3. Add to appropriate PBXGroup (in `/* Begin PBXGroup section */`)
+Find the correct group (folder) and add the file reference to its `children` array:
+```
+A1000470A1000470A1000000 /* Tickets */ = {
+    isa = PBXGroup;
+    children = (
+        ...existing files...,
+        MYNEWVIEW000MYNEWVIEW000 /* MyNewView.swift */,
+    );
+```
+
+#### 4. Add to PBXSourcesBuildPhase (in `/* Begin PBXSourcesBuildPhase section */`)
+Add to the `files` array in the main target's Sources phase:
+```
+A1000200A1000200A1000020 /* Sources */ = {
+    isa = PBXSourcesBuildPhase;
+    ...
+    files = (
+        ...existing files...,
+        MYNEWVIEW001MYNEWVIEW001 /* MyNewView.swift in Sources */,
+    );
+```
+
+### File ID Convention
+- Use unique 24-character IDs (can be alphanumeric)
+- Use `*000*` suffix for file reference, `*001*` suffix for build file
+- Example pattern: `MYNEWVIEW000MYNEWVIEW000` and `MYNEWVIEW001MYNEWVIEW001`
+
+### Group Locations
+| Folder | Group ID | Path |
+|--------|----------|------|
+| App/ | `A1000410A1000410A1000000` | ClaudePM/App |
+| Models/ | `A1000420A1000420A1000000` | ClaudePM/Models |
+| Services/ | `A1000430A1000430A1000000` | ClaudePM/Services |
+| ViewModels/ | `A1000440A1000440A1000000` | ClaudePM/ViewModels |
+| Views/ | `A1000450A1000450A1000000` | ClaudePM/Views |
+| Views/Tickets/ | `A1000470A1000470A1000000` | ClaudePM/Views/Tickets |
+| Views/Components/ | `391CD4AFAA0C073F6288997A` | ClaudePM/Views/Components |
+| Resources/ | `A1000460A1000460A1000000` | ClaudePM/Resources |
+
+### Build Error: "Cannot find 'X' in scope"
+If you see this error after creating a new file, the file is NOT in the Xcode project. Check:
+1. File exists on disk: `ls path/to/MyNewView.swift`
+2. File is in project.pbxproj: `grep "MyNewView.swift" ClaudePM.xcodeproj/project.pbxproj`
+3. If grep returns nothing, add the required entries as described above
+
 ## Common Issues
 
 ### "Failed to fetch sessions: decodingError"

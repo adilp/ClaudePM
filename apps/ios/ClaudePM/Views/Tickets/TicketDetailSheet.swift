@@ -5,7 +5,8 @@ struct TicketDetailSheet: View {
     let ticket: Ticket
     let projectId: String
     let onMove: (TicketStatus) async -> Void
-    let onStart: () async -> Void
+    let onStart: () async -> StartTicketResponse?
+    var onViewSession: ((Session) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var ticketDetail: TicketDetail?
@@ -17,6 +18,7 @@ struct TicketDetailSheet: View {
     @State private var error: String?
     @State private var showDiffViewer = false
     @State private var selectedSection: DetailSection = .content
+    @State private var showStartConfirmation = false
 
     private enum DetailSection: String, CaseIterable {
         case content = "Content"
@@ -90,6 +92,16 @@ struct TicketDetailSheet: View {
         }
         // Otherwise return the most recent session (already sorted by createdAt desc)
         return sessions.first
+    }
+
+    /// Get the running session if one exists
+    private var runningSession: Session? {
+        sessions.first(where: { $0.status == .running })
+    }
+
+    /// Whether the ticket has a running session
+    private var hasRunningSession: Bool {
+        runningSession != nil
     }
 
     // MARK: - Sections
@@ -258,6 +270,30 @@ struct TicketDetailSheet: View {
             Text("Actions")
                 .font(.headline)
 
+            // View Session button (if ticket has a running session)
+            if let session = runningSession, let onViewSession = onViewSession {
+                Button {
+                    dismiss()
+                    // Small delay to let the sheet dismiss before navigating
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        onViewSession(session)
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "terminal.fill")
+                        Text("View Session")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+
             // Move to previous column (if not in backlog)
             if let previousStatus = previousStatus {
                 actionButton(
@@ -280,17 +316,27 @@ struct TicketDetailSheet: View {
                 }
             }
 
-            // Start button (if not done and not currently starting)
-            if ticket.state != .done {
+            // Start button (if not done and no running session)
+            if ticket.state != .done && !hasRunningSession {
                 actionButton(
                     title: "Start Session",
                     icon: "play.circle.fill",
                     color: .orange,
                     isLoading: isStarting
                 ) {
+                    showStartConfirmation = true
+                }
+            }
+        }
+        .alert("Start Session", isPresented: $showStartConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Start") {
+                Task {
                     await performStart()
                 }
             }
+        } message: {
+            Text("Start a Claude session for \"\(ticket.title)\"?")
         }
     }
 
@@ -434,9 +480,29 @@ struct TicketDetailSheet: View {
 
     private func performStart() async {
         isStarting = true
-        await onStart()
+        if let response = await onStart(), let onViewSession = onViewSession {
+            // Navigate to the new session
+            let session = Session(
+                id: response.session.id,
+                projectId: response.session.projectId,
+                ticketId: response.session.ticketId,
+                type: .ticket,
+                status: .running,
+                contextPercent: 0,
+                paneId: response.session.paneId,
+                startedAt: nil,
+                endedAt: nil,
+                createdAt: Date(),
+                updatedAt: Date(),
+                project: SessionProject(id: response.session.projectId, name: ""),
+                ticket: SessionTicket(id: ticket.id, externalId: ticket.externalId, title: ticket.title)
+            )
+            dismiss()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                onViewSession(session)
+            }
+        }
         isStarting = false
-        dismiss()
     }
 }
 
@@ -458,6 +524,6 @@ struct TicketDetailSheet: View {
         ),
         projectId: "test-project",
         onMove: { _ in },
-        onStart: { }
+        onStart: { nil }
     )
 }

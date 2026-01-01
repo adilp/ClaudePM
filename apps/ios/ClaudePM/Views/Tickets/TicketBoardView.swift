@@ -50,6 +50,15 @@ struct TicketBoardView: View {
     @State private var viewModel = TicketBoardViewModel()
     @State private var selectedTicket: Ticket?
     @State private var showingProjectPicker = false
+    @State private var showingCreateTicket = false
+
+    // Start session confirmation
+    @State private var ticketToStart: Ticket?
+    @State private var showingStartConfirmation = false
+    @State private var isStarting = false
+
+    // Session navigation
+    @State private var sessionToView: Session?
 
     /// Device horizontal size class for iPad detection
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -82,7 +91,11 @@ struct TicketBoardView: View {
                         await viewModel.moveTicket(ticket.id, to: newStatus)
                     },
                     onStart: {
-                        _ = await viewModel.startTicket(ticket.id)
+                        await viewModel.startTicket(ticket.id)
+                    },
+                    onViewSession: { session in
+                        selectedTicket = nil // Dismiss the sheet
+                        sessionToView = session
                     }
                 )
             }
@@ -98,6 +111,29 @@ struct TicketBoardView: View {
                         showingProjectPicker = false
                     }
                 )
+            }
+            .sheet(isPresented: $showingCreateTicket) {
+                CreateAdhocTicketSheet(
+                    projectName: selectedProjectName,
+                    onCreate: { title, slug, isExplore in
+                        await viewModel.createAdhocTicket(title: title, slug: slug, isExplore: isExplore)
+                    }
+                )
+            }
+            .alert("Start Session", isPresented: $showingStartConfirmation, presenting: ticketToStart) { ticket in
+                Button("Cancel", role: .cancel) {
+                    ticketToStart = nil
+                }
+                Button("Start") {
+                    Task {
+                        await startSession(for: ticket)
+                    }
+                }
+            } message: { ticket in
+                Text("Start a Claude session for \"\(ticket.title)\"?")
+            }
+            .navigationDestination(item: $sessionToView) { session in
+                SessionDetailView(session: session)
             }
         }
         .task {
@@ -134,6 +170,39 @@ struct TicketBoardView: View {
     private func clearWebSocketCallbacks() {
         WebSocketClient.shared.onConnected = nil
         WebSocketClient.shared.onTicketStateChange = nil
+    }
+
+    // MARK: - Actions
+
+    /// Start a session for a ticket
+    private func startSession(for ticket: Ticket) async {
+        isStarting = true
+
+        if let response = await viewModel.startTicket(ticket.id) {
+            // Convert the StartedSession to a full Session for navigation
+            let session = Session(
+                id: response.session.id,
+                projectId: response.session.projectId,
+                ticketId: response.session.ticketId,
+                type: .ticket,
+                status: .running,
+                contextPercent: 0,
+                paneId: response.session.paneId,
+                startedAt: nil,
+                endedAt: nil,
+                createdAt: Date(),
+                updatedAt: Date(),
+                project: SessionProject(id: response.session.projectId, name: selectedProjectName),
+                ticket: SessionTicket(id: ticket.id, externalId: ticket.externalId, title: ticket.title)
+            )
+            sessionToView = session
+
+            // Reload to update the session state
+            await viewModel.loadTickets()
+        }
+
+        isStarting = false
+        ticketToStart = nil
     }
 
     // MARK: - Board Content
@@ -195,7 +264,15 @@ struct TicketBoardView: View {
                     TicketColumnView(
                         status: status,
                         tickets: viewModel.tickets(for: status),
-                        onTap: { selectedTicket = $0 }
+                        onTap: { selectedTicket = $0 },
+                        runningSessionForTicket: { viewModel.runningSession(for: $0) },
+                        onStart: { ticket in
+                            ticketToStart = ticket
+                            showingStartConfirmation = true
+                        },
+                        onViewSession: { session in
+                            sessionToView = session
+                        }
                     )
                 }
             }
@@ -211,7 +288,15 @@ struct TicketBoardView: View {
                     TicketColumnView(
                         status: status,
                         tickets: viewModel.tickets(for: status),
-                        onTap: { selectedTicket = $0 }
+                        onTap: { selectedTicket = $0 },
+                        runningSessionForTicket: { viewModel.runningSession(for: $0) },
+                        onStart: { ticket in
+                            ticketToStart = ticket
+                            showingStartConfirmation = true
+                        },
+                        onViewSession: { session in
+                            sessionToView = session
+                        }
                     )
                     .frame(width: max(200, columnWidth))
                 }
@@ -261,6 +346,18 @@ struct TicketBoardView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
+                // Create ticket button
+                Button {
+                    showingCreateTicket = true
+                } label: {
+                    if viewModel.isCreating {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "plus")
+                    }
+                }
+                .disabled(viewModel.selectedProjectId == nil || viewModel.isCreating)
+
                 // Refresh button
                 Button {
                     Task {

@@ -3,6 +3,14 @@ import SwiftUI
 /// A card displaying a single ticket in the kanban board
 struct TicketCardView: View {
     let ticket: Ticket
+    var runningSession: Session? = nil
+    var onStart: (() -> Void)? = nil
+    var onViewSession: ((Session) -> Void)? = nil
+
+    /// Whether this ticket can be started (not done, no running session)
+    private var canStart: Bool {
+        ticket.state != .done && runningSession == nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -41,6 +49,56 @@ struct TicketCardView: View {
                 }
 
                 Spacer(minLength: 0)
+            }
+
+            // Action buttons row
+            if onStart != nil || onViewSession != nil {
+                HStack(spacing: 8) {
+                    // Start button (if ticket can be started)
+                    if canStart, let onStart = onStart {
+                        Button {
+                            onStart()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "play.fill")
+                                    .font(.caption2)
+                                Text("Start")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green)
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // View Session button (if ticket has a running session)
+                    if let session = runningSession, let onViewSession = onViewSession {
+                        Button {
+                            onViewSession(session)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "terminal")
+                                    .font(.caption2)
+                                Text("View")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue)
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 4)
             }
         }
         .padding(12)

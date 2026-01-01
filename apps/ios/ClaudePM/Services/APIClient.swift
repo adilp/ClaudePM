@@ -245,6 +245,59 @@ actor APIClient {
         }
     }
 
+    /// Create an adhoc ticket for a project
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - title: Ticket title (3-100 chars)
+    ///   - slug: Ticket slug (3-50 chars, lowercase alphanumeric + hyphens)
+    ///   - isExplore: Whether this is an explore/research-only ticket
+    /// - Returns: The created Ticket
+    func createAdhocTicket(projectId: String, title: String, slug: String, isExplore: Bool = false) async throws -> Ticket {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/adhoc-tickets")
+
+        struct CreateAdhocTicketBody: Encodable {
+            let title: String
+            let slug: String
+            let isExplore: Bool
+        }
+
+        let body = CreateAdhocTicketBody(title: title, slug: slug, isExplore: isExplore)
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let jsonData = try encoder.encode(body)
+
+        let (data, response) = try await performRequest(url: url, method: "POST", body: jsonData, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 409 {
+            throw APIError.serverError(409) // Slug already exists
+        }
+
+        guard httpResponse.statusCode == 201 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(Ticket.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
     /// Get detailed ticket information including content
     /// - Parameter ticketId: The ticket ID
     /// - Returns: TicketDetail with full content

@@ -38,7 +38,21 @@ class TicketBoardViewModel {
     /// Loading state for ticket actions
     private(set) var isUpdating = false
 
+    /// Loading state for ticket creation
+    private(set) var isCreating = false
+
+    /// Last created ticket (for navigation)
+    private(set) var lastCreatedTicket: Ticket?
+
+    /// Running sessions indexed by ticket ID
+    private(set) var sessionsByTicketId: [String: Session] = [:]
+
     // MARK: - Computed Properties
+
+    /// Get running session for a ticket (if any)
+    func runningSession(for ticketId: String) -> Session? {
+        sessionsByTicketId[ticketId]
+    }
 
     /// Tickets filtered by selected prefixes
     var filteredTickets: [Ticket] {
@@ -87,6 +101,7 @@ class TicketBoardViewModel {
         guard let projectId = selectedProjectId else {
             tickets = []
             prefixes = []
+            sessionsByTicketId = [:]
             return
         }
 
@@ -94,13 +109,22 @@ class TicketBoardViewModel {
         error = nil
 
         do {
-            // Load tickets and prefixes in parallel
+            // Load tickets, prefixes, and sessions in parallel
             async let ticketsTask = APIClient.shared.getTickets(projectId: projectId)
             async let prefixesTask = APIClient.shared.getTicketPrefixes(projectId: projectId)
+            async let sessionsTask = APIClient.shared.getSessions()
 
-            let (ticketResponse, loadedPrefixes) = try await (ticketsTask, prefixesTask)
+            let (ticketResponse, loadedPrefixes, allSessions) = try await (ticketsTask, prefixesTask, sessionsTask)
             tickets = ticketResponse.data
             prefixes = loadedPrefixes
+
+            // Build lookup of running sessions by ticket ID
+            sessionsByTicketId = [:]
+            for session in allSessions where session.status == .running {
+                if let ticketId = session.ticketId {
+                    sessionsByTicketId[ticketId] = session
+                }
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -146,6 +170,48 @@ class TicketBoardViewModel {
         } catch {
             self.error = error.localizedDescription
             isUpdating = false
+            return nil
+        }
+    }
+
+    /// Create an adhoc ticket
+    /// - Parameters:
+    ///   - title: Ticket title
+    ///   - slug: Ticket slug (lowercase alphanumeric + hyphens)
+    ///   - isExplore: Whether this is an explore/research-only ticket
+    /// - Returns: The created ticket, or nil if failed
+    @MainActor
+    func createAdhocTicket(title: String, slug: String, isExplore: Bool) async -> Ticket? {
+        guard let projectId = selectedProjectId else {
+            error = "No project selected"
+            return nil
+        }
+
+        isCreating = true
+        error = nil
+
+        do {
+            let ticket = try await APIClient.shared.createAdhocTicket(
+                projectId: projectId,
+                title: title,
+                slug: slug,
+                isExplore: isExplore
+            )
+
+            // Add to local tickets array
+            tickets.insert(ticket, at: 0)
+
+            // Update prefixes if needed
+            if !prefixes.contains(ticket.prefix) {
+                prefixes.append(ticket.prefix)
+            }
+
+            lastCreatedTicket = ticket
+            isCreating = false
+            return ticket
+        } catch {
+            self.error = error.localizedDescription
+            isCreating = false
             return nil
         }
     }

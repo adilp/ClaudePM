@@ -46,6 +46,7 @@
 		C52F585B2F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C52F58592F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf */; };
 		E4FF50B93823CEF46EC44D62 /* ReviewHistoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B8CC33D130D7F588859FF00 /* ReviewHistoryPanel.swift */; };
 		F1LE5TAGER001F1LE5TAGER01 /* FileStagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1LE5TAGER000F1LE5TAGER00 /* FileStagerView.swift */; };
+		CREAT3ADHOC01CREAT3ADHOC01 /* CreateAdhocTicketSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CREAT3ADHOC00CREAT3ADHOC00 /* CreateAdhocTicketSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -99,6 +100,7 @@
 		C52F58582F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMonoNerdFontMono-Bold.ttf"; sourceTree = "<group>"; };
 		C52F58592F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMonoNerdFontMono-Regular.ttf"; sourceTree = "<group>"; };
 		F1LE5TAGER000F1LE5TAGER00 /* FileStagerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileStagerView.swift; sourceTree = "<group>"; };
+		CREAT3ADHOC00CREAT3ADHOC00 /* CreateAdhocTicketSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateAdhocTicketSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -228,6 +230,7 @@
 				A1000016A1000016A1000000 /* TicketCardView.swift */,
 				A1000017A1000017A1000000 /* TicketDetailSheet.swift */,
 				A1000018A1000018A1000000 /* FilterChipsView.swift */,
+				CREAT3ADHOC00CREAT3ADHOC00 /* CreateAdhocTicketSheet.swift */,
 				1A774DCB97C538CB51787D1E /* SessionSummaryCard.swift */,
 				754A0B24F5DFB084B07048A0 /* ReviewReportPanel.swift */,
 				0951EE2550AB4CF2AFFE5048 /* DiffViewer.swift */,
@@ -396,6 +399,7 @@
 				E4FF50B93823CEF46EC44D62 /* ReviewHistoryPanel.swift in Sources */,
 				50C9E3F1376BD91EAD73693B /* ReviewResultBanner.swift in Sources */,
 				F1LE5TAGER001F1LE5TAGER01 /* FileStagerView.swift in Sources */,
+				CREAT3ADHOC01CREAT3ADHOC01 /* CreateAdhocTicketSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

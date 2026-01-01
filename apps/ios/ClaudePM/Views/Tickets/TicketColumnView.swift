@@ -5,6 +5,9 @@ struct TicketColumnView: View {
     let status: TicketStatus
     let tickets: [Ticket]
     let onTap: (Ticket) -> Void
+    var runningSessionForTicket: ((String) -> Session?)? = nil
+    var onStart: ((Ticket) -> Void)? = nil
+    var onViewSession: ((Session) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -55,8 +58,13 @@ struct TicketColumnView: View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 8) {
                 ForEach(tickets) { ticket in
-                    TicketCardView(ticket: ticket)
-                        .onTapGesture { onTap(ticket) }
+                    TicketCardView(
+                        ticket: ticket,
+                        runningSession: runningSessionForTicket?(ticket.id),
+                        onStart: onStart != nil ? { onStart?(ticket) } : nil,
+                        onViewSession: onViewSession
+                    )
+                    .onTapGesture { onTap(ticket) }
                 }
             }
         }
