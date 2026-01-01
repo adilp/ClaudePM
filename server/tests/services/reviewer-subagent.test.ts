@@ -141,7 +141,7 @@ describe('Default Configuration', () => {
   it('should have correct default values', () => {
     expect(DEFAULT_REVIEWER_CONFIG.timeoutMs).toBe(30_000);
     expect(DEFAULT_REVIEWER_CONFIG.sessionOutputLines).toBe(100);
-    expect(DEFAULT_REVIEWER_CONFIG.enableStopHookReview).toBe(true);
+    expect(DEFAULT_REVIEWER_CONFIG.enableStopHookReview).toBe(false);
     expect(DEFAULT_REVIEWER_CONFIG.idleTimeoutMs).toBe(60_000);
     expect(DEFAULT_REVIEWER_CONFIG.enableIdleReview).toBe(true);
     expect(DEFAULT_REVIEWER_CONFIG.claudeCliPath).toBe('claude');

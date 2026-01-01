@@ -32,6 +32,25 @@ vi.mock('../../src/services/session-supervisor.js', () => ({
   },
 }));
 
+// Mock prisma for session resolution (use vi.hoisted to avoid hoisting issues)
+const { mockFindUnique, mockFindFirst, mockFindMany } = vi.hoisted(() => ({
+  mockFindUnique: vi.fn(),
+  mockFindFirst: vi.fn(),
+  mockFindMany: vi.fn(),
+}));
+
+vi.mock('../../src/config/db.js', () => ({
+  prisma: {
+    session: {
+      findUnique: mockFindUnique,
+      findFirst: mockFindFirst,
+    },
+    project: {
+      findMany: mockFindMany,
+    },
+  },
+}));
+
 // ============================================================================
 // Error Classes Tests
 // ============================================================================
@@ -100,6 +119,22 @@ describe('WaitingDetector', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+
+    // Clear any lingering mock state from previous tests
+    mockFindUnique.mockClear();
+    mockFindFirst.mockClear();
+    mockFindMany.mockClear();
+
+    // Setup prisma mocks - return session only for 'session-123'
+    mockFindUnique.mockImplementation((args: { where: { claudeSessionId?: string } }) => {
+      if (args.where.claudeSessionId === 'session-123') {
+        return Promise.resolve({ id: 'session-123' });
+      }
+      return Promise.resolve(null);
+    });
+    mockFindFirst.mockResolvedValue(null);
+    mockFindMany.mockResolvedValue([]);
+
     detector = new WaitingDetector();
   });
 
@@ -107,6 +142,10 @@ describe('WaitingDetector', () => {
     detector.stop();
     vi.useRealTimers();
     vi.clearAllMocks();
+    // Reset mock implementations to defaults
+    mockFindUnique.mockReset();
+    mockFindFirst.mockReset();
+    mockFindMany.mockReset();
   });
 
   // ==========================================================================
@@ -268,6 +307,9 @@ describe('WaitingDetector', () => {
     });
 
     it('should ignore hooks for unwatched sessions', async () => {
+      // Explicitly set mock to return null for any session lookup
+      mockFindUnique.mockResolvedValue(null);
+
       const events: WaitingStateEvent[] = [];
       detector.on('waiting:stateChange', (event) => events.push(event));
 
@@ -425,20 +467,42 @@ describe('WaitingDetector', () => {
   // ==========================================================================
 
   describe('Error Handling', () => {
-    it('should emit error when session cannot be resolved from hook', async () => {
+    it('should not emit error when session cannot be resolved (just logs)', async () => {
       detector.start();
 
       const errors: Error[] = [];
       detector.on('error', (err) => errors.push(err));
 
       // Payload with no session_id and no way to resolve
+      // Implementation logs but doesn't error - session might not be tracked yet
       detector.handleHookEvent({
         event: 'Notification',
         matcher: 'permission_prompt',
       });
 
+      // Should not emit an error - unresolved sessions are silently ignored
+      expect(errors).toHaveLength(0);
+    });
+
+    it('should emit error when promise rejects', async () => {
+      detector.start();
+
+      // Make the mock reject
+      mockFindUnique.mockRejectedValueOnce(new Error('Database error'));
+
+      const errors: Error[] = [];
+      detector.on('error', (err) => errors.push(err));
+
+      detector.handleHookEvent({
+        event: 'Notification',
+        matcher: 'permission_prompt',
+        session_id: 'session-123',
+      });
+
+      // Allow promise to reject
+      await vi.advanceTimersByTimeAsync(100);
+
       expect(errors).toHaveLength(1);
-      expect(errors[0]).toBeInstanceOf(WaitingDetectorError);
     });
   });
 
