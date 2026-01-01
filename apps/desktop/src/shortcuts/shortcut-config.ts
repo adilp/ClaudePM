@@ -22,7 +22,6 @@ export const shortcuts: Shortcut[] = [
   { keys: 'g d', action: { type: 'navigate', to: '/' }, description: 'Go to Dashboard' },
   { keys: 'g p', action: { type: 'navigate', to: '/projects' }, description: 'Go to Projects' },
   { keys: 'g s', action: { type: 'navigate', to: '/sessions' }, description: 'Go to Sessions' },
-  { keys: 'g g', action: { type: 'navigate', to: '/settings' }, description: 'Go to Settings' },
 
   // Utility
   { keys: '?', action: { type: 'toggleCheatsheet' }, description: 'Toggle shortcut cheatsheet' },
@@ -53,6 +52,7 @@ export const shortcuts: Shortcut[] = [
   { keys: 'a', action: { type: 'action', handler: 'approve' }, description: 'Approve', scope: 'ticketDetail' },
   { keys: 'x', action: { type: 'action', handler: 'reject' }, description: 'Reject', scope: 'ticketDetail' },
   { keys: 'e', action: { type: 'action', handler: 'editTicket' }, description: 'Edit ticket', scope: 'ticketDetail' },
+  { keys: 'g g', action: { type: 'action', handler: 'openFileStager' }, description: 'Open file stager', scope: 'ticketDetail' },
   { keys: 'Backspace', action: { type: 'action', handler: 'goBack' }, description: 'Back to project', scope: 'ticketDetail' },
 
   // ═══════════════════════════════════════════════════════════════

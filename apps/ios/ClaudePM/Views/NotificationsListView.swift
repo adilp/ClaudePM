@@ -104,7 +104,7 @@ struct NotificationRowView: View {
                 Text(notification.body)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 // Category tag
                 HStack(spacing: 4) {

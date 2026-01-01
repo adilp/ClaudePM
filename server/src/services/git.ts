@@ -12,6 +12,8 @@ import {
   StatusResult,
   BranchInfo,
   CommitInfo,
+  CommitResult,
+  PushResult,
   parseDiff,
   parseStatus,
   NotAGitRepositoryError,
@@ -156,6 +158,96 @@ export class GitService {
    */
   clearCache(): void {
     this.diffCache.clear();
+  }
+
+  /**
+   * Stage specific files
+   */
+  async stageFiles(repoPath: string, files: string[]): Promise<void> {
+    if (files.length === 0) return;
+
+    // Escape file paths and join them
+    const escapedFiles = files.map((f) => `"${f.replace(/"/g, '\\"')}"`).join(' ');
+    await this.runGitCommand(`git add ${escapedFiles}`, repoPath);
+
+    // Clear cache since staging affects status
+    this.clearCache();
+  }
+
+  /**
+   * Unstage specific files
+   */
+  async unstageFiles(repoPath: string, files: string[]): Promise<void> {
+    if (files.length === 0) return;
+
+    // Escape file paths and join them
+    const escapedFiles = files.map((f) => `"${f.replace(/"/g, '\\"')}"`).join(' ');
+    await this.runGitCommand(`git reset HEAD ${escapedFiles}`, repoPath);
+
+    // Clear cache since unstaging affects status
+    this.clearCache();
+  }
+
+  /**
+   * Stage all changes (tracked and untracked)
+   */
+  async stageAll(repoPath: string): Promise<void> {
+    await this.runGitCommand('git add -A', repoPath);
+    this.clearCache();
+  }
+
+  /**
+   * Unstage all staged changes
+   */
+  async unstageAll(repoPath: string): Promise<void> {
+    await this.runGitCommand('git reset HEAD', repoPath);
+    this.clearCache();
+  }
+
+  /**
+   * Commit staged changes with a message
+   */
+  async commit(repoPath: string, message: string): Promise<CommitResult> {
+    // Escape message for shell
+    const escapedMessage = message.replace(/'/g, "'\\''");
+    const output = await this.runGitCommand(`git commit -m '${escapedMessage}'`, repoPath);
+
+    // Parse commit hash from output (e.g., "[main abc1234] Commit message")
+    const hashMatch = output.match(/\[[\w/-]+ ([a-f0-9]+)\]/);
+    const hash = hashMatch?.[1] ?? '';
+
+    // Clear cache since commit affects status
+    this.clearCache();
+
+    return {
+      hash,
+      message,
+    };
+  }
+
+  /**
+   * Push current branch to remote
+   */
+  async push(repoPath: string, options: { setUpstream?: boolean } = {}): Promise<PushResult> {
+    // Get current branch for upstream setup
+    const branchName = (
+      await this.runGitCommand('git rev-parse --abbrev-ref HEAD', repoPath)
+    ).trim();
+
+    let command = 'git push';
+    if (options.setUpstream) {
+      command = `git push -u origin ${branchName}`;
+    }
+
+    const output = await this.runGitCommand(command, repoPath);
+
+    // Clear cache
+    this.clearCache();
+
+    return {
+      branch: branchName,
+      output,
+    };
   }
 
   /**

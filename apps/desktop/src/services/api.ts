@@ -437,3 +437,76 @@ export async function getGitStatus(projectId: string): Promise<GitStatus> {
 export async function getBranchInfo(projectId: string): Promise<BranchInfo> {
   return request<BranchInfo>(`/api/projects/${projectId}/git/branch`);
 }
+
+export interface StageResponse {
+  success: boolean;
+  files_staged: string[];
+}
+
+export interface UnstageResponse {
+  success: boolean;
+  files_unstaged: string[];
+}
+
+export interface CommitResponse {
+  success: boolean;
+  hash: string;
+  message: string;
+}
+
+export interface PushResponse {
+  success: boolean;
+  branch: string;
+}
+
+export async function stageFiles(
+  projectId: string,
+  files: string[]
+): Promise<StageResponse> {
+  return request<StageResponse>(`/api/projects/${projectId}/git/stage`, {
+    method: 'POST',
+    body: JSON.stringify({ files }),
+  });
+}
+
+export async function unstageFiles(
+  projectId: string,
+  files: string[]
+): Promise<UnstageResponse> {
+  return request<UnstageResponse>(`/api/projects/${projectId}/git/unstage`, {
+    method: 'POST',
+    body: JSON.stringify({ files }),
+  });
+}
+
+export async function stageAllFiles(projectId: string): Promise<StageResponse> {
+  return request<StageResponse>(`/api/projects/${projectId}/git/stage-all`, {
+    method: 'POST',
+  });
+}
+
+export async function unstageAllFiles(projectId: string): Promise<UnstageResponse> {
+  return request<UnstageResponse>(`/api/projects/${projectId}/git/unstage-all`, {
+    method: 'POST',
+  });
+}
+
+export async function commitChanges(
+  projectId: string,
+  message: string
+): Promise<CommitResponse> {
+  return request<CommitResponse>(`/api/projects/${projectId}/git/commit`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+
+export async function pushChanges(
+  projectId: string,
+  setUpstream?: boolean
+): Promise<PushResponse> {
+  return request<PushResponse>(`/api/projects/${projectId}/git/push`, {
+    method: 'POST',
+    body: JSON.stringify({ set_upstream: setUpstream }),
+  });
+}

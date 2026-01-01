@@ -12,9 +12,11 @@ import {
   useGeneratePrDescription,
 } from '../../hooks/useSessions';
 import { useAiAnalysisStatus } from '../../hooks/useAiAnalysisStatus';
+import { FileStager } from '../git/FileStager';
 
 interface ReviewReportPanelProps {
   sessionId: string;
+  projectId?: string;
 }
 
 const statusConfig = {
@@ -24,7 +26,7 @@ const statusConfig = {
   unclear: { icon: HelpCircleIcon, color: 'text-gray-500', bg: 'bg-gray-500/10', label: 'Unclear' },
 };
 
-export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
+export function ReviewReportPanel({ sessionId, projectId }: ReviewReportPanelProps) {
   const {
     data: report,
     isLoading,
@@ -43,6 +45,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
     nextSteps: true,
   });
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showFileStager, setShowFileStager] = useState(false);
 
   const generateCommit = useGenerateCommitMessage();
   const generatePr = useGeneratePrDescription();
@@ -293,7 +296,7 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
       )}
 
       {/* Actions */}
-      <div className="px-4 py-3 border-t border-line flex items-center gap-2">
+      <div className="px-4 py-3 border-t border-line flex items-center gap-2 flex-wrap">
         <button
           onClick={() => generateCommit.mutate(sessionId)}
           disabled={generateCommit.isPending}
@@ -318,7 +321,26 @@ export function ReviewReportPanel({ sessionId }: ReviewReportPanelProps) {
           )}
           Generate PR
         </button>
+        {projectId && (
+          <button
+            onClick={() => setShowFileStager(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 rounded text-white ml-auto"
+          >
+            <GitBranchIcon className="w-3.5 h-3.5" />
+            Stage & Commit
+          </button>
+        )}
       </div>
+
+      {/* File Stager Modal */}
+      {projectId && (
+        <FileStager
+          projectId={projectId}
+          open={showFileStager}
+          onClose={() => setShowFileStager(false)}
+          initialCommitMessage={report?.suggested_commit_message}
+        />
+      )}
 
       {/* Timestamp */}
       <div className="px-4 py-2 text-sm text-content-secondary border-t border-line">
@@ -476,6 +498,17 @@ function GitPullRequestIcon({ className }: { className?: string }) {
       <circle cx="6" cy="6" r="3" />
       <path d="M13 6h3a2 2 0 0 1 2 2v7" />
       <line x1="6" y1="9" x2="6" y2="21" />
+    </svg>
+  );
+}
+
+function GitBranchIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="6" y1="3" x2="6" y2="15" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M18 9a9 9 0 0 1-9 9" />
     </svg>
   );
 }

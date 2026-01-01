@@ -77,6 +77,7 @@ struct TicketBoardView: View {
             .sheet(item: $selectedTicket) { ticket in
                 TicketDetailSheet(
                     ticket: ticket,
+                    projectId: viewModel.selectedProjectId ?? "",
                     onMove: { newStatus in
                         await viewModel.moveTicket(ticket.id, to: newStatus)
                     },

@@ -30,6 +30,22 @@ const diffQuerySchema = z.object({
   base_branch: z.string().optional(),
 });
 
+const stageFilesSchema = z.object({
+  files: z.array(z.string()).min(1, 'At least one file is required'),
+});
+
+const unstageFilesSchema = z.object({
+  files: z.array(z.string()).min(1, 'At least one file is required'),
+});
+
+const commitSchema = z.object({
+  message: z.string().min(1, 'Commit message is required'),
+});
+
+const pushSchema = z.object({
+  set_upstream: z.boolean().optional(),
+});
+
 // ============================================================================
 // Response Types
 // ============================================================================
@@ -77,6 +93,27 @@ interface BranchResponse {
 interface ErrorResponse {
   error: string;
   code?: string;
+}
+
+interface StageResponse {
+  success: boolean;
+  files_staged: string[];
+}
+
+interface UnstageResponse {
+  success: boolean;
+  files_unstaged: string[];
+}
+
+interface CommitResponse {
+  success: boolean;
+  hash: string;
+  message: string;
+}
+
+interface PushResponse {
+  success: boolean;
+  branch: string;
 }
 
 // ============================================================================
@@ -238,6 +275,147 @@ router.get(
     const result = await gitService.getBranchInfo(project.repoPath);
 
     res.json(toBranchResponse(result));
+  })
+);
+
+/**
+ * POST /api/projects/:projectId/git/stage
+ * Stage specific files
+ */
+router.post(
+  '/:projectId/git/stage',
+  asyncHandler<StageResponse | ErrorResponse>(async (req, res) => {
+    const { projectId } = projectIdSchema.parse(req.params);
+    const { files } = stageFilesSchema.parse(req.body);
+
+    // Get project to find repo path
+    const project = await getProjectById(projectId);
+
+    // Stage files
+    await gitService.stageFiles(project.repoPath, files);
+
+    res.json({
+      success: true,
+      files_staged: files,
+    });
+  })
+);
+
+/**
+ * POST /api/projects/:projectId/git/unstage
+ * Unstage specific files
+ */
+router.post(
+  '/:projectId/git/unstage',
+  asyncHandler<UnstageResponse | ErrorResponse>(async (req, res) => {
+    const { projectId } = projectIdSchema.parse(req.params);
+    const { files } = unstageFilesSchema.parse(req.body);
+
+    // Get project to find repo path
+    const project = await getProjectById(projectId);
+
+    // Unstage files
+    await gitService.unstageFiles(project.repoPath, files);
+
+    res.json({
+      success: true,
+      files_unstaged: files,
+    });
+  })
+);
+
+/**
+ * POST /api/projects/:projectId/git/stage-all
+ * Stage all changes
+ */
+router.post(
+  '/:projectId/git/stage-all',
+  asyncHandler<StageResponse | ErrorResponse>(async (req, res) => {
+    const { projectId } = projectIdSchema.parse(req.params);
+
+    // Get project to find repo path
+    const project = await getProjectById(projectId);
+
+    // Stage all
+    await gitService.stageAll(project.repoPath);
+
+    res.json({
+      success: true,
+      files_staged: ['all'],
+    });
+  })
+);
+
+/**
+ * POST /api/projects/:projectId/git/unstage-all
+ * Unstage all staged changes
+ */
+router.post(
+  '/:projectId/git/unstage-all',
+  asyncHandler<UnstageResponse | ErrorResponse>(async (req, res) => {
+    const { projectId } = projectIdSchema.parse(req.params);
+
+    // Get project to find repo path
+    const project = await getProjectById(projectId);
+
+    // Unstage all
+    await gitService.unstageAll(project.repoPath);
+
+    res.json({
+      success: true,
+      files_unstaged: ['all'],
+    });
+  })
+);
+
+/**
+ * POST /api/projects/:projectId/git/commit
+ * Commit staged changes
+ */
+router.post(
+  '/:projectId/git/commit',
+  asyncHandler<CommitResponse | ErrorResponse>(async (req, res) => {
+    const { projectId } = projectIdSchema.parse(req.params);
+    const { message } = commitSchema.parse(req.body);
+
+    // Get project to find repo path
+    const project = await getProjectById(projectId);
+
+    // Commit
+    const result = await gitService.commit(project.repoPath, message);
+
+    res.json({
+      success: true,
+      hash: result.hash,
+      message: result.message,
+    });
+  })
+);
+
+/**
+ * POST /api/projects/:projectId/git/push
+ * Push to remote
+ */
+router.post(
+  '/:projectId/git/push',
+  asyncHandler<PushResponse | ErrorResponse>(async (req, res) => {
+    const { projectId } = projectIdSchema.parse(req.params);
+    const body = pushSchema.parse(req.body ?? {});
+
+    // Get project to find repo path
+    const project = await getProjectById(projectId);
+
+    // Push
+    const options: { setUpstream?: boolean } = {};
+    if (body.set_upstream !== undefined) {
+      options.setUpstream = body.set_upstream;
+    }
+    const result = await gitService.push(project.repoPath, options);
+
+    res.json({
+      success: true,
+      branch: result.branch,
+    });
   })
 );
 

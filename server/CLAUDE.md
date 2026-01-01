@@ -396,6 +396,33 @@ await prisma.$transaction([
 
 5. **Prisma client must be regenerated** after schema changes: `npm run db:generate`
 
+## API Reference
+
+Full REST API documentation is in `docs/api-reference.md`. Key highlights:
+
+### Ticket Listing (commonly used)
+```
+GET /api/projects/:id/tickets?prefixes=CSM,DWP&state=in_progress&excludeOldDone=true
+```
+
+Query params: `page`, `limit`, `state`, `prefixes`, `excludeOldDone`, `completedWithinDays`, date ranges, `orderBy`, `orderDir`, `sync`
+
+### Session Control
+```
+POST /api/sessions/:id/input   # Send text + Enter
+POST /api/sessions/:id/keys    # Send raw keys (C-c, etc.)
+POST /api/sessions/:id/scroll  # Scroll terminal (up/down/exit)
+GET  /api/sessions/:id/output  # Get terminal output
+```
+
+### Hooks (Claude Code integration)
+```
+POST /api/hooks/claude         # Notification/Stop events
+POST /api/hooks/session-start  # Session registration
+```
+
+See `docs/api-reference.md` for complete endpoint documentation.
+
 ## Development
 ```bash
 npm run dev          # Start with hot reload

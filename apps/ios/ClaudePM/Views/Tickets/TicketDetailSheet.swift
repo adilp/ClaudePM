@@ -1,26 +1,56 @@
 import SwiftUI
 
-/// Sheet view for displaying ticket details and actions
+/// Sheet view for displaying ticket details, content, and AI analysis
 struct TicketDetailSheet: View {
     let ticket: Ticket
+    let projectId: String
     let onMove: (TicketStatus) async -> Void
     let onStart: () async -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var ticketDetail: TicketDetail?
+    @State private var sessions: [Session] = []
+    @State private var isLoadingDetail = false
+    @State private var isLoadingSessions = false
     @State private var isMoving = false
     @State private var isStarting = false
+    @State private var error: String?
+    @State private var showDiffViewer = false
+    @State private var selectedSection: DetailSection = .content
+
+    private enum DetailSection: String, CaseIterable {
+        case content = "Content"
+        case analysis = "Analysis"
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    // Latest review result banner (shows at top when there's a review)
+                    if latestSession != nil {
+                        ReviewResultBanner(ticketId: ticket.id)
+                    }
+
                     // Header section
                     headerSection
 
-                    Divider()
-
                     // Status section
                     statusSection
+
+                    // Section picker
+                    if latestSession != nil || ticketDetail != nil {
+                        sectionPicker
+                    }
+
+                    // Content based on selected section
+                    switch selectedSection {
+                    case .content:
+                        contentSection
+
+                    case .analysis:
+                        analysisSection
+                    }
 
                     Divider()
 
@@ -38,9 +68,28 @@ struct TicketDetailSheet: View {
                     }
                 }
             }
+            .sheet(isPresented: $showDiffViewer) {
+                DiffViewer(projectId: projectId)
+                    .presentationDetents([.large])
+            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .task {
+            await loadData()
+        }
+    }
+
+    // MARK: - Computed Properties
+
+    /// Get the most relevant session - prefer running, then latest by creation date
+    private var latestSession: Session? {
+        // Prefer running session
+        if let running = sessions.first(where: { $0.status == .running }) {
+            return running
+        }
+        // Otherwise return the most recent session (already sorted by createdAt desc)
+        return sessions.first
     }
 
     // MARK: - Sections
@@ -69,6 +118,18 @@ struct TicketDetailSheet: View {
                     badgeView(text: "EXPLORE", color: .indigo)
                 }
             }
+
+            // Timestamps
+            HStack(spacing: 16) {
+                if let startedAt = ticket.startedAt {
+                    Label(startedAt.formatted(.relative(presentation: .named)), systemImage: "play.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Label(ticket.updatedAt.formatted(.relative(presentation: .named)), systemImage: "clock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -90,6 +151,105 @@ struct TicketDetailSheet: View {
             .padding(.vertical, 8)
             .background(Color(.secondarySystemGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private var sectionPicker: some View {
+        Picker("Section", selection: $selectedSection) {
+            ForEach(DetailSection.allCases, id: \.self) { section in
+                Text(section.rawValue).tag(section)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    @ViewBuilder
+    private var contentSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Description")
+                .font(.headline)
+
+            if isLoadingDetail {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+                .padding()
+            } else if let detail = ticketDetail, !detail.content.isEmpty {
+                SimpleMarkdownView(content: detail.content)
+                    .padding()
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else if let error = error {
+                errorView(message: error) {
+                    Task {
+                        await loadData()
+                    }
+                }
+            } else {
+                Text("No content available")
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .padding()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var analysisSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if isLoadingSessions {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+                .padding()
+            } else if let session = latestSession {
+                // Session Summary
+                SessionSummaryCard(sessionId: session.id)
+
+                // Review Report (for review/done tickets)
+                if ticket.state == .review || ticket.state == .done {
+                    ReviewReportPanel(sessionId: session.id, projectId: projectId)
+                }
+
+                // Review History
+                ReviewHistoryPanel(ticketId: ticket.id)
+
+                // View Diff button
+                Button {
+                    showDiffViewer = true
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.left.arrow.right")
+                        Text("View Code Changes")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .padding()
+                    .background(Color.purple)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "sparkles")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("No AI Analysis")
+                        .font(.headline)
+                    Text("Start a session to generate AI analysis")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+            }
         }
     }
 
@@ -180,6 +340,23 @@ struct TicketDetailSheet: View {
         .disabled(isLoading || isMoving)
     }
 
+    private func errorView(message: String, onRetry: @escaping () -> Void) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Button("Retry", action: onRetry)
+                .font(.caption)
+                .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+    }
+
     // MARK: - Helpers
 
     private var previousStatus: TicketStatus? {
@@ -209,6 +386,45 @@ struct TicketDetailSheet: View {
         }
     }
 
+    // MARK: - Actions
+
+    private func loadData() async {
+        // Load ticket detail and sessions in parallel
+        async let detailTask: () = loadTicketDetail()
+        async let sessionsTask: () = loadSessions()
+
+        await detailTask
+        await sessionsTask
+    }
+
+    private func loadTicketDetail() async {
+        isLoadingDetail = true
+        error = nil
+
+        do {
+            ticketDetail = try await APIClient.shared.getTicketDetail(ticketId: ticket.id)
+        } catch let apiError as APIError {
+            error = apiError.errorDescription
+        } catch {
+            self.error = error.localizedDescription
+        }
+
+        isLoadingDetail = false
+    }
+
+    private func loadSessions() async {
+        isLoadingSessions = true
+
+        do {
+            sessions = try await APIClient.shared.getSessionsForTicket(projectId: projectId, ticketId: ticket.id)
+        } catch {
+            // Silently fail for sessions - not critical
+            print("Failed to load sessions: \(error)")
+        }
+
+        isLoadingSessions = false
+    }
+
     private func performMove(to status: TicketStatus) async {
         isMoving = true
         await onMove(status)
@@ -235,11 +451,12 @@ struct TicketDetailSheet: View {
             prefix: "CSM",
             isAdhoc: false,
             isExplore: false,
-            startedAt: nil,
+            startedAt: Date().addingTimeInterval(-3600),
             completedAt: nil,
-            createdAt: Date(),
+            createdAt: Date().addingTimeInterval(-86400),
             updatedAt: Date()
         ),
+        projectId: "test-project",
         onMove: { _ in },
         onStart: { }
     )

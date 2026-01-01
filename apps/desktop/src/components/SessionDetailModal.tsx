@@ -121,7 +121,7 @@ export function SessionDetailModal({ session, onClose }: SessionDetailModalProps
             <SessionActivityFeed sessionId={session.id} maxEvents={50} />
           )}
           {activeTab === 'review' && (
-            <ReviewReportPanel sessionId={session.id} />
+            <ReviewReportPanel sessionId={session.id} projectId={session.project_id} />
           )}
         </div>
 

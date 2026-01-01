@@ -161,6 +161,30 @@ export interface BranchInfo {
 }
 
 // ============================================================================
+// Commit/Push Types
+// ============================================================================
+
+/**
+ * Result of a commit operation
+ */
+export interface CommitResult {
+  /** Short commit hash */
+  hash: string;
+  /** Commit message */
+  message: string;
+}
+
+/**
+ * Result of a push operation
+ */
+export interface PushResult {
+  /** Branch that was pushed */
+  branch: string;
+  /** Raw output from git push */
+  output: string;
+}
+
+// ============================================================================
 // Error Classes
 // ============================================================================
 

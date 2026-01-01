@@ -164,11 +164,31 @@ See `docs/jira-tickets/README.md` for full roadmap.
 | `server/src/index.ts` | Express app entry point |
 | `server/src/config/env.ts` | Environment config with Zod validation |
 | `server/src/config/db.ts` | Prisma client singleton |
+| `server/src/services/session-supervisor.ts` | Session lifecycle, Claude spawning |
 | `server/src/services/tmux.ts` | tmux integration service |
 | `server/prisma/schema.prisma` | Database schema |
-| `server/src/api/devices.ts` | Device token registration (native apps) |
-| `server/src/middleware/api-key-auth.ts` | API key authentication middleware |
-| `docs/api-reference.md` | Full API documentation |
+| `docs/api-reference.md` | **Full REST API documentation** |
+| `server/CLAUDE.md` | Server-specific documentation |
+
+## API Overview
+
+Full API documentation: **`docs/api-reference.md`**
+
+### Key Endpoints
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/projects/:id/tickets` | List tickets with filtering, pagination, sorting |
+| `POST /api/tickets/:id/start` | Start Claude session for ticket |
+| `POST /api/sessions/:id/input` | Send input to session |
+| `GET /api/sessions/:id/output` | Get terminal output |
+| `POST /api/hooks/claude` | Receive Claude Code hook events |
+
+### Ticket Query Parameters
+The ticket list endpoint supports extensive filtering:
+- `prefixes=CSM,DWP` - Filter by ticket prefix
+- `state=in_progress` - Filter by state
+- `excludeOldDone=true` - Hide old completed tickets
+- `orderBy=updatedAt&orderDir=desc` - Sorting
 
 ## Claude Session Spawning
 

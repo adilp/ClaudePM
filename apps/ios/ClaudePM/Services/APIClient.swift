@@ -420,6 +420,491 @@ actor APIClient {
         }
     }
 
+    // MARK: - AI Analysis Methods
+
+    /// Get sessions for a ticket by fetching all project sessions and filtering
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - ticketId: The ticket ID to filter by
+    /// - Returns: Array of sessions for the ticket, sorted by createdAt descending
+    func getSessionsForTicket(projectId: String, ticketId: String) async throws -> [Session] {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        var urlComponents = URLComponents(url: baseURL.appendingPathComponent("api/sessions"), resolvingAgainstBaseURL: false)!
+        urlComponents.queryItems = [URLQueryItem(name: "project_id", value: projectId)]
+
+        guard let url = urlComponents.url else {
+            throw APIError.invalidURL
+        }
+
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+            let allSessions = try decoder.decode([Session].self, from: data)
+            // Filter sessions for this ticket and sort by createdAt descending
+            return allSessions
+                .filter { $0.ticketId == ticketId }
+                .sorted { $0.createdAt > $1.createdAt }
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Get AI-generated summary for a session
+    /// - Parameters:
+    ///   - sessionId: The session ID
+    ///   - regenerate: Force regeneration of summary
+    /// - Returns: SessionSummary with AI analysis
+    func getSessionSummary(sessionId: String, regenerate: Bool = false) async throws -> SessionSummary {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        var urlComponents = URLComponents(url: baseURL.appendingPathComponent("api/sessions/\(sessionId)/summary"), resolvingAgainstBaseURL: false)!
+        if regenerate {
+            urlComponents.queryItems = [URLQueryItem(name: "regenerate", value: "true")]
+        }
+
+        guard let url = urlComponents.url else {
+            throw APIError.invalidURL
+        }
+
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.serverError(404)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            // Note: SessionSummary uses explicit CodingKeys for snake_case top-level fields
+            // but nested objects (actions, files_changed) use camelCase, so we DON'T use
+            // .convertFromSnakeCase here
+            let decoder = JSONDecoder()
+            return try decoder.decode(SessionSummary.self, from: data)
+        } catch let decodingError as DecodingError {
+            // Print detailed decoding error for debugging
+            print("SessionSummary decoding error:")
+            switch decodingError {
+            case .keyNotFound(let key, let context):
+                print("  Key '\(key.stringValue)' not found: \(context.debugDescription)")
+                print("  Coding path: \(context.codingPath.map { $0.stringValue })")
+            case .typeMismatch(let type, let context):
+                print("  Type mismatch for \(type): \(context.debugDescription)")
+                print("  Coding path: \(context.codingPath.map { $0.stringValue })")
+            case .valueNotFound(let type, let context):
+                print("  Value not found for \(type): \(context.debugDescription)")
+                print("  Coding path: \(context.codingPath.map { $0.stringValue })")
+            case .dataCorrupted(let context):
+                print("  Data corrupted: \(context.debugDescription)")
+                print("  Coding path: \(context.codingPath.map { $0.stringValue })")
+            @unknown default:
+                print("  Unknown error: \(decodingError)")
+            }
+            // Also print raw JSON for debugging
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("  Raw JSON (first 500 chars): \(String(jsonString.prefix(500)))")
+            }
+            throw APIError.decodingError(decodingError)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Get AI-generated review report for a session
+    /// - Parameters:
+    ///   - sessionId: The session ID
+    ///   - regenerate: Force regeneration of report
+    /// - Returns: ReviewReport with completion analysis
+    func getSessionReviewReport(sessionId: String, regenerate: Bool = false) async throws -> ReviewReport {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        var urlComponents = URLComponents(url: baseURL.appendingPathComponent("api/sessions/\(sessionId)/review-report"), resolvingAgainstBaseURL: false)!
+        if regenerate {
+            urlComponents.queryItems = [URLQueryItem(name: "regenerate", value: "true")]
+        }
+
+        guard let url = urlComponents.url else {
+            throw APIError.invalidURL
+        }
+
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.serverError(404)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(ReviewReport.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Get review history for a ticket
+    /// - Parameter ticketId: The ticket ID
+    /// - Returns: Array of review result entries
+    func getReviewHistory(ticketId: String) async throws -> [ReviewResultEntry] {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/tickets/\(ticketId)/review-history")
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.serverError(404)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+            let result = try decoder.decode(ReviewHistoryResponse.self, from: data)
+            return result.results
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Get git diff for a project
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - baseBranch: Optional base branch for comparison
+    /// - Returns: GitDiffResult with file changes
+    func getGitDiff(projectId: String, baseBranch: String? = nil) async throws -> GitDiffResult {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        var urlComponents = URLComponents(url: baseURL.appendingPathComponent("api/projects/\(projectId)/git/diff"), resolvingAgainstBaseURL: false)!
+        if let baseBranch = baseBranch {
+            urlComponents.queryItems = [URLQueryItem(name: "base_branch", value: baseBranch)]
+        }
+
+        guard let url = urlComponents.url else {
+            throw APIError.invalidURL
+        }
+
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.serverError(404)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(GitDiffResult.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    // MARK: - Git Staging Methods
+
+    /// Get git status for a project (staged, unstaged, untracked files)
+    /// - Parameter projectId: The project ID
+    /// - Returns: GitStatus with file lists
+    func getGitStatus(projectId: String) async throws -> GitStatus {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/status")
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(GitStatus.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Get branch info for a project
+    /// - Parameter projectId: The project ID
+    /// - Returns: BranchInfo with name, remote, and recent commits
+    func getBranchInfo(projectId: String) async throws -> BranchInfo {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/branch")
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(BranchInfo.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Stage specific files
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - files: Array of file paths to stage
+    func stageFiles(projectId: String, files: [String]) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/stage")
+        let body = try JSONEncoder().encode(["files": files])
+        let (_, response) = try await performRequest(url: url, method: "POST", body: body, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
+    /// Unstage specific files
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - files: Array of file paths to unstage
+    func unstageFiles(projectId: String, files: [String]) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/unstage")
+        let body = try JSONEncoder().encode(["files": files])
+        let (_, response) = try await performRequest(url: url, method: "POST", body: body, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
+    /// Stage all files
+    /// - Parameter projectId: The project ID
+    func stageAllFiles(projectId: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/stage-all")
+        let (_, response) = try await performRequest(url: url, method: "POST", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
+    /// Unstage all files
+    /// - Parameter projectId: The project ID
+    func unstageAllFiles(projectId: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/unstage-all")
+        let (_, response) = try await performRequest(url: url, method: "POST", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
+    /// Commit staged changes
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - message: Commit message
+    /// - Returns: CommitResult with hash and message
+    func commitChanges(projectId: String, message: String) async throws -> CommitResult {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/commit")
+        let body = try JSONEncoder().encode(["message": message])
+        let (data, response) = try await performRequest(url: url, method: "POST", body: body, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(CommitResult.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Push to remote
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - setUpstream: Whether to set upstream tracking
+    /// - Returns: PushResult with branch name
+    func pushChanges(projectId: String, setUpstream: Bool = false) async throws -> PushResult {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/git/push")
+        let body = try JSONEncoder().encode(["set_upstream": setUpstream])
+        let (data, response) = try await performRequest(url: url, method: "POST", body: body, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(PushResult.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
     // MARK: - Terminal Control Methods
 
     /// Send a scroll command to the session's terminal (tmux copy-mode)

@@ -12,6 +12,7 @@ import { VimEditor } from '../components/VimEditor';
 import { SessionSummaryCard, ReviewReportPanel } from '../components/session';
 import { ReviewResultBanner } from '../components/ticket/ReviewResultBanner';
 import { ReviewHistoryPanel } from '../components/ticket/ReviewHistoryPanel';
+import { FileStager } from '../components/git';
 import {
   useTicket,
   useTicketContent,
@@ -91,6 +92,7 @@ export function TicketDetail() {
   const [editContent, setEditContent] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+  const [showFileStager, setShowFileStager] = useState(false);
 
   // Scroll container ref
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -99,7 +101,7 @@ export function TicketDetail() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't scroll when editing or in a modal
-      if (isEditing || isEditingTitle || showRejectModal || showDeleteModal || showStartConfirm) {
+      if (isEditing || isEditingTitle || showRejectModal || showDeleteModal || showStartConfirm || showFileStager) {
         return;
       }
 
@@ -140,13 +142,6 @@ export function TicketDetail() {
             container.scrollBy({ top: -pageHeight, behavior: 'smooth' });
           }
           break;
-        case 'g':
-          if (!e.ctrlKey && !e.metaKey) {
-            // gg - go to top (double g, but we'll use single g for simplicity)
-            e.preventDefault();
-            container.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-          break;
         case 'G':
           if (!e.ctrlKey && !e.metaKey) {
             e.preventDefault();
@@ -158,7 +153,7 @@ export function TicketDetail() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEditing, isEditingTitle, showRejectModal, showDeleteModal, showStartConfirm]);
+  }, [isEditing, isEditingTitle, showRejectModal, showDeleteModal, showStartConfirm, showFileStager]);
 
   // Get sessions for this ticket
   const ticketSessions = sessions?.filter((s) => s.ticket_id === ticketId) ?? [];
@@ -197,12 +192,18 @@ export function TicketDetail() {
     }
   }, [ticket, ticketContent]);
 
+  // Handler for opening file stager
+  const handleOpenFileStager = useCallback(() => {
+    setShowFileStager(true);
+  }, []);
+
   // Register keyboard shortcuts
   useShortcutScope('ticketDetail', {
     startSession: handleStartWithShortcut,
     approve: handleApproveWithShortcut,
     reject: handleRejectWithShortcut,
     editTicket: handleEditTicketWithShortcut,
+    openFileStager: handleOpenFileStager,
     goBack: handleGoBack,
   });
 
@@ -656,7 +657,7 @@ export function TicketDetail() {
 
             {/* Review Report - Show if ticket is in review or done */}
             {(ticket.state === 'review' || ticket.state === 'done') && (
-              <ReviewReportPanel sessionId={latestSession.id} />
+              <ReviewReportPanel sessionId={latestSession.id} projectId={projectId} />
             )}
           </div>
 
@@ -786,6 +787,15 @@ export function TicketDetail() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* File Stager Modal (gg to open) */}
+      {projectId && (
+        <FileStager
+          projectId={projectId}
+          open={showFileStager}
+          onClose={() => setShowFileStager(false)}
+        />
       )}
     </div>
     </div>
