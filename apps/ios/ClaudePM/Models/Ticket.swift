@@ -34,6 +34,7 @@ struct Ticket: Identifiable, Codable, Hashable {
     let title: String
     let state: TicketStatus
     let filePath: String
+    let prefix: String // Computed by server: "CSM", "DWP", "ADHOC", etc.
     let isAdhoc: Bool
     let isExplore: Bool
     let startedAt: Date?
@@ -49,21 +50,6 @@ struct Ticket: Identifiable, Codable, Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-
-    /// Extract prefix from external_id (e.g., "CSM" from "CSM-001")
-    /// Matches server's extractPrefix format (without trailing dash)
-    /// Returns "ADHOC" for ad-hoc tickets (no externalId or no match)
-    var prefix: String {
-        guard let externalId = externalId else { return "ADHOC" }
-        // Match pattern like "CSM" at the start (before the dash)
-        let pattern = "^([A-Z]+)-"
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: externalId, range: NSRange(externalId.startIndex..., in: externalId)),
-              let range = Range(match.range(at: 1), in: externalId) else {
-            return "ADHOC"
-        }
-        return String(externalId[range])
-    }
 }
 
 /// Detailed ticket info with content
@@ -73,6 +59,7 @@ struct TicketDetail: Identifiable, Codable {
     let title: String
     let state: TicketStatus
     let filePath: String
+    let prefix: String // Computed by server: "CSM", "DWP", "ADHOC", etc.
     let content: String
     let isAdhoc: Bool
     let isExplore: Bool

@@ -26,8 +26,10 @@ import {
   syncSingleTicket,
   updateTicket,
   getTicketPrefixes,
+  computePrefix,
   TicketNotFoundError,
   ProjectNotFoundError,
+  type ListTicketsOptions,
 } from '../services/tickets.js';
 import {
   ticketStateMachine,
@@ -59,6 +61,7 @@ function toTicketSummaryResponse(ticket: Ticket): TicketSummaryResponse {
     title: ticket.title,
     state: ticket.state as TicketState,
     file_path: ticket.filePath,
+    prefix: computePrefix(ticket), // Computed by server - frontends use this directly
     is_adhoc: ticket.isAdhoc,
     is_explore: ticket.isExplore,
     started_at: ticket.startedAt?.toISOString() ?? null,
@@ -181,7 +184,7 @@ function asyncHandler<T>(
 
 /**
  * GET /api/projects/:id/tickets
- * List tickets for a project with optional sync
+ * List tickets for a project with optional sync, filtering, and sorting
  */
 router.get(
   '/projects/:id/tickets',
@@ -189,16 +192,22 @@ router.get(
     const { id } = projectIdParamSchema.parse(req.params);
     const query = listTicketsQuerySchema.parse(req.query);
 
-    const options: { page: number; limit: number; state?: typeof query.state; prefixes?: string[] } = {
+    // Build options from validated query params
+    // Only include defined optional properties (exactOptionalPropertyTypes)
+    const options: ListTicketsOptions = {
       page: query.page,
       limit: query.limit,
+      orderBy: query.orderBy,
+      orderDir: query.orderDir,
     };
-    if (query.state !== undefined) {
-      options.state = query.state;
-    }
-    if (query.prefixes !== undefined) {
-      options.prefixes = query.prefixes;
-    }
+    if (query.state !== undefined) options.state = query.state;
+    if (query.prefixes !== undefined) options.prefixes = query.prefixes;
+    if (query.excludeOldDone !== undefined) options.excludeOldDone = query.excludeOldDone;
+    if (query.completedWithinDays !== undefined) options.completedWithinDays = query.completedWithinDays;
+    if (query.completedAfter !== undefined) options.completedAfter = query.completedAfter;
+    if (query.completedBefore !== undefined) options.completedBefore = query.completedBefore;
+    if (query.updatedAfter !== undefined) options.updatedAfter = query.updatedAfter;
+    if (query.updatedBefore !== undefined) options.updatedBefore = query.updatedBefore;
 
     const result = await listTickets(id, options, query.sync);
 
@@ -271,6 +280,7 @@ router.get(
       title: ticket.title,
       state: ticket.state as TicketState,
       file_path: ticket.filePath,
+      prefix: computePrefix(ticket),
       is_adhoc: ticket.isAdhoc,
       is_explore: ticket.isExplore,
       content: ticket.content,

@@ -62,6 +62,16 @@ export interface ListTicketsOptions {
   limit: number;
   state?: TicketState | undefined;
   prefixes?: string[] | undefined; // Filter by ticket prefixes (e.g., ['CSM', 'ADHOC'])
+  // Date filtering
+  excludeOldDone?: boolean; // Shorthand for completedWithinDays=3
+  completedWithinDays?: number; // Only show done tickets completed within N days
+  completedAfter?: Date;
+  completedBefore?: Date;
+  updatedAfter?: Date;
+  updatedBefore?: Date;
+  // Sorting
+  orderBy?: 'externalId' | 'createdAt' | 'updatedAt' | 'completedAt';
+  orderDir?: 'asc' | 'desc';
 }
 
 export interface PaginatedTickets {
@@ -95,6 +105,15 @@ export function extractPrefix(externalId: string | null): string {
   if (!externalId) return 'ADHOC';
   const match = externalId.match(/^([A-Z]+)-/);
   return match?.[1] ?? 'ADHOC';
+}
+
+/**
+ * Compute prefix for a ticket, considering isAdhoc flag
+ * This is the single source of truth for prefix computation
+ */
+export function computePrefix(ticket: { externalId: string | null; isAdhoc: boolean }): string {
+  if (ticket.isAdhoc || !ticket.externalId) return 'ADHOC';
+  return extractPrefix(ticket.externalId);
 }
 
 /**
@@ -299,50 +318,98 @@ export async function listTickets(
   const { page, limit, state } = options;
   const skip = (page - 1) * limit;
 
-  // Build where clause - exclude soft-deleted tickets but include adhoc (null externalId)
-  const where: {
-    projectId: string;
-    state?: TicketState;
-    OR?: Array<{ externalId: null } | { externalId: { not: { startsWith: string } } } | { externalId: { startsWith: string } } | { isAdhoc: boolean }>;
-  } = {
+  // Build prefix/soft-delete OR conditions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let prefixConditions: any[];
+
+  if (options.prefixes && options.prefixes.length > 0) {
+    prefixConditions = [];
+    for (const prefix of options.prefixes) {
+      if (prefix === 'ADHOC') {
+        // ADHOC means tickets with null externalId or isAdhoc=true
+        prefixConditions.push({ externalId: null });
+        prefixConditions.push({ isAdhoc: true });
+      } else {
+        // Regular prefix like CSM, should match CSM-* but not DELETED:CSM-*
+        prefixConditions.push({ externalId: { startsWith: `${prefix}-` } });
+      }
+    }
+  } else {
+    // No prefix filter - show all tickets (soft-delete handled by top-level NOT condition)
+    prefixConditions = [
+      { isAdhoc: true }, // Include all adhoc tickets
+      { externalId: null }, // Include tickets with null externalId
+      { externalId: { not: null } }, // Include all tickets with externalId (NOT clause excludes DELETED:)
+    ];
+  }
+
+  // Build date filtering conditions
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const andConditions: any[] = [{ OR: prefixConditions }];
+
+  // Handle excludeOldDone / completedWithinDays
+  // Shows: all non-done tickets + done tickets completed within threshold
+  if (options.excludeOldDone || options.completedWithinDays) {
+    const days = options.completedWithinDays ?? 3;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    andConditions.push({
+      OR: [
+        { state: { not: 'done' } },
+        { completedAt: { gte: cutoff } },
+      ],
+    });
+  }
+
+  // Handle explicit completedAfter/completedBefore filters
+  if (options.completedAfter || options.completedBefore) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const completedAtFilter: any = {};
+    if (options.completedAfter) completedAtFilter.gte = options.completedAfter;
+    if (options.completedBefore) completedAtFilter.lte = options.completedBefore;
+    andConditions.push({ completedAt: completedAtFilter });
+  }
+
+  // Handle explicit updatedAfter/updatedBefore filters
+  if (options.updatedAfter || options.updatedBefore) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatedAtFilter: any = {};
+    if (options.updatedAfter) updatedAtFilter.gte = options.updatedAfter;
+    if (options.updatedBefore) updatedAtFilter.lte = options.updatedBefore;
+    andConditions.push({ updatedAt: updatedAtFilter });
+  }
+
+  // Exclude soft-deleted tickets (handles null externalId properly)
+  // Tickets with null externalId are OK, but non-null must not start with 'DELETED:'
+  andConditions.push({
+    OR: [
+      { externalId: null },
+      { externalId: { not: { startsWith: 'DELETED:' } } },
+    ],
+  });
+
+  // Build final where clause
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {
     projectId,
+    AND: andConditions,
   };
 
   if (state) {
     where.state = state;
   }
 
-  // Handle prefix filtering
-  if (options.prefixes && options.prefixes.length > 0) {
-    const orConditions: Array<{ externalId: null } | { externalId: { startsWith: string } } | { isAdhoc: boolean }> = [];
-
-    for (const prefix of options.prefixes) {
-      if (prefix === 'ADHOC') {
-        // ADHOC means tickets with null externalId or isAdhoc=true
-        orConditions.push({ externalId: null });
-        orConditions.push({ isAdhoc: true });
-      } else {
-        // Regular prefix like CSM, should match CSM-* but not DELETED:CSM-*
-        orConditions.push({ externalId: { startsWith: `${prefix}-` } });
-      }
-    }
-
-    where.OR = orConditions;
-  } else {
-    // No prefix filter - show all non-deleted tickets
-    where.OR = [
-      { isAdhoc: true }, // Include all adhoc tickets
-      { externalId: null }, // Include tickets with null externalId
-      { externalId: { not: { startsWith: 'DELETED:' } } }, // Include non-deleted regular tickets
-    ];
-  }
+  // Build dynamic orderBy
+  const orderByField = options.orderBy ?? 'externalId';
+  const orderByDir = options.orderDir ?? 'asc';
+  const orderBy = { [orderByField]: orderByDir };
 
   const [tickets, total] = await Promise.all([
     prisma.ticket.findMany({
       where,
       skip,
       take: limit,
-      orderBy: { externalId: 'asc' },
+      orderBy,
     }),
     prisma.ticket.count({ where }),
   ]);

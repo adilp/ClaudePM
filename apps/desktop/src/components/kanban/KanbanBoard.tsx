@@ -57,46 +57,18 @@ export function KanbanBoard({
       .map((s) => s.ticket_id!) ?? []
   );
 
-  // Extract unique prefixes from ticket external_ids
-  // Returns prefixes like "CSM-" for regular tickets, "ADHOC" for ad-hoc tickets
+  // Extract unique prefixes from tickets (server computes prefix for us)
   const prefixes = useMemo(() => {
-    const prefixSet = new Set<string>();
-    tickets.forEach((ticket) => {
-      if (ticket.external_id) {
-        // Extract prefix (e.g., "CSM-" from "CSM-001")
-        const match = ticket.external_id.match(/^([A-Z]+-)/);
-        if (match) {
-          prefixSet.add(match[1]);
-        } else {
-          // No match means ad-hoc style ticket
-          prefixSet.add('ADHOC');
-        }
-      } else {
-        // No external_id means ad-hoc ticket
-        prefixSet.add('ADHOC');
-      }
-    });
+    const prefixSet = new Set(tickets.map((t) => t.prefix));
     return Array.from(prefixSet).sort();
   }, [tickets]);
 
-  // Filter tickets by selected prefixes
+  // Filter tickets by selected prefixes (simple - server provides prefix field)
   const filteredTickets = useMemo(() => {
     if (selectedPrefixes.length === 0) {
       return tickets;
     }
-    return tickets.filter((ticket) => {
-      if (!ticket.external_id) {
-        // Ad-hoc tickets match if ADHOC is selected
-        return selectedPrefixes.includes('ADHOC');
-      }
-      // Check if ticket matches any selected prefix
-      const matchesPrefix = selectedPrefixes.some((prefix) =>
-        ticket.external_id!.startsWith(prefix)
-      );
-      // Also check if ADHOC is selected and ticket doesn't match standard pattern
-      const isAdhocStyle = !ticket.external_id.match(/^[A-Z]+-/);
-      return matchesPrefix || (isAdhocStyle && selectedPrefixes.includes('ADHOC'));
-    });
+    return tickets.filter((ticket) => selectedPrefixes.includes(ticket.prefix));
   }, [tickets, selectedPrefixes]);
 
   // Group tickets by state

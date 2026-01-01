@@ -21,6 +21,16 @@ const booleanFromString = z
     return val.toLowerCase() !== 'false' && val !== '0' && val !== '';
   });
 
+// Sortable fields for ticket list
+export const ticketOrderByEnum = z.enum(['externalId', 'createdAt', 'updatedAt', 'completedAt']);
+export const orderDirEnum = z.enum(['asc', 'desc']);
+
+// Helper to parse ISO date strings to Date objects
+const isoDateString = z
+  .string()
+  .refine((val) => !isNaN(Date.parse(val)), { message: 'Invalid date format' })
+  .transform((val) => new Date(val));
+
 export const listTicketsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
@@ -30,6 +40,20 @@ export const listTicketsQuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? val.split(',').filter(Boolean) : undefined)), // Comma-separated list of prefixes
+
+  // Date filtering - hide old completed tickets
+  excludeOldDone: booleanFromString.optional(), // Shorthand for completedWithinDays=3
+  completedWithinDays: z.coerce.number().int().positive().optional(), // Only show done tickets within N days
+
+  // Explicit date range filters
+  completedAfter: isoDateString.optional(),
+  completedBefore: isoDateString.optional(),
+  updatedAfter: isoDateString.optional(),
+  updatedBefore: isoDateString.optional(),
+
+  // Sorting
+  orderBy: ticketOrderByEnum.default('externalId'),
+  orderDir: orderDirEnum.default('asc'),
 });
 
 // Response for prefixes endpoint
@@ -62,6 +86,8 @@ export const transitionReasonEnum = z.enum([
 export type ListTicketsQuery = z.infer<typeof listTicketsQuerySchema>;
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
 export type TicketState = z.infer<typeof ticketStateEnum>;
+export type TicketOrderBy = z.infer<typeof ticketOrderByEnum>;
+export type OrderDir = z.infer<typeof orderDirEnum>;
 export type RejectTicketInput = z.infer<typeof rejectTicketSchema>;
 export type TransitionTrigger = z.infer<typeof transitionTriggerEnum>;
 export type TransitionReason = z.infer<typeof transitionReasonEnum>;
@@ -74,6 +100,7 @@ export interface TicketSummaryResponse {
   title: string;
   state: TicketState;
   file_path: string;
+  prefix: string; // Computed by server: "CSM", "DWP", "ADHOC", etc.
   is_adhoc: boolean;
   is_explore: boolean;
   started_at: string | null;

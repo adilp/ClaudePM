@@ -232,6 +232,7 @@ struct TicketDetailSheet: View {
             title: "Implement new feature with detailed description",
             state: .inProgress,
             filePath: "/path",
+            prefix: "CSM",
             isAdhoc: false,
             isExplore: false,
             startedAt: nil,

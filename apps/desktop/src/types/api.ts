@@ -64,6 +64,7 @@ export interface Ticket {
   title: string;
   state: TicketState;
   file_path: string;
+  prefix: string; // Computed by server: "CSM", "DWP", "ADHOC", etc.
   content_hash: string;
   is_adhoc: boolean;
   is_explore: boolean;

@@ -103,6 +103,7 @@ struct TicketColumnView: View {
                         title: "Sample Ticket",
                         state: .backlog,
                         filePath: "/path",
+                        prefix: "CSM",
                         isAdhoc: false,
                         isExplore: false,
                         startedAt: nil,
