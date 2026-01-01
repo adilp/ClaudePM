@@ -96,6 +96,12 @@ struct TicketBoardView: View {
                     onViewSession: { session in
                         selectedTicket = nil // Dismiss the sheet
                         sessionToView = session
+                    },
+                    onApprove: {
+                        await viewModel.approveTicket(ticket.id)
+                    },
+                    onReject: { feedback in
+                        await viewModel.rejectTicket(ticket.id, feedback: feedback)
                     }
                 )
             }

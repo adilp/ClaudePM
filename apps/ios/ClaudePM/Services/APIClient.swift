@@ -411,6 +411,80 @@ actor APIClient {
         }
     }
 
+    /// Approve a ticket (transitions from review to done)
+    /// - Parameter ticketId: The ticket ID to approve
+    /// - Returns: The transition result
+    func approveTicket(ticketId: String) async throws -> TransitionResult {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/tickets/\(ticketId)/approve")
+        let (data, response) = try await performRequest(url: url, method: "POST", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(TransitionResult.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Reject a ticket (transitions from review back to in_progress with feedback)
+    /// - Parameters:
+    ///   - ticketId: The ticket ID to reject
+    ///   - feedback: Feedback explaining why the ticket is being rejected
+    /// - Returns: The transition result
+    func rejectTicket(ticketId: String, feedback: String) async throws -> TransitionResult {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/tickets/\(ticketId)/reject")
+
+        struct RejectBody: Encodable {
+            let feedback: String
+        }
+
+        let body = RejectBody(feedback: feedback)
+        let jsonData = try JSONEncoder().encode(body)
+
+        let (data, response) = try await performRequest(url: url, method: "POST", body: jsonData, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(TransitionResult.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
     // MARK: - Session Methods
 
     /// Create an adhoc session for a project

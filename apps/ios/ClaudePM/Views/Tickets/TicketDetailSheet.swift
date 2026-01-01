@@ -7,6 +7,8 @@ struct TicketDetailSheet: View {
     let onMove: (TicketStatus) async -> Void
     let onStart: () async -> StartTicketResponse?
     var onViewSession: ((Session) -> Void)? = nil
+    var onApprove: (() async -> TransitionResult?)? = nil
+    var onReject: ((String) async -> TransitionResult?)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var ticketDetail: TicketDetail?
@@ -15,10 +17,14 @@ struct TicketDetailSheet: View {
     @State private var isLoadingSessions = false
     @State private var isMoving = false
     @State private var isStarting = false
+    @State private var isApproving = false
+    @State private var isRejecting = false
     @State private var error: String?
     @State private var showDiffViewer = false
     @State private var selectedSection: DetailSection = .content
     @State private var showStartConfirmation = false
+    @State private var showRejectSheet = false
+    @State private var rejectFeedback = ""
 
     private enum DetailSection: String, CaseIterable {
         case content = "Content"
@@ -294,6 +300,45 @@ struct TicketDetailSheet: View {
                 }
             }
 
+            // Approve/Reject buttons (only when ticket is in review state)
+            if ticket.state == .review {
+                HStack(spacing: 12) {
+                    // Reject button
+                    Button {
+                        showRejectSheet = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "xmark.circle.fill")
+                            Text(isRejecting ? "Rejecting..." : "Reject")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .disabled(isApproving || isRejecting)
+
+                    // Approve button
+                    Button {
+                        Task {
+                            await performApprove()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text(isApproving ? "Approving..." : "Approve")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.green)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .disabled(isApproving || isRejecting)
+                }
+            }
+
             // Move to previous column (if not in backlog)
             if let previousStatus = previousStatus {
                 actionButton(
@@ -338,6 +383,62 @@ struct TicketDetailSheet: View {
         } message: {
             Text("Start a Claude session for \"\(ticket.title)\"?")
         }
+        .sheet(isPresented: $showRejectSheet) {
+            rejectFeedbackSheet
+        }
+    }
+
+    /// Sheet for collecting rejection feedback
+    private var rejectFeedbackSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Please provide feedback explaining why this ticket is being rejected. This will be sent back to the session for revision.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                TextEditor(text: $rejectFeedback)
+                    .frame(minHeight: 150)
+                    .padding(8)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 1)
+                    )
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Reject Ticket")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showRejectSheet = false
+                        rejectFeedback = ""
+                    }
+                    .disabled(isRejecting)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task {
+                            await performReject()
+                        }
+                    } label: {
+                        if isRejecting {
+                            ProgressView()
+                        } else {
+                            Text("Reject")
+                        }
+                    }
+                    .disabled(rejectFeedback.trimmingCharacters(in: .whitespaces).isEmpty || isRejecting)
+                }
+            }
+            .interactiveDismissDisabled(isRejecting)
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: - Subviews
@@ -503,6 +604,25 @@ struct TicketDetailSheet: View {
             }
         }
         isStarting = false
+    }
+
+    private func performApprove() async {
+        isApproving = true
+        if let _ = await onApprove?() {
+            dismiss()
+        }
+        isApproving = false
+    }
+
+    private func performReject() async {
+        isRejecting = true
+        let feedback = rejectFeedback.trimmingCharacters(in: .whitespaces)
+        if let _ = await onReject?(feedback) {
+            showRejectSheet = false
+            rejectFeedback = ""
+            dismiss()
+        }
+        isRejecting = false
     }
 }
 

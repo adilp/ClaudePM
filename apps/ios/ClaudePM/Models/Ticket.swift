@@ -104,3 +104,14 @@ struct StartTicketResponse: Codable {
 struct PrefixesResponse: Codable {
     let data: [String]
 }
+
+/// Result from ticket state transitions (approve/reject)
+struct TransitionResult: Codable {
+    let ticketId: String
+    let fromState: TicketStatus
+    let toState: TicketStatus
+    let trigger: String
+    let reason: String?
+    let timestamp: String
+    let historyEntryId: String
+}

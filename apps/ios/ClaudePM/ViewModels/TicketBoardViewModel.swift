@@ -174,6 +174,90 @@ class TicketBoardViewModel {
         }
     }
 
+    /// Approve a ticket (transitions from review to done)
+    /// - Parameter ticketId: The ticket ID to approve
+    /// - Returns: The transition result, or nil if failed
+    @MainActor
+    func approveTicket(_ ticketId: String) async -> TransitionResult? {
+        isUpdating = true
+        error = nil
+
+        do {
+            let result = try await APIClient.shared.approveTicket(ticketId: ticketId)
+
+            // Update the ticket in our local array
+            if let index = tickets.firstIndex(where: { $0.id == ticketId }) {
+                // Create updated ticket with new state
+                let oldTicket = tickets[index]
+                let updatedTicket = Ticket(
+                    id: oldTicket.id,
+                    externalId: oldTicket.externalId,
+                    title: oldTicket.title,
+                    state: result.toState,
+                    filePath: oldTicket.filePath,
+                    prefix: oldTicket.prefix,
+                    isAdhoc: oldTicket.isAdhoc,
+                    isExplore: oldTicket.isExplore,
+                    startedAt: oldTicket.startedAt,
+                    completedAt: Date(),
+                    createdAt: oldTicket.createdAt,
+                    updatedAt: Date()
+                )
+                tickets[index] = updatedTicket
+            }
+
+            isUpdating = false
+            return result
+        } catch {
+            self.error = error.localizedDescription
+            isUpdating = false
+            return nil
+        }
+    }
+
+    /// Reject a ticket (transitions from review back to in_progress)
+    /// - Parameters:
+    ///   - ticketId: The ticket ID to reject
+    ///   - feedback: Feedback explaining why the ticket is being rejected
+    /// - Returns: The transition result, or nil if failed
+    @MainActor
+    func rejectTicket(_ ticketId: String, feedback: String) async -> TransitionResult? {
+        isUpdating = true
+        error = nil
+
+        do {
+            let result = try await APIClient.shared.rejectTicket(ticketId: ticketId, feedback: feedback)
+
+            // Update the ticket in our local array
+            if let index = tickets.firstIndex(where: { $0.id == ticketId }) {
+                // Create updated ticket with new state
+                let oldTicket = tickets[index]
+                let updatedTicket = Ticket(
+                    id: oldTicket.id,
+                    externalId: oldTicket.externalId,
+                    title: oldTicket.title,
+                    state: result.toState,
+                    filePath: oldTicket.filePath,
+                    prefix: oldTicket.prefix,
+                    isAdhoc: oldTicket.isAdhoc,
+                    isExplore: oldTicket.isExplore,
+                    startedAt: oldTicket.startedAt,
+                    completedAt: nil,
+                    createdAt: oldTicket.createdAt,
+                    updatedAt: Date()
+                )
+                tickets[index] = updatedTicket
+            }
+
+            isUpdating = false
+            return result
+        } catch {
+            self.error = error.localizedDescription
+            isUpdating = false
+            return nil
+        }
+    }
+
     /// Create an adhoc ticket
     /// - Parameters:
     ///   - title: Ticket title
