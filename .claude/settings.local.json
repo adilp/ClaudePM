@@ -9,7 +9,8 @@
       "Bash(npm run lint:*)",
       "Bash(npm run build:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx eslint:*)"
+      "Bash(npx eslint:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

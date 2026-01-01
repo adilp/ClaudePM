@@ -445,7 +445,7 @@ export class SessionSupervisor extends EventEmitter {
     // Create pane in the project's tmux session
     let paneId: string;
 
-    // Query ticket if this is a ticket session to determine command
+    // Query ticket if this is a ticket session (for command building and pane title)
     let ticket: { isAdhoc: boolean; isExplore: boolean; filePath: string; title: string; externalId: string | null } | null = null;
     if (options.ticketId) {
       ticket = await prisma.ticket.findUnique({
@@ -454,60 +454,8 @@ export class SessionSupervisor extends EventEmitter {
       });
     }
 
-    // Build the command to start Claude
-    // Note: We pass file path in prompt instead of piping, as piping breaks interactive mode
-    let claudeCommand: string;
-    if (ticket) {
-      // Use relative path since cwd is set to project.repoPath
-      const ticketPath = ticket.filePath;
-
-      if (ticket.isExplore) {
-        // Explore mode: research and understand, do NOT implement
-        // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
-        claudeCommand = `claude "Read the ticket at ${ticketPath} and help me understand:
-
-1. Research the problem - understand what's being asked
-2. Find relevant files and code in the codebase
-3. If web research would help, use it to find documentation or solutions
-4. Summarize your findings and any implementation considerations
-
-IMPORTANT: Do NOT implement anything. This is a research/exploration session only.
-Ask clarifying questions if the requirements are unclear.
-
-When you've completed your research and summarized findings, output exactly on its own line:
----TASK_COMPLETE---
-Followed by a brief summary of what you learned." --allowedTools Edit Read Write Bash Grep Glob`;
-      } else if (ticket.isAdhoc) {
-        // Adhoc tickets: summarize and wait for confirmation
-        // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
-        claudeCommand = `claude "Read the ticket at ${ticketPath} Explore the the codebase, come up with a solution, and summarize what's being requested. Ask any clarifying questions. Then propose next steps and wait for my confirmation before implementing.
-
-IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
----TASK_COMPLETE---
-Followed by a brief summary of what was done." --allowedTools Edit Read Write Bash Grep Glob`;
-      } else {
-        // Regular tickets: implement directly
-        // Include completion marker instruction for auto-progression
-        // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
-        claudeCommand = `claude "Read the ticket at ${ticketPath} and implement it. The ticket is: ${ticket.title}
-
-IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
----TASK_COMPLETE---
-Followed by a brief summary of what was done." --allowedTools Edit Read Write Bash Grep Glob`;
-      }
-    } else {
-      // Adhoc sessions without ticket: start claude with optional initial prompt
-      // Note: prompt must come BEFORE --allowedTools, otherwise it's interpreted as a tool name
-      if (options.initialPrompt) {
-        // Escape the prompt for shell usage - replace backslashes and double quotes
-        const escapedPrompt = options.initialPrompt
-          .replace(/\\/g, '\\\\')
-          .replace(/"/g, '\\"');
-        claudeCommand = `claude "${escapedPrompt}" --allowedTools Edit Read Write Bash Grep Glob`;
-      } else {
-        claudeCommand = 'claude --allowedTools Edit Read Write Bash Grep Glob';
-      }
-    }
+    // Build the Claude CLI command (prompt must come BEFORE --allowedTools)
+    const claudeCommand = this.buildClaudeCommand(ticket, options.initialPrompt);
 
     try {
       // Build pane options conditionally for exactOptionalPropertyTypes
@@ -604,6 +552,73 @@ Followed by a brief summary of what was done." --allowedTools Edit Read Write Ba
     return `I'm working on ticket ${ticketRef}
 
 Please read the ticket at ${filePath} and begin implementation.`;
+  }
+
+  /**
+   * Build the Claude CLI command based on ticket type
+   *
+   * Ticket types and their behavior:
+   * - isExplore: Research only - DO NOT implement, summarize findings
+   * - isAdhoc: Summarize and wait for confirmation before implementing
+   * - Regular ticket: Research first, then propose next steps
+   * - No ticket: Use provided prompt or start interactive mode
+   */
+  private buildClaudeCommand(
+    ticket: { isAdhoc: boolean; isExplore: boolean; filePath: string; title: string } | null,
+    initialPrompt?: string
+  ): string {
+    const allowedTools = '--allowedTools Edit Read Write Bash Grep Glob';
+    const completionMarker = `IMPORTANT: When you have completed ALL requirements in the ticket, output exactly on its own line:
+---TASK_COMPLETE---
+Followed by a brief summary of what was done.`;
+
+    if (!ticket) {
+      // Adhoc session without ticket
+      if (initialPrompt) {
+        const escapedPrompt = initialPrompt
+          .replace(/\\/g, '\\\\')
+          .replace(/"/g, '\\"');
+        return `claude "${escapedPrompt}" ${allowedTools}`;
+      }
+      return `claude ${allowedTools}`;
+    }
+
+    const ticketPath = ticket.filePath;
+
+    if (ticket.isExplore) {
+      // Explore mode: research only, no implementation
+      return `claude "Read the ticket at ${ticketPath} and help me understand:
+
+1. Research the problem - understand what's being asked
+2. Find relevant files and code in the codebase
+3. If web research would help, use it to find documentation or solutions
+4. Summarize your findings and any implementation considerations
+
+IMPORTANT: Do NOT implement anything. This is a research/exploration session only.
+Ask clarifying questions if the requirements are unclear.
+
+When you've completed your research and summarized findings, output exactly on its own line:
+---TASK_COMPLETE---
+Followed by a brief summary of what you learned." ${allowedTools}`;
+    }
+
+    if (ticket.isAdhoc) {
+      // Adhoc ticket: summarize and wait for confirmation
+      return `claude "Read the ticket at ${ticketPath} Explore the the codebase, come up with a solution, and summarize what's being requested. Ask any clarifying questions. Then propose next steps and wait for my confirmation before implementing.
+
+${completionMarker}" ${allowedTools}`;
+    }
+
+    // Regular ticket: research first, then propose next steps
+    return `claude "Read the ticket at ${ticketPath}. The ticket is: ${ticket.title}
+
+1. Research the problem - understand what's being asked
+2. Find relevant files and code in the codebase
+3. If web research would help, use it to find documentation or solutions
+4. Ask any clarifying questions
+5. Summarize your findings and any implementation considerations and propose next steps
+
+${completionMarker}" ${allowedTools}`;
   }
 
   /**
