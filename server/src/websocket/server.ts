@@ -689,6 +689,7 @@ export class WebSocketManager {
 
   /**
    * Handle PTY resize request
+   * Resizes the node-pty process - tmux handles client sizing naturally
    */
   private handlePtyResize(
     ws: ExtendedWebSocket,
@@ -711,6 +712,7 @@ export class WebSocketManager {
 
   /**
    * Handle PTY select pane request - re-focus and zoom the session's tmux pane
+   * Only zooms if not already zoomed (to avoid toggling off)
    */
   private handlePtySelectPane(ws: ExtendedWebSocket, sessionId: string): void {
     const connectionId = ws.connectionInfo.id;
@@ -725,15 +727,38 @@ export class WebSocketManager {
     const paneId = connection.paneId;
     const tmuxPath = process.env.TMUX_PATH ?? '/usr/local/bin/tmux';
 
-    // Select the pane, then zoom it (resize-pane -Z toggles zoom)
-    import('child_process').then(({ exec }) => {
-      // First select the pane, then zoom it
-      exec(`${tmuxPath} select-pane -t ${paneId} && ${tmuxPath} resize-pane -Z -t ${paneId}`, (error) => {
-        if (error) {
-          console.error(`[WebSocket] Failed to select/zoom pane ${paneId}:`, error);
+    import('child_process').then(({ exec, execSync }) => {
+      // First select the pane
+      exec(`${tmuxPath} select-pane -t ${paneId}`, (selectError) => {
+        if (selectError) {
+          console.error(`[WebSocket] Failed to select pane ${paneId}:`, selectError);
           this.sendError(ws, WS_ERROR_CODES.INTERNAL_ERROR, 'Failed to select pane');
-        } else {
-          console.log(`[WebSocket] Selected and zoomed pane ${paneId} for connection ${connectionId}`);
+          return;
+        }
+
+        // Check if pane is already zoomed using window_zoomed_flag
+        try {
+          const zoomedFlag = execSync(
+            `${tmuxPath} display-message -t ${paneId} -p '#{window_zoomed_flag}'`,
+            { encoding: 'utf8', env: { ...process.env, TMUX: '' } }
+          ).trim();
+
+          // Only zoom if not already zoomed (flag is '0' when not zoomed)
+          if (zoomedFlag !== '1') {
+            exec(`${tmuxPath} resize-pane -Z -t ${paneId}`, (zoomError) => {
+              if (zoomError) {
+                console.error(`[WebSocket] Failed to zoom pane ${paneId}:`, zoomError);
+              } else {
+                console.log(`[WebSocket] Selected and zoomed pane ${paneId} for connection ${connectionId}`);
+              }
+            });
+          } else {
+            console.log(`[WebSocket] Selected pane ${paneId} (already zoomed) for connection ${connectionId}`);
+          }
+        } catch (checkError) {
+          console.warn(`[WebSocket] Failed to check zoom state, zooming anyway:`, checkError);
+          // Zoom anyway if we can't check the state
+          exec(`${tmuxPath} resize-pane -Z -t ${paneId}`, () => {});
         }
       });
     }).catch((err) => {

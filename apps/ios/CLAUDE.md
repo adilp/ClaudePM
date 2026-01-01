@@ -41,6 +41,7 @@ apps/ios/
 ├── ClaudePM/
 │   ├── App/
 │   │   └── ClaudePMApp.swift              # App entry point, lifecycle management
+│   ├── Info.plist                         # App configuration (fonts, etc.)
 │   ├── Models/
 │   │   ├── Session.swift                  # Session API response models
 │   │   ├── SessionUpdate.swift            # WebSocket update models
@@ -60,7 +61,7 @@ apps/ios/
 │   ├── Views/
 │   │   ├── ContentView.swift              # Root TabView (Sessions, Tickets)
 │   │   ├── SessionRowView.swift           # Session row with status badge
-│   │   ├── SessionDetailView.swift        # Session detail screen
+│   │   ├── SessionDetailView.swift        # Session detail + full-screen terminal
 │   │   ├── SettingsView.swift             # Backend URL & API key config
 │   │   ├── NotificationBannerView.swift   # Toast-style notification banner
 │   │   ├── NotificationsListView.swift    # Bell icon dropdown list
@@ -72,7 +73,11 @@ apps/ios/
 │   │       ├── TicketDetailSheet.swift
 │   │       └── FilterChipsView.swift
 │   └── Resources/
-│       └── Assets.xcassets
+│       ├── Assets.xcassets
+│       └── Fonts/                         # Custom terminal fonts
+│           ├── JetBrainsMonoNerdFontMono-Regular.ttf
+│           ├── JetBrainsMonoNerdFontMono-Bold.ttf
+│           └── OFL.txt                    # Font license
 └── ClaudePMTests/
     └── ClaudePMTests.swift
 ```
@@ -165,9 +170,28 @@ connection.send("ls -la\n")
 // Resize terminal
 connection.resize(cols: 120, rows: 40)
 
+// Manual reconnect
+connection.reconnect()
+
 // Disconnect when done
 connection.disconnect()
 ```
+
+**Connection States:**
+```swift
+connection.isConnected     // WebSocket connected
+connection.isAttached      // Attached to PTY
+connection.isReconnecting  // Auto-reconnect in progress
+connection.reconnectAttempt // Current attempt number (0-10)
+connection.errorMessage    // Error description if failed
+```
+
+**Auto-Reconnect:**
+- Triggers on connection loss or send failure
+- Exponential backoff: 1s, 2s, 4s, 8s... max 30s
+- Max 10 attempts before giving up
+- Preserves terminal dimensions for re-attach
+- User can manually reconnect via `reconnect()` method
 
 **PTY Message Types:**
 | Message | Direction | Purpose |
@@ -248,25 +272,64 @@ Half-screen sheet showing all notifications.
 SwiftUI wrapper for SwiftTerm that displays live terminal output from Claude sessions.
 
 ```swift
-// Use TerminalContainerView which manages the PtyConnection
+// Basic usage - embedded terminal preview
 TerminalContainerView(sessionId: session.id)
     .frame(height: 300)
+
+// With full-screen toggle support
+TerminalContainerView(
+    sessionId: session.id,
+    isFullScreen: false,
+    onToggleFullScreen: { showFullScreen = true }
+)
+
+// Full-screen terminal (covers entire screen)
+FullScreenTerminalView(session: session, isPresented: $isFullScreen)
 ```
 
 **Features:**
 - Live terminal output via WebSocket PTY connection
+- **Full-screen mode** - tap terminal or expand button to maximize
+- **JetBrains Mono Nerd Font** - supports powerline glyphs and icons
 - Touch scrolling through terminal history
-- Automatic resize on device rotation
-- Monospace font optimized for Retina displays
+- Automatic resize on device rotation and mode change
 - Connection status overlay (connecting/attaching/error states)
+- Reconnect button on connection failure
 - Haptic feedback on terminal bell
 - URL link handling (opens in Safari)
+
+**Terminal Font:**
+Uses JetBrains Mono Nerd Font for proper rendering of:
+- Powerline separators (status bars, prompts)
+- Nerd Font icons (file types, git status)
+- Box drawing characters (borders, progress bars)
+
+```swift
+// Font configuration in TerminalFont enum
+TerminalFont.regular(size: 12)  // JetBrainsMonoNFM-Regular
+TerminalFont.bold(size: 12)     // JetBrainsMonoNFM-Bold
+```
+
+**Full-Screen Mode:**
+- Tap anywhere on terminal preview to expand
+- Expand button in terminal header
+- Close button (X) in top-left corner
+- Session info badge in top-right
+- Status bar hidden for maximum space
+- Terminal auto-resizes to fill screen
 
 **SwiftTerm Integration:**
 - Uses [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) library (same as Blink Shell, a-Shell)
 - `TerminalView` is a `UIViewRepresentable` wrapping `SwiftTerm.TerminalView`
 - `TerminalContainerView` adds connection status UI and manages `PtyConnection` lifecycle
+- `FullScreenTerminalView` provides full-screen presentation with overlay controls
 - Coordinator handles `TerminalViewDelegate` for input/resize/clipboard
+
+**Auto-Resize:**
+- Terminal dimensions calculated from SwiftTerm's `sizeChanged` delegate
+- Initial attach waits for dimensions before connecting to PTY
+- Resize messages sent to server on device rotation
+- Full-screen toggle triggers automatic re-layout
 
 ### NotificationBellButton
 Toolbar button with unread count badge.
@@ -336,17 +399,45 @@ enum SessionStatus: String, Codable {
 
 ## Development
 
-### Build & Run
+### Build & Run (Xcode)
 ```bash
 # Open in Xcode
 open ClaudePM.xcodeproj
+```
 
-# Or build from command line
+### Build for Simulator (Command Line)
+```bash
 xcodebuild -project ClaudePM.xcodeproj \
   -scheme ClaudePM \
   -destination "generic/platform=iOS Simulator" \
   -configuration Debug build
 ```
+
+### Build & Deploy to Physical iPhone
+```bash
+# List connected devices
+xcrun xctrace list devices
+
+# Build for physical device (replace "Adil iPhone" with your device name)
+xcodebuild -scheme ClaudePM \
+  -destination 'platform=iOS,name=Adil iPhone' \
+  -configuration Debug build
+
+# Install on device
+xcrun devicectl device install app \
+  --device "Adil iPhone" \
+  ~/Library/Developer/Xcode/DerivedData/ClaudePM-*/Build/Products/Debug-iphoneos/ClaudePM.app
+
+# Launch on device
+xcrun devicectl device process launch \
+  --device "Adil iPhone" \
+  com.claudepm.ios
+```
+
+**Note:** Your iPhone must be:
+- Connected via USB or on the same network
+- Trusted on your Mac (Settings > General > Device Management)
+- Developer mode enabled (Settings > Privacy & Security > Developer Mode)
 
 ### Run Tests
 ```bash
@@ -389,6 +480,27 @@ The Session model must match the API response exactly. The backend returns:
 - Ensure backend server is running
 - Use machine's IP address, not `localhost` (Simulator has its own network)
 - Example: `http://192.168.1.100:4847`
+
+### Terminal font not loading (garbled characters)
+If powerline glyphs appear as boxes or question marks:
+1. Ensure font files are in `Resources/Fonts/` directory
+2. Add fonts to Xcode project target (drag files, check "Copy if needed")
+3. Verify `Info.plist` includes `UIAppFonts` array with font filenames
+4. Clean build folder (Cmd+Shift+K) and rebuild
+
+### Adding fonts to Xcode project
+1. Open `ClaudePM.xcodeproj` in Xcode
+2. Drag `Resources/Fonts/` folder into Xcode navigator
+3. Ensure "Copy items if needed" is checked
+4. Ensure "Add to targets: ClaudePM" is checked
+5. Verify `Info.plist` is in project and contains:
+   ```xml
+   <key>UIAppFonts</key>
+   <array>
+       <string>JetBrainsMonoNerdFontMono-Regular.ttf</string>
+       <string>JetBrainsMonoNerdFontMono-Bold.ttf</string>
+   </array>
+   ```
 
 ### Simulator socket warnings (safe to ignore)
 These console warnings are harmless and only appear in the Simulator:

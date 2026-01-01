@@ -212,13 +212,13 @@ export class PtyManager extends EventEmitter {
       throw new PtyError(`Could not get pane info for ${paneId}`);
     }
 
-    // Get the actual pane dimensions - use these instead of requested dimensions
-    // This ensures the PTY matches what tmux is actually rendering
-    const paneDims = await tmux.getPaneDimensions(paneId);
-    const cols = paneDims?.cols ?? options.cols ?? this.defaultCols;
-    const rows = paneDims?.rows ?? options.rows ?? this.defaultRows;
+    // Use the CLIENT's requested dimensions for the PTY
+    // Don't call tmux resize-pane - let tmux handle multiple clients naturally
+    // tmux will use the smallest attached client's size by default
+    const cols = options.cols ?? this.defaultCols;
+    const rows = options.rows ?? this.defaultRows;
 
-    console.log(`[PtyManager] Pane ${paneId} actual dimensions: ${cols}x${rows} (requested: ${options.cols}x${options.rows})`);
+    console.log(`[PtyManager] Attaching with PTY size ${cols}x${rows}`);
 
     // Attach directly to the tmux session containing this pane
     // This gives native terminal behavior - keyboard, scrolling, etc.
@@ -320,6 +320,8 @@ export class PtyManager extends EventEmitter {
 
   /**
    * Resize a connection's PTY
+   * Only resizes the node-pty process - tmux will handle client sizing naturally
+   * based on its window-size option (recommended: set window-size latest in tmux.conf)
    */
   resize(connectionId: string, cols: number, rows: number): void {
     const connection = this.connections.get(connectionId);
@@ -327,11 +329,12 @@ export class PtyManager extends EventEmitter {
       throw new PtyNotAttachedError(connectionId);
     }
 
+    // Resize the node-pty process - tmux sees this as a client resize
     connection.ptyProcess.resize(cols, rows);
     connection.cols = cols;
     connection.rows = rows;
 
-    console.log(`[PtyManager] Resized connection ${connectionId} to ${cols}x${rows}`);
+    console.log(`[PtyManager] Resized connection ${connectionId} PTY to ${cols}x${rows}`);
   }
 
   /**

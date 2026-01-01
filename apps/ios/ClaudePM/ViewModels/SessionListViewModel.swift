@@ -15,6 +15,29 @@ class SessionListViewModel {
     /// Error message if load failed
     var error: String?
 
+    /// Whether to show completed sessions
+    var showCompletedSessions = false
+
+    // MARK: - Computed Properties
+
+    /// Active sessions (excludes completed unless showCompletedSessions is true)
+    var visibleSessions: [Session] {
+        if showCompletedSessions {
+            return sessions
+        }
+        return sessions.filter { $0.status != .completed }
+    }
+
+    /// Count of running sessions
+    var runningCount: Int {
+        sessions.filter { $0.status == .running }.count
+    }
+
+    /// Count of completed sessions (for badge)
+    var completedCount: Int {
+        sessions.filter { $0.status == .completed }.count
+    }
+
     // MARK: - Session Loading
 
     /// Load sessions from the backend API

@@ -166,9 +166,13 @@ struct SessionsTabView: View {
             if !connectionViewModel.connectionStatus.isConnected {
                 // Not connected state
                 notConnectedView
-            } else if viewModel.sessions.isEmpty && !viewModel.isLoading && viewModel.error == nil {
-                // Empty state
-                emptyStateView
+            } else if viewModel.visibleSessions.isEmpty && !viewModel.isLoading && viewModel.error == nil {
+                // Empty state (but might have completed sessions hidden)
+                if viewModel.completedCount > 0 {
+                    allCompletedView
+                } else {
+                    emptyStateView
+                }
             } else if let error = viewModel.error, viewModel.sessions.isEmpty {
                 // Error state
                 errorStateView(error)
@@ -185,14 +189,53 @@ struct SessionsTabView: View {
     }
 
     private var sessionList: some View {
-        List(viewModel.sessions) { session in
-            NavigationLink(value: session) {
-                SessionRowView(session: session)
+        List {
+            // Show/hide completed toggle if there are completed sessions
+            if viewModel.completedCount > 0 {
+                Section {
+                    Toggle(isOn: $viewModel.showCompletedSessions) {
+                        HStack {
+                            Image(systemName: "checkmark.circle")
+                                .foregroundStyle(.green)
+                            Text("Show Completed")
+                            Spacer()
+                            Text("\(viewModel.completedCount)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(Color(.tertiarySystemFill))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+
+            // Sessions list
+            Section {
+                ForEach(viewModel.visibleSessions) { session in
+                    NavigationLink(value: session) {
+                        SessionRowView(session: session)
+                    }
+                }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
         .refreshable {
             await viewModel.loadSessions()
+        }
+    }
+
+    private var allCompletedView: some View {
+        ContentUnavailableView {
+            Label("All Done!", systemImage: "checkmark.circle")
+        } description: {
+            Text("\(viewModel.completedCount) completed session\(viewModel.completedCount == 1 ? "" : "s") hidden.")
+        } actions: {
+            Button("Show Completed") {
+                viewModel.showCompletedSessions = true
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 

@@ -1,24 +1,76 @@
 import SwiftUI
 import SwiftTerm
 
+// MARK: - Terminal Font Configuration
+
+/// Custom Nerd Font for terminal with powerline glyph support
+enum TerminalFont {
+    /// Font name for the embedded JetBrains Mono Nerd Font
+    static let fontName = "JetBrainsMonoNFM-Regular"
+    static let boldFontName = "JetBrainsMonoNFM-Bold"
+
+    /// Default font size
+    static let defaultSize: CGFloat = 12
+
+    /// Get the terminal font, falling back to system monospace if not available
+    static func regular(size: CGFloat = defaultSize) -> UIFont {
+        if let font = UIFont(name: fontName, size: size) {
+            return font
+        }
+        // Fallback to system monospace
+        print("[TerminalFont] Warning: Nerd Font not found, using system monospace")
+        return UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    }
+
+    static func bold(size: CGFloat = defaultSize) -> UIFont {
+        if let font = UIFont(name: boldFontName, size: size) {
+            return font
+        }
+        return UIFont.monospacedSystemFont(ofSize: size, weight: .bold)
+    }
+}
+
+// MARK: - Terminal View
+
 /// SwiftUI wrapper for SwiftTerm terminal view
 /// Displays live terminal output from a Claude session
 struct TerminalView: UIViewRepresentable {
     let sessionId: String
     @Bindable var connection: PtyConnection
+    let fontSize: CGFloat
+
+    /// Callback when terminal dimensions are known
+    var onDimensionsReady: ((Int, Int) -> Void)?
+
+    init(sessionId: String, connection: PtyConnection, fontSize: CGFloat = TerminalFont.defaultSize, onDimensionsReady: ((Int, Int) -> Void)? = nil) {
+        self.sessionId = sessionId
+        self.connection = connection
+        self.fontSize = fontSize
+        self.onDimensionsReady = onDimensionsReady
+    }
 
     func makeUIView(context: Context) -> SwiftTerm.TerminalView {
         let terminal = SwiftTerm.TerminalView(frame: .zero)
 
-        // Configure terminal appearance
-        terminal.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        // Configure terminal appearance with Nerd Font
+        terminal.font = TerminalFont.regular(size: fontSize)
 
-        // Set background color for better visibility
+        // Set colors for better visibility
         terminal.nativeBackgroundColor = UIColor.black
         terminal.nativeForegroundColor = UIColor.white
 
-        // Set up data handler before connecting
-        connection.onData = { data in
+        // Allow scrolling and selection
+        terminal.allowMouseReporting = false
+
+        // Store terminal reference in coordinator
+        context.coordinator.terminal = terminal
+
+        // Register with focus manager for keyboard dismissal
+        TerminalFocusManager.shared.activeTerminal = terminal
+
+        // Set up data handler - receives terminal output from WebSocket
+        connection.onData = { [weak terminal] data in
+            guard let terminal = terminal else { return }
             let bytes = ArraySlice(Array(data.utf8))
             terminal.feed(byteArray: bytes)
         }
@@ -26,21 +78,14 @@ struct TerminalView: UIViewRepresentable {
         // Set the terminal delegate for input handling
         terminal.terminalDelegate = context.coordinator
 
-        // Connect to WebSocket
-        connection.connect()
-
-        // Attach after a brief delay to ensure connection is established
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // Use default terminal size (80x24) initially
-            // The delegate will be called when the view is sized properly
-            connection.attach(cols: 80, rows: 24)
-        }
-
         return terminal
     }
 
     func updateUIView(_ uiView: SwiftTerm.TerminalView, context: Context) {
-        // No updates needed - the terminal handles its own state
+        // Update font size if changed
+        if uiView.font.pointSize != fontSize {
+            uiView.font = TerminalFont.regular(size: fontSize)
+        }
     }
 
     static func dismantleUIView(_ uiView: SwiftTerm.TerminalView, coordinator: Coordinator) {
@@ -49,16 +94,20 @@ struct TerminalView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(connection: connection)
+        Coordinator(connection: connection, onDimensionsReady: onDimensionsReady)
     }
 
     // MARK: - Coordinator
 
     class Coordinator: NSObject, TerminalViewDelegate {
         let connection: PtyConnection
+        var terminal: SwiftTerm.TerminalView?
+        var onDimensionsReady: ((Int, Int) -> Void)?
+        private var hasReportedDimensions = false
 
-        init(connection: PtyConnection) {
+        init(connection: PtyConnection, onDimensionsReady: ((Int, Int) -> Void)?) {
             self.connection = connection
+            self.onDimensionsReady = onDimensionsReady
             super.init()
         }
 
@@ -70,6 +119,15 @@ struct TerminalView: UIViewRepresentable {
 
         /// Called when the terminal size changes
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
+            print("[TerminalView] Size changed: \(newCols)x\(newRows)")
+
+            // Report dimensions on first valid size change
+            if !hasReportedDimensions && newCols > 0 && newRows > 0 {
+                hasReportedDimensions = true
+                onDimensionsReady?(newCols, newRows)
+            }
+
+            // Send resize to server if attached
             connection.resize(cols: newCols, rows: newRows)
         }
 
@@ -103,7 +161,7 @@ struct TerminalView: UIViewRepresentable {
 
         /// Called when the bell character is received
         func bell(source: SwiftTerm.TerminalView) {
-            // Could play haptic feedback here
+            // Haptic feedback on bell
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.warning)
         }
@@ -152,34 +210,124 @@ struct TerminalView: UIViewRepresentable {
     }
 }
 
+// MARK: - Terminal Focus Manager
+
+/// Manages keyboard/focus state for terminal views
+@Observable
+class TerminalFocusManager {
+    static let shared = TerminalFocusManager()
+
+    /// Weak reference to the current terminal view
+    weak var activeTerminal: SwiftTerm.TerminalView?
+
+    /// Dismiss keyboard by resigning first responder on terminal
+    func dismissKeyboard() {
+        activeTerminal?.resignFirstResponder()
+    }
+}
+
 // MARK: - Terminal Container View
 
 /// Container view for the terminal with connection status overlay
+/// Supports full-screen expansion on tap
 struct TerminalContainerView: View {
     let sessionId: String
-    @State private var connection: PtyConnection
+    let isFullScreen: Bool
+    let onToggleFullScreen: (() -> Void)?
 
-    init(sessionId: String) {
+    @State private var connection: PtyConnection
+    @State private var terminalDimensions: (cols: Int, rows: Int)?
+
+    init(sessionId: String, isFullScreen: Bool = false, onToggleFullScreen: (() -> Void)? = nil) {
         self.sessionId = sessionId
+        self.isFullScreen = isFullScreen
+        self.onToggleFullScreen = onToggleFullScreen
         self._connection = State(initialValue: PtyConnection(sessionId: sessionId))
     }
 
     var body: some View {
-        ZStack {
-            // Terminal view
-            TerminalView(sessionId: sessionId, connection: connection)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+        GeometryReader { geometry in
+            ZStack {
+                // Terminal view
+                TerminalView(
+                    sessionId: sessionId,
+                    connection: connection,
+                    fontSize: isFullScreen ? 11 : 10,
+                    onDimensionsReady: { cols, rows in
+                        terminalDimensions = (cols, rows)
+                        // Attach to PTY once we know dimensions
+                        attachIfReady(cols: cols, rows: rows)
+                    }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: isFullScreen ? 0 : 12))
 
-            // Connection status overlay
-            if !connection.isAttached {
-                connectionOverlay
+                // Connection status overlay
+                if !connection.isAttached {
+                    connectionOverlay
+                }
+
+                // Full-screen toggle button (top-right)
+                if let toggle = onToggleFullScreen {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Button(action: toggle) {
+                                Image(systemName: isFullScreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(.white)
+                                    .padding(10)
+                                    .background(.black.opacity(0.6))
+                                    .clipShape(Circle())
+                            }
+                            .padding(8)
+                        }
+                        Spacer()
+                    }
+                }
             }
+        }
+        .onAppear {
+            startConnection()
+        }
+        .onDisappear {
+            connection.disconnect()
+        }
+        .onChange(of: isFullScreen) { _, newValue in
+            // Terminal will auto-resize via sizeChanged delegate
         }
     }
 
+    private func startConnection() {
+        // Start WebSocket connection
+        connection.connect()
+    }
+
+    private func attachIfReady(cols: Int, rows: Int) {
+        // Only attach if we're connected
+        guard connection.isConnected else {
+            // Wait for connection and retry
+            Task {
+                // Poll until connected (max 5 seconds)
+                for _ in 0..<50 {
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                    if connection.isConnected {
+                        await MainActor.run {
+                            connection.attach(cols: cols, rows: rows)
+                        }
+                        return
+                    }
+                }
+                print("[TerminalContainer] Timeout waiting for connection")
+            }
+            return
+        }
+
+        connection.attach(cols: cols, rows: rows)
+    }
+
     private var connectionOverlay: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(.black.opacity(0.7))
+        RoundedRectangle(cornerRadius: isFullScreen ? 0 : 12)
+            .fill(.black.opacity(0.8))
             .overlay {
                 VStack(spacing: 12) {
                     if let error = connection.errorMessage {
@@ -193,12 +341,36 @@ struct TerminalContainerView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
+
+                        // Retry button
+                        Button("Retry") {
+                            connection.reconnect()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                        .padding(.top, 8)
+
+                        // Show reconnect attempt if applicable
+                        if connection.reconnectAttempt > 0 {
+                            Text("Attempt \(connection.reconnectAttempt)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     } else if connection.isConnected {
                         ProgressView()
                             .tint(.white)
                         Text("Attaching to terminal...")
                             .font(.subheadline)
                             .foregroundStyle(.white)
+                    } else if connection.isReconnecting {
+                        ProgressView()
+                            .tint(.orange)
+                        Text("Reconnecting...")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                        Text("Attempt \(connection.reconnectAttempt)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     } else {
                         ProgressView()
                             .tint(.white)
@@ -214,8 +386,12 @@ struct TerminalContainerView: View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("Normal") {
     TerminalContainerView(sessionId: "test-session-id")
         .frame(height: 300)
         .padding()
+}
+
+#Preview("Full Screen") {
+    TerminalContainerView(sessionId: "test-session-id", isFullScreen: true)
 }

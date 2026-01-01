@@ -1,12 +1,15 @@
 import SwiftUI
 
 /// Detail view for a selected session
-/// Shows session information and will be expanded in future tickets
+/// Shows session information and live terminal output
 struct SessionDetailView: View {
     let session: Session
 
     /// Current session state that updates in real-time via WebSocket
     @State private var currentSession: Session
+
+    /// Whether terminal is in full-screen mode
+    @State private var isTerminalFullScreen = false
 
     init(session: Session) {
         self.session = session
@@ -28,7 +31,7 @@ struct SessionDetailView: View {
                 // Timestamps
                 timestampSection
 
-                // Terminal placeholder (for NAT-015)
+                // Terminal section with tap-to-expand
                 terminalSection
 
                 Spacer()
@@ -42,6 +45,12 @@ struct SessionDetailView: View {
         }
         .onDisappear {
             stopWebSocketObserving()
+        }
+        .fullScreenCover(isPresented: $isTerminalFullScreen) {
+            FullScreenTerminalView(
+                session: currentSession,
+                isPresented: $isTerminalFullScreen
+            )
         }
     }
 
@@ -261,11 +270,37 @@ struct SessionDetailView: View {
 
     private var terminalSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Terminal")
-                .font(.headline)
+            HStack {
+                Text("Terminal")
+                    .font(.headline)
 
-            TerminalContainerView(sessionId: currentSession.id)
-                .frame(height: 300)
+                Spacer()
+
+                // Expand button
+                Button {
+                    isTerminalFullScreen = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        Text("Expand")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                }
+            }
+
+            // Terminal preview - tappable to expand
+            TerminalContainerView(
+                sessionId: currentSession.id,
+                isFullScreen: false,
+                onToggleFullScreen: {
+                    isTerminalFullScreen = true
+                }
+            )
+            .frame(height: 300)
+            .onTapGesture {
+                isTerminalFullScreen = true
+            }
         }
     }
 
@@ -299,6 +334,133 @@ struct SessionDetailView: View {
             return .yellow
         }
         return .green
+    }
+}
+
+// MARK: - Full Screen Terminal View
+
+/// Full-screen terminal view presented as a modal
+/// Adapts to keyboard: shows terminal above keyboard when typing,
+/// expands to full height when keyboard is dismissed
+struct FullScreenTerminalView: View {
+    let session: Session
+    @Binding var isPresented: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    /// Keyboard height tracking
+    @State private var keyboardHeight: CGFloat = 0
+
+    /// Whether keyboard is currently visible
+    private var isKeyboardVisible: Bool {
+        keyboardHeight > 0
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let safeArea = geometry.safeAreaInsets
+
+            ZStack(alignment: .top) {
+                // Black background
+                Color.black
+                    .ignoresSafeArea()
+
+                // Main content - terminal fills available space above keyboard
+                VStack(spacing: 0) {
+                    // Header bar with close button and session info
+                    HStack {
+                        Button {
+                            dismissKeyboard()
+                            isPresented = false
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(12)
+                                .background(.ultraThinMaterial.opacity(0.8))
+                                .clipShape(Circle())
+                        }
+
+                        Spacer()
+
+                        // Session info badge
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(session.project.name)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white)
+
+                            if let ticket = session.ticket {
+                                Text(ticket.externalId ?? ticket.title)
+                                    .font(.caption2)
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial.opacity(0.8))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, safeArea.top + 4)
+                    .padding(.bottom, 8)
+
+                    // Terminal view - takes all remaining space
+                    TerminalContainerView(
+                        sessionId: session.id,
+                        isFullScreen: true,
+                        onToggleFullScreen: {
+                            isPresented = false
+                        }
+                    )
+
+                    // Keyboard toolbar when keyboard is visible
+                    if isKeyboardVisible {
+                        HStack {
+                            Spacer()
+
+                            Button {
+                                dismissKeyboard()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "keyboard.chevron.compact.down")
+                                    Text("Done")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(.blue)
+                                .clipShape(Capsule())
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.black)
+                    }
+                }
+                .padding(.bottom, isKeyboardVisible ? keyboardHeight : safeArea.bottom)
+            }
+        }
+        .ignoresSafeArea()
+        .statusBar(hidden: true)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+            withAnimation(.easeOut(duration: 0.25)) {
+                if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                    keyboardHeight = keyboardFrame.height
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeOut(duration: 0.25)) {
+                keyboardHeight = 0
+            }
+        }
+    }
+
+    private func dismissKeyboard() {
+        // Dismiss keyboard using the terminal focus manager
+        TerminalFocusManager.shared.dismissKeyboard()
     }
 }
 
@@ -342,4 +504,25 @@ struct SessionDetailView: View {
             ticket: nil
         ))
     }
+}
+
+#Preview("Full Screen Terminal") {
+    FullScreenTerminalView(
+        session: Session(
+            id: "550e8400-e29b-41d4-a716-446655440000",
+            projectId: "proj-1",
+            ticketId: "ticket-1",
+            type: .ticket,
+            status: .running,
+            contextPercent: 45,
+            paneId: "%1",
+            startedAt: Date().addingTimeInterval(-3600),
+            endedAt: nil,
+            createdAt: Date().addingTimeInterval(-7200),
+            updatedAt: Date(),
+            project: SessionProject(id: "proj-1", name: "Claude PM"),
+            ticket: SessionTicket(id: "ticket-1", externalId: "NAT-012", title: "iOS Session List View")
+        ),
+        isPresented: .constant(true)
+    )
 }

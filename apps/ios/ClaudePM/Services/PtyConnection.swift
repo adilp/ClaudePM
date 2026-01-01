@@ -2,6 +2,7 @@ import Foundation
 
 /// Manages PTY WebSocket connection for terminal I/O
 /// Uses the main WebSocket endpoint with message-based protocol
+/// Includes auto-reconnect with exponential backoff
 @Observable
 final class PtyConnection {
     // MARK: - Published Properties
@@ -11,6 +12,12 @@ final class PtyConnection {
 
     /// Whether attached to session's PTY
     var isAttached = false
+
+    /// Whether currently attempting to reconnect
+    var isReconnecting = false
+
+    /// Current reconnection attempt number (0 if not reconnecting)
+    var reconnectAttempt = 0
 
     /// Error message if connection fails
     var errorMessage: String?
@@ -23,12 +30,32 @@ final class PtyConnection {
     /// Called when PTY exits
     var onExit: ((Int) -> Void)?
 
+    /// Called when connection state changes
+    var onConnectionStateChange: ((Bool) -> Void)?
+
     // MARK: - Private Properties
 
     private var webSocket: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var receiveTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
     private let sessionId: String
+
+    /// Last known terminal dimensions for re-attach after reconnect
+    private var lastCols: Int = 80
+    private var lastRows: Int = 24
+
+    /// Whether auto-reconnect is enabled
+    private var autoReconnectEnabled = true
+
+    /// Maximum reconnection attempts before giving up
+    private let maxReconnectAttempts = 10
+
+    /// Base delay for exponential backoff (in seconds)
+    private let baseReconnectDelay: Double = 1.0
+
+    /// Maximum delay between reconnection attempts (in seconds)
+    private let maxReconnectDelay: Double = 30.0
 
     // MARK: - Initialization
 
@@ -37,6 +64,7 @@ final class PtyConnection {
     }
 
     deinit {
+        autoReconnectEnabled = false
         disconnect()
     }
 
@@ -71,7 +99,10 @@ final class PtyConnection {
 
         print("[PtyConnection] Connecting to \(url.absoluteString)")
 
-        // Create URLSession
+        // Clear any previous error
+        errorMessage = nil
+
+        // Create URLSession with delegate for connection events
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         urlSession = URLSession(configuration: config)
@@ -79,25 +110,42 @@ final class PtyConnection {
         // Create WebSocket task
         webSocket = urlSession?.webSocketTask(with: url)
         webSocket?.resume()
-        isConnected = true
-        errorMessage = nil
 
-        // Start receiving messages
+        // Start receiving messages immediately
         startReceiving()
+
+        // Mark as connected after a brief moment to allow WebSocket handshake
+        // The actual connection confirmation comes from successful message receiving
+        Task { @MainActor in
+            // Give WebSocket time to establish
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            if webSocket?.state == .running {
+                isConnected = true
+                isReconnecting = false
+                reconnectAttempt = 0
+                onConnectionStateChange?(true)
+                print("[PtyConnection] Connected")
+            }
+        }
     }
 
     /// Disconnect from WebSocket
     func disconnect() {
         print("[PtyConnection] Disconnecting")
 
+        // Disable auto-reconnect during intentional disconnect
+        autoReconnectEnabled = false
+
         // Detach from PTY first
         if isAttached {
             detach()
         }
 
-        // Cancel receive task
+        // Cancel tasks
         receiveTask?.cancel()
         receiveTask = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
 
         // Close WebSocket
         webSocket?.cancel(with: .goingAway, reason: nil)
@@ -107,6 +155,80 @@ final class PtyConnection {
 
         isConnected = false
         isAttached = false
+        isReconnecting = false
+        reconnectAttempt = 0
+    }
+
+    /// Manually trigger a reconnection
+    func reconnect() {
+        disconnect()
+        autoReconnectEnabled = true
+        errorMessage = nil
+        reconnectAttempt = 0
+        connect()
+    }
+
+    // MARK: - Auto-Reconnect
+
+    /// Schedule an automatic reconnection with exponential backoff
+    private func scheduleReconnect() {
+        guard autoReconnectEnabled else { return }
+        guard reconnectAttempt < maxReconnectAttempts else {
+            print("[PtyConnection] Max reconnection attempts reached")
+            errorMessage = "Connection lost. Tap to retry."
+            isReconnecting = false
+            return
+        }
+
+        reconnectAttempt += 1
+        isReconnecting = true
+
+        // Calculate delay with exponential backoff: base * 2^(attempt-1)
+        let delay = min(baseReconnectDelay * pow(2.0, Double(reconnectAttempt - 1)), maxReconnectDelay)
+
+        print("[PtyConnection] Scheduling reconnect attempt \(reconnectAttempt) in \(delay)s")
+
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            guard let self = self else { return }
+
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+                guard !Task.isCancelled else { return }
+
+                await MainActor.run {
+                    // Clean up old connection
+                    self.webSocket?.cancel(with: .goingAway, reason: nil)
+                    self.webSocket = nil
+                    self.urlSession?.invalidateAndCancel()
+                    self.urlSession = nil
+                    self.isConnected = false
+                    self.isAttached = false
+
+                    // Attempt to reconnect
+                    self.connect()
+
+                    // If we had dimensions, re-attach after connection
+                    if self.lastCols > 0 && self.lastRows > 0 {
+                        Task {
+                            // Wait for connection to establish
+                            for _ in 0..<30 {
+                                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                                if self.isConnected {
+                                    await MainActor.run {
+                                        self.attach(cols: self.lastCols, rows: self.lastRows)
+                                    }
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                // Task was cancelled
+            }
+        }
     }
 
     // MARK: - PTY Operations
@@ -116,6 +238,10 @@ final class PtyConnection {
     ///   - cols: Terminal width in columns
     ///   - rows: Terminal height in rows
     func attach(cols: Int = 80, rows: Int = 24) {
+        // Store dimensions for re-attach on reconnect
+        lastCols = cols
+        lastRows = rows
+
         let msg: [String: Any] = [
             "type": "pty:attach",
             "payload": [
@@ -139,10 +265,24 @@ final class PtyConnection {
         print("[PtyConnection] Detaching from session \(sessionId)")
     }
 
+    /// Select and zoom the pane in tmux
+    /// Call this after attaching to maximize the pane for mobile viewing
+    func selectAndZoomPane() {
+        let msg: [String: Any] = [
+            "type": "pty:selectPane",
+            "payload": ["sessionId": sessionId]
+        ]
+        sendJSON(msg)
+        print("[PtyConnection] Selecting and zooming pane for session \(sessionId)")
+    }
+
     /// Send terminal input to PTY
     /// - Parameter text: The text to send
     func send(_ text: String) {
-        guard isAttached else { return }
+        guard isAttached else {
+            print("[PtyConnection] Warning: Dropping input - not attached")
+            return
+        }
 
         let msg: [String: Any] = [
             "type": "pty:data",
@@ -159,6 +299,10 @@ final class PtyConnection {
     ///   - cols: New terminal width in columns
     ///   - rows: New terminal height in rows
     func resize(cols: Int, rows: Int) {
+        // Always update stored dimensions
+        lastCols = cols
+        lastRows = rows
+
         guard isAttached else { return }
 
         let msg: [String: Any] = [
@@ -191,7 +335,10 @@ final class PtyConnection {
                         await MainActor.run {
                             self.isConnected = false
                             self.isAttached = false
-                            self.errorMessage = error.localizedDescription
+                            self.onConnectionStateChange?(false)
+
+                            // Attempt auto-reconnect
+                            self.scheduleReconnect()
                         }
                     }
                     break
@@ -253,7 +400,20 @@ final class PtyConnection {
         let cols = payload["cols"] as? Int ?? 80
         let rows = payload["rows"] as? Int ?? 24
         print("[PtyConnection] Attached to session \(sessionId) (\(cols)x\(rows))")
+
+        // Store confirmed dimensions
+        lastCols = cols
+        lastRows = rows
+
         isAttached = true
+
+        // Clear any reconnect state on successful attach
+        isReconnecting = false
+        reconnectAttempt = 0
+        errorMessage = nil
+
+        // Select and zoom the pane for optimal mobile viewing
+        selectAndZoomPane()
     }
 
     /// Handle PTY detached confirmation
@@ -298,9 +458,13 @@ final class PtyConnection {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let str = String(data: data, encoding: .utf8) else { return }
 
-        webSocket?.send(.string(str)) { error in
+        webSocket?.send(.string(str)) { [weak self] error in
             if let error = error {
                 print("[PtyConnection] Send error: \(error.localizedDescription)")
+                // Trigger reconnect on send failure
+                Task { @MainActor [weak self] in
+                    self?.scheduleReconnect()
+                }
             }
         }
     }
