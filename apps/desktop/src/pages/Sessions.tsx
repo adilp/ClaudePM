@@ -1,7 +1,7 @@
 /**
  * Sessions Page
  * Full-featured sessions page with tmux discovery, managed sessions,
- * and recent/completed sections. Includes keyboard navigation.
+ * and recent/completed sections. Includes keyboard navigation, filters, and rename.
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -13,7 +13,15 @@ import { toast } from '../hooks/use-toast';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailModal } from '../components/SessionDetailModal';
 import { cn } from '../lib/utils';
+import { discoverSessions, renameSession } from '../services/api';
 import type { Session, SyncSessionsResult } from '../types/api';
+
+// ============================================================================
+// Filter Types
+// ============================================================================
+
+type SourceFilter = 'all' | 'api' | 'discovered';
+type CommandFilter = 'all' | 'node' | 'nvim' | 'other';
 
 // ============================================================================
 // Collapsible Section Component
@@ -214,6 +222,198 @@ function SyncButton({ onClick, loading }: SyncButtonProps) {
 }
 
 // ============================================================================
+// Filter Chips Component
+// ============================================================================
+
+interface FilterChipsProps {
+  sourceFilter: SourceFilter;
+  commandFilter: CommandFilter;
+  onSourceChange: (source: SourceFilter) => void;
+  onCommandChange: (command: CommandFilter) => void;
+  counts: {
+    api: number;
+    discovered: number;
+    node: number;
+    nvim: number;
+    other: number;
+  };
+}
+
+function FilterChips({
+  sourceFilter,
+  commandFilter,
+  onSourceChange,
+  onCommandChange,
+  counts,
+}: FilterChipsProps) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {/* Source filters */}
+      <div className="flex items-center gap-1 mr-2">
+        <span className="text-xs text-content-muted mr-1">Source:</span>
+        <button
+          onClick={() => onSourceChange('all')}
+          className={cn(
+            'px-2 py-1 text-xs rounded-md transition-colors',
+            sourceFilter === 'all'
+              ? 'bg-indigo-500/20 text-indigo-400'
+              : 'bg-surface-tertiary text-content-muted hover:text-content-secondary'
+          )}
+        >
+          All
+        </button>
+        <button
+          onClick={() => onSourceChange('api')}
+          className={cn(
+            'px-2 py-1 text-xs rounded-md transition-colors',
+            sourceFilter === 'api'
+              ? 'bg-indigo-500/20 text-indigo-400'
+              : 'bg-surface-tertiary text-content-muted hover:text-content-secondary'
+          )}
+        >
+          API ({counts.api})
+        </button>
+        <button
+          onClick={() => onSourceChange('discovered')}
+          className={cn(
+            'px-2 py-1 text-xs rounded-md transition-colors',
+            sourceFilter === 'discovered'
+              ? 'bg-amber-500/20 text-amber-400'
+              : 'bg-surface-tertiary text-content-muted hover:text-content-secondary'
+          )}
+        >
+          Discovered ({counts.discovered})
+        </button>
+      </div>
+
+      {/* Command filters (only show for discovered) */}
+      {sourceFilter !== 'api' && (
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-content-muted mr-1">Command:</span>
+          <button
+            onClick={() => onCommandChange('all')}
+            className={cn(
+              'px-2 py-1 text-xs rounded-md transition-colors',
+              commandFilter === 'all'
+                ? 'bg-indigo-500/20 text-indigo-400'
+                : 'bg-surface-tertiary text-content-muted hover:text-content-secondary'
+            )}
+          >
+            All
+          </button>
+          <button
+            onClick={() => onCommandChange('node')}
+            className={cn(
+              'px-2 py-1 text-xs rounded-md transition-colors',
+              commandFilter === 'node'
+                ? 'bg-green-500/20 text-green-400'
+                : 'bg-surface-tertiary text-content-muted hover:text-content-secondary'
+            )}
+          >
+            node ({counts.node})
+          </button>
+          <button
+            onClick={() => onCommandChange('nvim')}
+            className={cn(
+              'px-2 py-1 text-xs rounded-md transition-colors',
+              commandFilter === 'nvim'
+                ? 'bg-blue-500/20 text-blue-400'
+                : 'bg-surface-tertiary text-content-muted hover:text-content-secondary'
+            )}
+          >
+            nvim ({counts.nvim})
+          </button>
+          <button
+            onClick={() => onCommandChange('other')}
+            className={cn(
+              'px-2 py-1 text-xs rounded-md transition-colors',
+              commandFilter === 'other'
+                ? 'bg-gray-500/20 text-gray-400'
+                : 'bg-surface-tertiary text-content-muted hover:text-content-secondary'
+            )}
+          >
+            other ({counts.other})
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Rename Dialog Component
+// ============================================================================
+
+interface RenameDialogProps {
+  currentName: string | null;
+  onClose: () => void;
+  onRename: (name: string) => Promise<void>;
+}
+
+function RenameDialog({ currentName, onClose, onRename }: RenameDialogProps) {
+  const [name, setName] = useState(currentName ?? '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await onRename(name.trim());
+      onClose();
+    } catch {
+      // Error handled by parent
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="bg-surface-secondary border border-line rounded-lg p-6 w-full max-w-md shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold text-content-primary mb-4">Rename Session</h3>
+        <form onSubmit={handleSubmit}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Enter session name"
+            className="w-full px-3 py-2 bg-surface-tertiary border border-line rounded-md text-content-primary placeholder-content-muted focus:border-indigo-500 focus:outline-none"
+          />
+          <div className="flex justify-end gap-2 mt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-content-secondary hover:text-content-primary transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || isSubmitting}
+              className="px-4 py-2 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
 // Sessions Page
 // ============================================================================
 
@@ -242,10 +442,18 @@ export function Sessions() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [detailSession, setDetailSession] = useState<Session | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Filter sessions by status
-  const activeSessions = useMemo(
+  // Filter state
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [commandFilter, setCommandFilter] = useState<CommandFilter>('all');
+
+  // Rename dialog state
+  const [renameTarget, setRenameTarget] = useState<{ sessionId: string; currentName: string | null } | null>(null);
+
+  // Get active sessions (running/paused)
+  const allActiveSessions = useMemo(
     () =>
       sessions?.filter(
         (s) =>
@@ -254,6 +462,40 @@ export function Sessions() {
       ) ?? [],
     [sessions]
   );
+
+  // Calculate filter counts
+  const filterCounts = useMemo(() => {
+    const active = allActiveSessions;
+    return {
+      api: active.filter(s => s.source === 'api').length,
+      discovered: active.filter(s => s.source === 'discovered').length,
+      node: active.filter(s => s.pane_command === 'node').length,
+      nvim: active.filter(s => s.pane_command === 'nvim' || s.pane_command === 'vim').length,
+      other: active.filter(s => s.pane_command && !['node', 'nvim', 'vim'].includes(s.pane_command)).length,
+    };
+  }, [allActiveSessions]);
+
+  // Apply filters to active sessions
+  const activeSessions = useMemo(() => {
+    let filtered = allActiveSessions;
+
+    // Source filter
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter(s => s.source === sourceFilter);
+    }
+
+    // Command filter (only applies when not filtering to API only)
+    if (commandFilter !== 'all' && sourceFilter !== 'api') {
+      filtered = filtered.filter(s => {
+        if (commandFilter === 'node') return s.pane_command === 'node';
+        if (commandFilter === 'nvim') return s.pane_command === 'nvim' || s.pane_command === 'vim';
+        if (commandFilter === 'other') return s.pane_command && !['node', 'nvim', 'vim'].includes(s.pane_command);
+        return true;
+      });
+    }
+
+    return filtered;
+  }, [allActiveSessions, sourceFilter, commandFilter]);
 
   const completedSessions = useMemo(
     () =>
@@ -339,6 +581,47 @@ export function Sessions() {
     }
   }, [syncSessions, refetchTmux, refetchSessions]);
 
+  // Discover manually created panes
+  const handleDiscover = useCallback(async () => {
+    setIsDiscovering(true);
+    try {
+      const result = await discoverSessions();
+      await refetchSessions();
+
+      if (result.discovered_sessions.length > 0) {
+        toast.success(
+          'Discovery Complete',
+          `Found ${result.discovered_sessions.length} new pane${result.discovered_sessions.length > 1 ? 's' : ''}`
+        );
+      } else {
+        toast.success('Discovery Complete', 'No new panes found');
+      }
+    } catch {
+      toast.error('Discovery failed', 'Could not discover panes');
+    } finally {
+      setIsDiscovering(false);
+    }
+  }, [refetchSessions]);
+
+  // Rename session handler
+  const handleRename = useCallback(async (name: string) => {
+    if (!renameTarget) return;
+
+    try {
+      await renameSession(renameTarget.sessionId, name);
+      await refetchSessions();
+      toast.success('Renamed', `Session renamed to "${name}"`);
+    } catch {
+      toast.error('Rename failed', 'Could not rename session');
+      throw new Error('Failed to rename');
+    }
+  }, [renameTarget, refetchSessions]);
+
+  // Open rename dialog
+  const handleOpenRename = useCallback((sessionId: string, currentName: string | null) => {
+    setRenameTarget({ sessionId, currentName });
+  }, []);
+
   const isConnected = connectionState === 'connected';
 
   return (
@@ -369,9 +652,47 @@ export function Sessions() {
             />
             {isConnected ? 'Connected' : 'Disconnected'}
           </div>
+          {/* Discover Button */}
+          <button
+            onClick={handleDiscover}
+            disabled={isDiscovering}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md',
+              'border border-amber-500/30 bg-amber-500/10 text-amber-400',
+              'hover:bg-amber-500/20',
+              'disabled:cursor-not-allowed',
+              'transition-all duration-200',
+              isDiscovering && 'opacity-70'
+            )}
+          >
+            <svg
+              className={cn('w-4 h-4', isDiscovering && 'animate-pulse')}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            {isDiscovering ? 'Discovering...' : 'Discover'}
+          </button>
           <SyncButton onClick={handleSync} loading={isSyncing} />
         </div>
       </div>
+
+      {/* Filter Chips */}
+      {allActiveSessions.length > 0 && (
+        <FilterChips
+          sourceFilter={sourceFilter}
+          commandFilter={commandFilter}
+          onSourceChange={setSourceFilter}
+          onCommandChange={setCommandFilter}
+          counts={filterCounts}
+        />
+      )}
 
       {/* tmux Sessions Discovery */}
       <section className="space-y-3">
@@ -490,13 +811,15 @@ export function Sessions() {
         ) : (
           <div className="flex flex-col gap-3" role="listbox" aria-label="Active sessions">
             {activeSessions.map((session, index) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                isSelected={index === selectedIndex}
-                onSelect={() => setSelectedIndex(index)}
-                onDoubleClick={() => setDetailSession(session)}
-              />
+              <div key={session.id} className="group">
+                <SessionCard
+                  session={session}
+                  isSelected={index === selectedIndex}
+                  onSelect={() => setSelectedIndex(index)}
+                  onDoubleClick={() => setDetailSession(session)}
+                  onRename={handleOpenRename}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -571,6 +894,15 @@ export function Sessions() {
         <SessionDetailModal
           session={detailSession}
           onClose={() => setDetailSession(null)}
+        />
+      )}
+
+      {/* Rename Dialog */}
+      {renameTarget && (
+        <RenameDialog
+          currentName={renameTarget.currentName}
+          onClose={() => setRenameTarget(null)}
+          onRename={handleRename}
         />
       )}
     </div>

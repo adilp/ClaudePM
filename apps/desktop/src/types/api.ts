@@ -282,6 +282,7 @@ export interface PaginatedResponse<T> {
 
 export type SessionStatus = 'running' | 'paused' | 'completed' | 'error';
 export type SessionType = 'ticket' | 'adhoc';
+export type SessionSource = 'api' | 'discovered';
 
 export interface Session {
   id: string;
@@ -289,8 +290,12 @@ export interface Session {
   ticket_id: string | null;
   type: SessionType;
   status: SessionStatus;
+  source: SessionSource;
   context_percent: number | null;
   pane_id: string;
+  pane_name: string | null;
+  pane_command: string | null;
+  pane_cwd: string | null;
   started_at: string | null;
   ended_at: string | null;
   created_at: string;

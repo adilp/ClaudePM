@@ -323,6 +323,41 @@ export async function syncSessions(projectId?: string): Promise<SyncSessionsResu
   });
 }
 
+export interface DiscoverSessionsResult {
+  message: string;
+  discovered_sessions: Array<{
+    session_id: string;
+    project_id: string;
+    project_name: string;
+    pane_id: string;
+    pane_title: string | null;
+    command: string | null;
+    cwd: string | null;
+  }>;
+  existing_panes: Array<{
+    pane_id: string;
+    session_id: string;
+    command: string | null;
+    cwd: string | null;
+  }>;
+  total_panes_scanned: number;
+  projects_checked: number;
+}
+
+export async function discoverSessions(projectId?: string): Promise<DiscoverSessionsResult> {
+  const query = projectId ? `?project_id=${projectId}` : '';
+  return request<DiscoverSessionsResult>(`/api/sessions/discover${query}`, {
+    method: 'POST',
+  });
+}
+
+export async function renameSession(sessionId: string, name: string): Promise<void> {
+  return request<void>(`/api/sessions/${sessionId}/rename`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+}
+
 export async function sendInput(sessionId: string, text: string): Promise<void> {
   return request<void>(`/api/sessions/${sessionId}/input`, {
     method: 'POST',

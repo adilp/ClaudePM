@@ -148,6 +148,53 @@ export interface SyncSessionsResult {
   totalChecked: number;
 }
 
+/**
+ * Information about a discovered pane
+ */
+export interface DiscoveredPane {
+  /** The tmux pane ID (e.g., "%5") */
+  paneId: string;
+  /** Pane title if set */
+  paneTitle: string | null;
+  /** Process ID running in the pane */
+  pid: number;
+  /** Current working directory of the pane */
+  cwd: string | null;
+  /** Command running in the pane */
+  command: string | null;
+}
+
+/**
+ * Result of discovering panes in tmux sessions
+ */
+export interface DiscoverPanesResult {
+  /** Newly discovered panes that were added as sessions */
+  discoveredSessions: Array<{
+    sessionId: string;
+    projectId: string;
+    projectName: string;
+    paneId: string;
+    paneTitle: string | null;
+    /** Command running in the pane (e.g., "claude", "nvim", "zsh") */
+    command: string | null;
+    /** Current working directory of the pane */
+    cwd: string | null;
+  }>;
+  /** Panes that already had session records */
+  existingPanes: Array<{
+    paneId: string;
+    sessionId: string;
+    /** Command running in the pane */
+    command: string | null;
+    /** Current working directory of the pane */
+    cwd: string | null;
+  }>;
+  /** Total panes scanned across all projects */
+  totalPanesScanned: number;
+  /** Number of projects checked */
+  projectsChecked: number;
+}
+
 // ============================================================================
 // Ring Buffer Implementation
 // ============================================================================

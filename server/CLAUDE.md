@@ -117,6 +117,90 @@ Followed by a brief summary." --allowedTools Edit Read Write Bash Grep Glob
 | `sendRawKeys(sessionId, keys)` | Raw terminal input | `tmux.sendRawKeys()` (hex encoded) |
 | `sendKeys(sessionId, keys)` | tmux key sequences | `tmux.sendKeys()` for PgUp, C-a, etc. |
 
+## Pane Discovery
+
+Allows ClaudePM to detect and track tmux panes that were manually created (e.g., via terminal directly) rather than through the API.
+
+### How It Works
+
+1. **Automatic Discovery** (every 30 seconds):
+   - `sessionSupervisor.discoverPanes()` scans each project's designated tmux session
+   - Compares found panes against existing Session records
+   - Creates new Session records with `source: 'discovered'` for unknown panes
+
+2. **On-Demand Discovery**:
+   - `POST /api/sessions/discover` triggers immediate discovery
+   - Returns list of newly discovered and existing panes
+
+### Session Source Field
+
+Sessions now have a `source` field to distinguish how they were created:
+
+| Source | Description |
+|--------|-------------|
+| `api` | Created via ClaudePM API (startSession, startTicketSession) |
+| `discovered` | Discovered from manually created tmux pane |
+
+### Pane Information
+
+For running sessions, the API returns live pane information:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `pane_command` | Current command running in pane | `"node"`, `"nvim"`, `"zsh"` |
+| `pane_cwd` | Current working directory | `"/Users/dev/project"` |
+| `pane_name` | Custom name (set via rename) | `"My Claude Work"` |
+
+**Note:** `node` command often indicates Claude Code is running.
+
+### API Endpoints
+
+```bash
+# Discover panes (all projects)
+POST /api/sessions/discover
+
+# Discover panes (specific project)
+POST /api/sessions/discover?project_id=<uuid>
+
+# Response
+{
+  "message": "Discovered 2 new panes",
+  "discovered_sessions": [
+    {
+      "session_id": "uuid",
+      "project_id": "uuid",
+      "project_name": "ClaudePM",
+      "pane_id": "%5",
+      "pane_title": null,
+      "command": "node",
+      "cwd": "/Users/dev/project"
+    }
+  ],
+  "existing_panes": [...],
+  "total_panes_scanned": 5,
+  "projects_checked": 1
+}
+
+# Rename a session
+PATCH /api/sessions/:id/rename
+Body: { "name": "my-session-name" }
+```
+
+### Session List Sorting
+
+`GET /api/sessions` returns sessions sorted by:
+1. **API sessions first** - Created through ClaudePM
+2. **Discovered sessions with `node` next** - Likely Claude Code
+3. **Other discovered sessions** - nvim, zsh, etc.
+4. Within each group, sorted by creation date (newest first)
+
+### Configuration
+
+```typescript
+// In session-supervisor.ts
+const PANE_DISCOVERY_INTERVAL = 30_000;  // 30 seconds
+```
+
 ## Database Schema (Quick Reference)
 
 ### Core Models
@@ -137,7 +221,9 @@ Ticket
 Session
 ├── id, projectId, ticketId (nullable)
 ├── type (ticket/adhoc), status (running/paused/completed/error)
+├── source (api/discovered) - how the session was created
 ├── tmuxPaneId, claudeSessionId
+├── paneName (nullable) - custom name for the session
 ├── contextPercent (0-100)
 └── has: SummaryCache, ReviewCache
 ```
@@ -146,6 +232,7 @@ Session
 ```typescript
 TicketState: 'backlog' | 'in_progress' | 'review' | 'done'
 SessionStatus: 'running' | 'paused' | 'completed' | 'error'
+SessionSource: 'api' | 'discovered'
 ReviewDecision: 'complete' | 'not_complete' | 'needs_clarification'
 ```
 
@@ -409,11 +496,16 @@ Query params: `page`, `limit`, `state`, `prefixes`, `excludeOldDone`, `completed
 
 ### Session Control
 ```
-POST /api/sessions/:id/input   # Send text + Enter
-POST /api/sessions/:id/keys    # Send raw keys (C-c, etc.)
-POST /api/sessions/:id/scroll  # Scroll terminal (up/down/exit)
-GET  /api/sessions/:id/output  # Get terminal output
+GET  /api/sessions              # List sessions (sorted: API first, then discovered)
+POST /api/sessions/discover     # Discover manually created panes
+PATCH /api/sessions/:id/rename  # Rename a session (body: { name: "..." })
+POST /api/sessions/:id/input    # Send text + Enter
+POST /api/sessions/:id/keys     # Send raw keys (C-c, etc.)
+POST /api/sessions/:id/scroll   # Scroll terminal (up/down/exit)
+GET  /api/sessions/:id/output   # Get terminal output
 ```
+
+Session response includes: `source`, `pane_name`, `pane_command`, `pane_cwd`
 
 ### Hooks (Claude Code integration)
 ```

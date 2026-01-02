@@ -10,21 +10,40 @@ struct SessionRowView: View {
             statusBadge
 
             VStack(alignment: .leading, spacing: 4) {
-                // Session name (project name or ticket title)
-                Text(sessionDisplayName)
-                    .font(.headline)
-                    .lineLimit(1)
+                // Session name with discovered badge
+                HStack(spacing: 6) {
+                    Text(session.displayName)
+                        .font(.headline)
+                        .lineLimit(1)
 
-                // Subtitle with session type and project
+                    if session.isDiscovered {
+                        Text("DISCOVERED")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
+                }
+
+                // Subtitle with session type, project, and command
                 HStack(spacing: 4) {
                     Text(session.type.displayName)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if session.ticket != nil {
+                    if session.ticket != nil || session.paneCommand != nil {
                         Text("•")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+
+                    if let command = session.paneCommand {
+                        commandBadge(command)
+                    }
+
+                    if session.ticket != nil {
                         Text(session.project.name)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -39,6 +58,37 @@ struct SessionRowView: View {
             contextIndicator
         }
         .padding(.vertical, 4)
+    }
+
+    /// Command badge showing what's running in the pane
+    @ViewBuilder
+    private func commandBadge(_ command: String) -> some View {
+        let (color, hint) = commandInfo(command)
+        HStack(spacing: 2) {
+            Text(command)
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundStyle(color)
+            if let hint = hint {
+                Text("(\(hint))")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(color.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+
+    /// Get color and hint for command
+    private func commandInfo(_ command: String) -> (Color, String?) {
+        switch command {
+        case "node": return (.green, "Claude?")
+        case "nvim", "vim": return (.blue, nil)
+        case "zsh", "bash": return (.gray, nil)
+        default: return (.secondary, nil)
+        }
     }
 
     // MARK: - Subviews
@@ -78,14 +128,6 @@ struct SessionRowView: View {
     }
 
     // MARK: - Computed Properties
-
-    /// Display name for the session
-    private var sessionDisplayName: String {
-        if let ticket = session.ticket {
-            return ticket.title
-        }
-        return session.project.name
-    }
 
     /// Color for context percentage based on usage level
     private var contextColor: Color {
@@ -137,14 +179,19 @@ extension SessionType {
 
 #Preview {
     List {
+        // API session with ticket
         SessionRowView(session: Session(
             id: "1",
             projectId: "proj-1",
             ticketId: "ticket-1",
             type: .ticket,
             status: .running,
+            source: .api,
             contextPercent: 45,
             paneId: "%1",
+            paneName: nil,
+            paneCommand: "node",
+            paneCwd: "/Users/dev/project",
             startedAt: Date(),
             endedAt: nil,
             createdAt: Date(),
@@ -153,14 +200,19 @@ extension SessionType {
             ticket: SessionTicket(id: "ticket-1", externalId: "NAT-012", title: "iOS Session List View")
         ))
 
+        // Discovered session with node (likely Claude)
         SessionRowView(session: Session(
             id: "2",
             projectId: "proj-1",
             ticketId: nil,
             type: .adhoc,
-            status: .paused,
+            status: .running,
+            source: .discovered,
             contextPercent: 72,
             paneId: "%2",
+            paneName: "My Claude Work",
+            paneCommand: "node",
+            paneCwd: "/Users/dev/project",
             startedAt: Date(),
             endedAt: nil,
             createdAt: Date(),
@@ -169,30 +221,40 @@ extension SessionType {
             ticket: nil
         ))
 
+        // Discovered session with nvim
         SessionRowView(session: Session(
             id: "3",
             projectId: "proj-2",
-            ticketId: "ticket-2",
-            type: .ticket,
-            status: .completed,
-            contextPercent: 95,
+            ticketId: nil,
+            type: .adhoc,
+            status: .running,
+            source: .discovered,
+            contextPercent: 10,
             paneId: "%3",
+            paneName: nil,
+            paneCommand: "nvim",
+            paneCwd: "/Users/dev/backend",
             startedAt: Date(),
-            endedAt: Date(),
+            endedAt: nil,
             createdAt: Date(),
             updatedAt: Date(),
             project: SessionProject(id: "proj-2", name: "Backend API"),
-            ticket: SessionTicket(id: "ticket-2", externalId: "API-001", title: "Implement Authentication")
+            ticket: nil
         ))
 
+        // Completed API session
         SessionRowView(session: Session(
             id: "4",
             projectId: "proj-1",
             ticketId: "ticket-3",
             type: .ticket,
-            status: .error,
-            contextPercent: 15,
+            status: .completed,
+            source: .api,
+            contextPercent: 95,
             paneId: "%4",
+            paneName: nil,
+            paneCommand: nil,
+            paneCwd: nil,
             startedAt: Date(),
             endedAt: Date(),
             createdAt: Date(),

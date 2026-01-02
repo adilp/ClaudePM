@@ -32,6 +32,11 @@ enum SessionStatus {
   error
 }
 
+enum SessionSource {
+  api        // Created via ClaudePM API (startSession, startTicketSession)
+  discovered // Discovered from manually created tmux pane
+}
+
 enum NotificationType {
   review_ready
   context_low
@@ -109,8 +114,10 @@ model Session {
   transcriptPath  String?       @map("transcript_path") @db.VarChar(500)
   type            SessionType
   status          SessionStatus @default(running)
+  source          SessionSource @default(api)
   contextPercent  Int           @default(0) @map("context_percent")
   tmuxPaneId      String        @map("tmux_pane_id") @db.VarChar(100)
+  paneName        String?       @map("pane_name") @db.VarChar(100)
   startedAt       DateTime?     @map("started_at")
   endedAt         DateTime?     @map("ended_at")
   createdAt       DateTime      @default(now()) @map("created_at")

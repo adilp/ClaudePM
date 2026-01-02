@@ -69,6 +69,13 @@ export const outputQuerySchema = z.object({
   lines: z.coerce.number().int().min(1).max(10000).optional().default(100),
 });
 
+/**
+ * Schema for renaming a session
+ */
+export const renameSessionSchema = z.object({
+  name: z.string().min(1).max(100, 'Name too long'),
+});
+
 // ============================================================================
 // Input Types
 // ============================================================================
@@ -81,6 +88,7 @@ export type SendInputInput = z.infer<typeof sendInputSchema>;
 export type SendKeysInput = z.infer<typeof sendKeysSchema>;
 export type StopSessionInput = z.infer<typeof stopSessionSchema>;
 export type OutputQueryInput = z.infer<typeof outputQuerySchema>;
+export type RenameSessionInput = z.infer<typeof renameSessionSchema>;
 
 // ============================================================================
 // Response Types
@@ -95,8 +103,12 @@ export interface SessionResponse {
   ticket_id: string | null;
   type: SessionType;
   status: SessionStatus;
+  source: 'api' | 'discovered';
   context_percent: number;
   pane_id: string;
+  pane_name: string | null;
+  pane_command: string | null;
+  pane_cwd: string | null;
   started_at: string | null;
   ended_at: string | null;
   created_at: string;

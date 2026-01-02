@@ -221,6 +221,31 @@ struct SessionsTabView: View {
 
     private var sessionList: some View {
         List {
+            // Discover and filter section
+            Section {
+                // Discover button
+                Button {
+                    Task { await viewModel.discoverSessions() }
+                } label: {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.orange)
+                        Text("Discover Manual Panes")
+                        Spacer()
+                        if viewModel.isDiscovering {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                }
+                .disabled(viewModel.isDiscovering)
+
+                // Filter chips
+                if viewModel.activeSessions.count > 0 {
+                    filterChipsView
+                }
+            }
+
             // Show/hide completed toggle if there are completed sessions
             if viewModel.completedCount > 0 {
                 Section {
@@ -248,12 +273,128 @@ struct SessionsTabView: View {
                     NavigationLink(value: session) {
                         SessionRowView(session: session)
                     }
+                    .swipeActions(edge: .trailing) {
+                        Button {
+                            viewModel.renamingSession = session
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
                 }
             }
         }
         .listStyle(.insetGrouped)
         .refreshable {
             await viewModel.loadSessions()
+        }
+        .alert("Rename Session", isPresented: Binding(
+            get: { viewModel.renamingSession != nil },
+            set: { if !$0 { viewModel.renamingSession = nil } }
+        )) {
+            TextField("Session name", text: $renameText)
+            Button("Cancel", role: .cancel) {
+                viewModel.renamingSession = nil
+            }
+            Button("Save") {
+                if let session = viewModel.renamingSession {
+                    Task {
+                        await viewModel.renameSession(session, newName: renameText)
+                        viewModel.renamingSession = nil
+                    }
+                }
+            }
+        } message: {
+            Text("Enter a name for this session")
+        }
+    }
+
+    @State private var renameText: String = ""
+
+    private var filterChipsView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Source filter
+            HStack(spacing: 8) {
+                Text("Source:")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ForEach(SessionSourceFilter.allCases, id: \.self) { filter in
+                    filterChip(
+                        title: filter == .all ? "All" : filter.rawValue,
+                        count: countForSourceFilter(filter),
+                        isSelected: viewModel.sourceFilter == filter,
+                        color: filter == .discovered ? .orange : .blue
+                    ) {
+                        viewModel.sourceFilter = filter
+                    }
+                }
+            }
+
+            // Command filter (only when not filtering to API only)
+            if viewModel.sourceFilter != .api {
+                HStack(spacing: 8) {
+                    Text("Command:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    ForEach(SessionCommandFilter.allCases, id: \.self) { filter in
+                        filterChip(
+                            title: filter.rawValue,
+                            count: countForCommandFilter(filter),
+                            isSelected: viewModel.commandFilter == filter,
+                            color: colorForCommandFilter(filter)
+                        ) {
+                            viewModel.commandFilter = filter
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func filterChip(title: String, count: Int?, isSelected: Bool, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(title)
+                if let count = count, count > 0 {
+                    Text("(\(count))")
+                        .font(.caption2)
+                }
+            }
+            .font(.caption)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(isSelected ? color.opacity(0.2) : Color(.tertiarySystemFill))
+            .foregroundStyle(isSelected ? color : .secondary)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func countForSourceFilter(_ filter: SessionSourceFilter) -> Int? {
+        switch filter {
+        case .all: return nil
+        case .api: return viewModel.filterCounts.api
+        case .discovered: return viewModel.filterCounts.discovered
+        }
+    }
+
+    private func countForCommandFilter(_ filter: SessionCommandFilter) -> Int? {
+        switch filter {
+        case .all: return nil
+        case .node: return viewModel.filterCounts.node
+        case .nvim: return viewModel.filterCounts.nvim
+        case .other: return viewModel.filterCounts.other
+        }
+    }
+
+    private func colorForCommandFilter(_ filter: SessionCommandFilter) -> Color {
+        switch filter {
+        case .all: return .blue
+        case .node: return .green
+        case .nvim: return .blue
+        case .other: return .gray
         }
     }
 

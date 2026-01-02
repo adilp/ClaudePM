@@ -19,6 +19,7 @@ import {
   type SessionInfo,
   type RecoveredSession,
   type SyncSessionsResult,
+  type DiscoverPanesResult,
   SessionNotFoundError,
   SessionProjectNotFoundError,
   SessionTicketNotFoundError,
@@ -44,6 +45,9 @@ const OUTPUT_CAPTURE_INTERVAL = 1_000;
 
 /** Grace period before force killing a session (ms) */
 const STOP_GRACE_PERIOD = 5_000;
+
+/** Pane discovery interval (ms) - discovers manually created panes */
+const PANE_DISCOVERY_INTERVAL = 30_000;
 
 // ============================================================================
 // Session Supervisor Class
@@ -75,6 +79,9 @@ export class SessionSupervisor extends EventEmitter {
 
   /** Output capture interval handle */
   private outputInterval: ReturnType<typeof setInterval> | null = null;
+
+  /** Pane discovery interval handle */
+  private discoveryInterval: ReturnType<typeof setInterval> | null = null;
 
   /** Whether the supervisor is running */
   private running: boolean = false;
@@ -122,6 +129,11 @@ export class SessionSupervisor extends EventEmitter {
     if (this.outputInterval) {
       clearInterval(this.outputInterval);
       this.outputInterval = null;
+    }
+
+    if (this.discoveryInterval) {
+      clearInterval(this.discoveryInterval);
+      this.discoveryInterval = null;
     }
   }
 
@@ -486,6 +498,7 @@ export class SessionSupervisor extends EventEmitter {
         ticketId: options.ticketId,
         type: options.type,
         status: 'running',
+        source: 'api',
         tmuxPaneId: paneId,
         startedAt: new Date(),
       },
@@ -551,7 +564,8 @@ export class SessionSupervisor extends EventEmitter {
     const ticketRef = externalId ? `${externalId}: ${title}` : title;
     return `I'm working on ticket ${ticketRef}
 
-Please read the ticket at ${filePath} and begin implementation.`;
+Please read the ticket at ${filePath} and its supporting documentation and begin implementation. If something is not clear or well defined use the AskUserQuestionTool to ask about anything, technical, implementation, UI/UX, concerns, tradeoffs, etc, but make sure the questions  are not obvious 
+`;
   }
 
   /**
@@ -594,6 +608,9 @@ Followed by a brief summary of what was done.`;
 3. If web research would help, use it to find documentation or solutions
 4. Summarize your findings and any implementation considerations
 
+If you have questions use the AskUserQuestionTool to ask about anything
+, technical, implementation, UI/UX, concerns, tradeoffs, etc, but make sure the questions  are not obvious 
+
 IMPORTANT: Do NOT implement anything. This is a research/exploration session only.
 Ask clarifying questions if the requirements are unclear.
 
@@ -615,7 +632,7 @@ ${completionMarker}" ${allowedTools}`;
 1. Research the problem - understand what's being asked
 2. Find relevant files and code in the codebase
 3. If web research would help, use it to find documentation or solutions
-4. Ask any clarifying questions
+4. Ask clarifying questions use the AskUserQuestionTool to ask about anything, technical, implementation, UI/UX, concerns, tradeoffs, etc, but make sure the questions  are not obvious 
 5. Summarize your findings and any implementation considerations and propose next steps
 
 ${completionMarker}" ${allowedTools}`;
@@ -719,6 +736,13 @@ ${completionMarker}" ${allowedTools}`;
         console.error('Error capturing output:', error);
       });
     }, OUTPUT_CAPTURE_INTERVAL);
+
+    // Pane discovery (discovers manually created panes)
+    this.discoveryInterval = setInterval(() => {
+      this.discoverPanes().catch((error) => {
+        console.error('Error discovering panes:', error);
+      });
+    }, PANE_DISCOVERY_INTERVAL);
   }
 
   /**
@@ -960,6 +984,170 @@ ${completionMarker}" ${allowedTools}`;
 
     return result;
   }
+
+  /**
+   * Discover manually created panes in project tmux sessions
+   * Scans all projects and creates Session records for panes not already tracked
+   */
+  async discoverPanes(projectId?: string): Promise<DiscoverPanesResult> {
+    const result: DiscoverPanesResult = {
+      discoveredSessions: [],
+      existingPanes: [],
+      totalPanesScanned: 0,
+      projectsChecked: 0,
+    };
+
+    // Get projects to scan
+    const projects = await prisma.project.findMany({
+      where: projectId ? { id: projectId } : {},
+      select: { id: true, name: true, tmuxSession: true, tmuxWindow: true },
+    });
+
+    for (const project of projects) {
+      result.projectsChecked++;
+
+      // Check if the tmux session exists
+      const sessionExists = await tmux.sessionExists(project.tmuxSession);
+      if (!sessionExists) {
+        console.log(`[SessionSupervisor] tmux session '${project.tmuxSession}' for project '${project.name}' does not exist, skipping`);
+        continue;
+      }
+
+      // List all panes in the project's tmux session
+      let panes: tmux.TmuxPane[];
+      try {
+        // Use -s flag to list all panes in all windows of the session
+        panes = await tmux.listPanes(project.tmuxSession);
+      } catch (error) {
+        console.error(`[SessionSupervisor] Failed to list panes for tmux session '${project.tmuxSession}':`, error);
+        continue;
+      }
+
+      result.totalPanesScanned += panes.length;
+
+      // Get existing sessions for this project that are running or paused
+      const existingSessions = await prisma.session.findMany({
+        where: {
+          projectId: project.id,
+          status: { in: ['running', 'paused'] },
+        },
+        select: { id: true, tmuxPaneId: true },
+      });
+
+      const existingPaneIds = new Set(existingSessions.map(s => s.tmuxPaneId));
+
+      // Find panes not tracked
+      for (const pane of panes) {
+        // Get pane info (command and cwd) for all panes
+        let command: string | null = null;
+        let cwd: string | null = null;
+        try {
+          command = await tmux.getPaneCommand(pane.id);
+        } catch {
+          // Pane might have died
+        }
+        try {
+          cwd = await tmux.getPaneCwd(pane.id);
+        } catch {
+          // Pane might have died
+        }
+
+        if (existingPaneIds.has(pane.id)) {
+          // Already tracked
+          const existingSession = existingSessions.find(s => s.tmuxPaneId === pane.id);
+          if (existingSession) {
+            result.existingPanes.push({
+              paneId: pane.id,
+              sessionId: existingSession.id,
+              command,
+              cwd,
+            });
+          }
+          continue;
+        }
+
+        // Get additional pane info (title)
+        const paneTitle = await tmux.getPaneTitle(pane.id);
+
+        // Create a new session record for this discovered pane
+        const session = await prisma.session.create({
+          data: {
+            projectId: project.id,
+            ticketId: null,
+            type: 'adhoc',
+            status: 'running',
+            source: 'discovered',
+            tmuxPaneId: pane.id,
+            startedAt: new Date(),
+          },
+        });
+
+        // Add to in-memory registry
+        const activeSession: ActiveSession = {
+          id: session.id,
+          projectId: project.id,
+          ticketId: null,
+          type: 'adhoc',
+          status: 'running',
+          paneId: pane.id,
+          pid: pane.pid,
+          startedAt: session.startedAt ?? new Date(),
+          outputBuffer: new RingBuffer<string>(this.outputBufferSize),
+        };
+        this.sessions.set(session.id, activeSession);
+
+        // Emit state change event
+        this.emitStateChange(session.id, 'running', 'running');
+
+        result.discoveredSessions.push({
+          sessionId: session.id,
+          projectId: project.id,
+          projectName: project.name,
+          paneId: pane.id,
+          paneTitle,
+          command,
+          cwd,
+        });
+
+        console.log(`[SessionSupervisor] Discovered new pane ${pane.id} (${command ?? 'unknown'}) in project '${project.name}', created session ${session.id}`);
+      }
+    }
+
+    if (result.discoveredSessions.length > 0) {
+      console.log(`[SessionSupervisor] Discovery complete: found ${result.discoveredSessions.length} new panes across ${result.projectsChecked} projects`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Rename a session (update its display name/title)
+   * Saves to database and updates the tmux pane title for consistency
+   */
+  async renameSession(sessionId: string, name: string): Promise<void> {
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new SessionNotFoundError(sessionId);
+    }
+
+    // Save name to database
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { paneName: name },
+    });
+
+    // Update tmux pane title if it's a valid pane
+    if (session.tmuxPaneId.startsWith('%')) {
+      try {
+        await tmux.setPaneTitle(session.tmuxPaneId, name);
+      } catch (error) {
+        console.warn(`[SessionSupervisor] Failed to set pane title for session ${sessionId}:`, error);
+      }
+    }
+  }
 }
 
 // ============================================================================
@@ -993,4 +1181,5 @@ export type {
   SessionExitEvent,
   SessionInfo,
   RecoveredSession,
+  DiscoverPanesResult,
 } from './session-supervisor-types.js';

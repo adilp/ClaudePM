@@ -7,8 +7,12 @@ struct Session: Codable, Identifiable, Hashable {
     let ticketId: String?
     let type: SessionType
     let status: SessionStatus
+    let source: SessionSource
     let contextPercent: Int
     let paneId: String
+    let paneName: String?
+    let paneCommand: String?
+    let paneCwd: String?
     let startedAt: Date?
     let endedAt: Date?
     let createdAt: Date
@@ -17,6 +21,16 @@ struct Session: Codable, Identifiable, Hashable {
     // Nested objects from API
     let project: SessionProject
     let ticket: SessionTicket?
+
+    /// Display name: paneName > ticket title > project name
+    var displayName: String {
+        paneName ?? ticket?.title ?? project.name
+    }
+
+    /// Whether this session was discovered (manually created pane)
+    var isDiscovered: Bool {
+        source == .discovered
+    }
 
     // Hashable conformance - use id for identity
     static func == (lhs: Session, rhs: Session) -> Bool {
@@ -66,9 +80,47 @@ enum SessionStatus: String, Codable {
     }
 }
 
+enum SessionSource: String, Codable {
+    case api        // Created via ClaudePM API
+    case discovered // Discovered from manually created tmux pane
+
+    var displayName: String {
+        switch self {
+        case .api: return "API"
+        case .discovered: return "Discovered"
+        }
+    }
+}
+
 /// Response from the health check endpoint
 struct HealthResponse: Codable {
     let status: String
     let timestamp: String?
     let version: String?
+}
+
+/// Response from discover sessions endpoint
+struct DiscoverSessionsResponse: Codable {
+    let message: String
+    let discoveredSessions: [DiscoveredSession]
+    let existingPanes: [ExistingPane]
+    let totalPanesScanned: Int
+    let projectsChecked: Int
+}
+
+struct DiscoveredSession: Codable {
+    let sessionId: String
+    let projectId: String
+    let projectName: String
+    let paneId: String
+    let paneTitle: String?
+    let command: String?
+    let cwd: String?
+}
+
+struct ExistingPane: Codable {
+    let paneId: String
+    let sessionId: String
+    let command: String?
+    let cwd: String?
 }

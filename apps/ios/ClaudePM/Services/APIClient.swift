@@ -107,6 +107,63 @@ actor APIClient {
         }
     }
 
+    /// Discover manually created panes in tmux sessions
+    /// - Returns: DiscoverSessionsResponse with discovered and existing panes
+    func discoverSessions() async throws -> DiscoverSessionsResponse {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/sessions/discover")
+        let (data, response) = try await performRequest(url: url, method: "POST", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(DiscoverSessionsResponse.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Rename a session
+    /// - Parameters:
+    ///   - sessionId: The session ID to rename
+    ///   - name: The new name for the session
+    func renameSession(sessionId: String, name: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/sessions/\(sessionId)/rename")
+        let body = try JSONEncoder().encode(["name": name])
+        let (_, response) = try await performRequest(url: url, method: "PATCH", body: body, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
     // MARK: - Ticket Methods
 
     /// Fetch all projects from the backend

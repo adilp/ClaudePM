@@ -16,6 +16,7 @@ interface SessionCardProps {
   isSelected?: boolean;
   onSelect?: () => void;
   onDoubleClick?: () => void;
+  onRename?: (sessionId: string, currentName: string | null) => void;
 }
 
 export function SessionCard({
@@ -23,12 +24,30 @@ export function SessionCard({
   isSelected = false,
   onSelect,
   onDoubleClick,
+  onRename,
 }: SessionCardProps) {
   const [focusState, setFocusState] = useState<FocusState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const name = session.ticket?.title ?? session.project?.name ?? 'Unnamed Session';
+  // Display name: pane_name > ticket title > project name
+  const displayName = session.pane_name ?? session.ticket?.title ?? session.project?.name ?? 'Unnamed Session';
   const contextPercent = session.context_percent;
+  const isDiscovered = session.source === 'discovered';
+
+  // Get command icon/label
+  const getCommandDisplay = (command: string | null) => {
+    if (!command) return null;
+    switch (command) {
+      case 'node': return { label: 'node', color: 'text-green-400', hint: 'Likely Claude' };
+      case 'nvim': return { label: 'nvim', color: 'text-blue-400', hint: null };
+      case 'vim': return { label: 'vim', color: 'text-blue-400', hint: null };
+      case 'zsh': return { label: 'zsh', color: 'text-gray-400', hint: null };
+      case 'bash': return { label: 'bash', color: 'text-gray-400', hint: null };
+      default: return { label: command, color: 'text-content-muted', hint: null };
+    }
+  };
+
+  const commandDisplay = getCommandDisplay(session.pane_command);
 
   const handleFocus = useCallback(async () => {
     if (focusState === 'loading') return;
@@ -63,6 +82,11 @@ export function SessionCard({
     onDoubleClick?.();
   }, [onDoubleClick]);
 
+  const handleRenameClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRename?.(session.id, session.pane_name);
+  }, [session.id, session.pane_name, onRename]);
+
   return (
     <div
       className={cn(
@@ -87,12 +111,34 @@ export function SessionCard({
         </div>
       )}
 
+      {/* Header: Name + Status + Source badge */}
       <div className="flex items-start justify-between gap-3 mb-2">
-        <span className="font-medium text-content-primary leading-snug">{name}</span>
-        <StatusBadge status={session.status} />
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="font-medium text-content-primary leading-snug truncate">{displayName}</span>
+          {onRename && (
+            <button
+              onClick={handleRenameClick}
+              className="text-content-muted hover:text-content-primary p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Rename session"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isDiscovered && (
+            <span className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded font-medium">
+              DISCOVERED
+            </span>
+          )}
+          <StatusBadge status={session.status} />
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-3">
+      {/* Meta: Project, Ticket ID, Command */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         {session.project?.name && (
           <span className="text-[13px] text-content-secondary">{session.project.name}</span>
         )}
@@ -100,6 +146,15 @@ export function SessionCard({
         {session.ticket?.external_id && (
           <span className="text-xs text-indigo-500 bg-indigo-500/10 px-1.5 py-0.5 rounded">
             {session.ticket.external_id}
+          </span>
+        )}
+
+        {commandDisplay && (
+          <span className={cn('text-xs px-1.5 py-0.5 rounded bg-surface-tertiary', commandDisplay.color)}>
+            {commandDisplay.label}
+            {commandDisplay.hint && (
+              <span className="ml-1 text-content-muted text-[10px]">({commandDisplay.hint})</span>
+            )}
           </span>
         )}
       </div>

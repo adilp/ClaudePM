@@ -14,6 +14,7 @@ import {
   sendKeysSchema,
   stopSessionSchema,
   outputQuerySchema,
+  renameSessionSchema,
   type SessionResponse,
   type SessionOutputResponse,
   type ErrorResponse,
@@ -37,7 +38,7 @@ import {
   AnalysisParseError,
 } from '../services/session-analyzer.js';
 import { reviewerSubagent, ReviewerError } from '../services/reviewer-subagent.js';
-import type { Session } from '../generated/prisma/index.js';
+import type { Session, SessionStatus } from '../generated/prisma/index.js';
 
 const router = Router();
 
@@ -46,17 +47,25 @@ const router = Router();
 // ============================================================================
 
 /**
- * Convert Session or SessionInfo to API response format
+ * Convert Session to API response format
+ * For running sessions, can include pane_command and pane_cwd
  */
-function toSessionResponse(session: Session | SessionInfo): SessionResponse {
+function toSessionResponse(
+  session: Session,
+  extras?: { pane_command?: string | null; pane_cwd?: string | null }
+): SessionResponse {
   return {
     id: session.id,
     project_id: session.projectId,
     ticket_id: session.ticketId,
     type: session.type,
     status: session.status,
+    source: session.source,
     context_percent: session.contextPercent,
-    pane_id: 'paneId' in session ? session.paneId : session.tmuxPaneId,
+    pane_id: session.tmuxPaneId,
+    pane_name: session.paneName,
+    pane_command: extras?.pane_command ?? null,
+    pane_cwd: extras?.pane_cwd ?? null,
     started_at: session.startedAt?.toISOString() ?? null,
     ended_at: session.endedAt?.toISOString() ?? null,
     created_at: session.createdAt.toISOString(),
@@ -152,16 +161,27 @@ function asyncHandler<T>(
  *
  * Query params:
  * - project_id: Filter by project (optional)
+ * - status: Filter by status (optional, e.g., "running")
+ *
+ * Sorting:
+ * - API-created sessions first
+ * - Then discovered sessions, with 'node' command (likely Claude) first
  */
 router.get(
   '/sessions',
   asyncHandler(async (req, res) => {
     const projectId = req.query.project_id as string | undefined;
+    const status = req.query.status as string | undefined;
+
+    // Build where clause
+    const where: { projectId?: string; status?: SessionStatus } = {};
+    if (projectId) where.projectId = projectId;
+    if (status) where.status = status as SessionStatus;
 
     // Fetch sessions with related project and ticket data
     const { prisma } = await import('../config/db.js');
     const sessions = await prisma.session.findMany({
-      where: projectId ? { projectId } : {},
+      where,
       include: {
         project: {
           select: {
@@ -180,19 +200,61 @@ router.get(
       orderBy: { createdAt: 'desc' },
     });
 
-    const response: SessionResponse[] = sessions.map((session) => ({
-      ...toSessionResponse(session),
-      project: session.project
-        ? { id: session.project.id, name: session.project.name }
-        : null,
-      ticket: session.ticket
-        ? {
-            id: session.ticket.id,
-            external_id: session.ticket.externalId,
-            title: session.ticket.title,
+    // Get pane info (command, cwd) for running sessions
+    const { getPaneCommand, getPaneCwd, isPaneAlive } = await import('../services/tmux.js');
+
+    const response: SessionResponse[] = [];
+    for (const session of sessions) {
+      let pane_command: string | null = null;
+      let pane_cwd: string | null = null;
+
+      // Get live pane info for running sessions with valid pane IDs
+      if (session.status === 'running' && session.tmuxPaneId.startsWith('%')) {
+        try {
+          const alive = await isPaneAlive(session.tmuxPaneId);
+          if (alive) {
+            pane_command = await getPaneCommand(session.tmuxPaneId);
+            pane_cwd = await getPaneCwd(session.tmuxPaneId);
           }
-        : null,
-    }));
+        } catch {
+          // Pane may have died
+        }
+      }
+
+      response.push({
+        ...toSessionResponse(session, { pane_command, pane_cwd }),
+        project: session.project
+          ? { id: session.project.id, name: session.project.name }
+          : null,
+        ticket: session.ticket
+          ? {
+              id: session.ticket.id,
+              external_id: session.ticket.externalId,
+              title: session.ticket.title,
+            }
+          : null,
+      });
+    }
+
+    // Sort: API sessions first, then discovered with 'node' first
+    response.sort((a, b) => {
+      // First by source: api before discovered
+      if (a.source !== b.source) {
+        return a.source === 'api' ? -1 : 1;
+      }
+
+      // Within discovered sessions, sort node first (likely Claude Code)
+      if (a.source === 'discovered') {
+        const aIsNode = a.pane_command === 'node';
+        const bIsNode = b.pane_command === 'node';
+        if (aIsNode !== bIsNode) {
+          return aIsNode ? -1 : 1;
+        }
+      }
+
+      // Finally by createdAt desc
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
     res.json(response);
   })
@@ -262,9 +324,49 @@ router.get(
   asyncHandler<SessionResponse | ErrorResponse>(async (req, res) => {
     const { id } = sessionIdSchema.parse(req.params);
 
-    const session = await sessionSupervisor.getSession(id);
+    const { prisma } = await import('../config/db.js');
+    const session = await prisma.session.findUnique({
+      where: { id },
+      include: {
+        project: { select: { id: true, name: true } },
+        ticket: { select: { id: true, externalId: true, title: true } },
+      },
+    });
 
-    res.json(toSessionResponse(session));
+    if (!session) {
+      res.status(404).json({ error: `Session not found: ${id}` });
+      return;
+    }
+
+    // Get pane info for running sessions
+    let pane_command: string | null = null;
+    let pane_cwd: string | null = null;
+    if (session.status === 'running' && session.tmuxPaneId.startsWith('%')) {
+      const { getPaneCommand, getPaneCwd, isPaneAlive } = await import('../services/tmux.js');
+      try {
+        const alive = await isPaneAlive(session.tmuxPaneId);
+        if (alive) {
+          pane_command = await getPaneCommand(session.tmuxPaneId);
+          pane_cwd = await getPaneCwd(session.tmuxPaneId);
+        }
+      } catch {
+        // Pane may have died
+      }
+    }
+
+    res.json({
+      ...toSessionResponse(session, { pane_command, pane_cwd }),
+      project: session.project
+        ? { id: session.project.id, name: session.project.name }
+        : null,
+      ticket: session.ticket
+        ? {
+            id: session.ticket.id,
+            external_id: session.ticket.externalId,
+            title: session.ticket.title,
+          }
+        : null,
+    });
   })
 );
 
@@ -392,6 +494,63 @@ router.post(
       total_checked: result.totalChecked,
       orphaned_count: result.orphanedSessions.length,
     });
+  })
+);
+
+/**
+ * POST /api/sessions/discover
+ * Discover manually created panes in project tmux sessions
+ * Creates session records for panes not already tracked
+ *
+ * Query params:
+ * - project_id: Optional project ID to limit discovery scope
+ */
+router.post(
+  '/sessions/discover',
+  asyncHandler(async (req, res) => {
+    const projectId = req.query.project_id as string | undefined;
+
+    const result = await sessionSupervisor.discoverPanes(projectId);
+
+    res.json({
+      message: `Discovered ${result.discoveredSessions.length} new panes`,
+      discovered_sessions: result.discoveredSessions.map((s) => ({
+        session_id: s.sessionId,
+        project_id: s.projectId,
+        project_name: s.projectName,
+        pane_id: s.paneId,
+        pane_title: s.paneTitle,
+        command: s.command,
+        cwd: s.cwd,
+      })),
+      existing_panes: result.existingPanes.map((p) => ({
+        pane_id: p.paneId,
+        session_id: p.sessionId,
+        command: p.command,
+        cwd: p.cwd,
+      })),
+      total_panes_scanned: result.totalPanesScanned,
+      projects_checked: result.projectsChecked,
+    });
+  })
+);
+
+/**
+ * PATCH /api/sessions/:id/rename
+ * Rename a session (update its display name/title)
+ *
+ * Body:
+ * - name: The new name for the session (required)
+ */
+router.patch(
+  '/sessions/:id/rename',
+  asyncHandler<MessageResponse | ErrorResponse>(async (req, res) => {
+    const { id } = sessionIdSchema.parse(req.params);
+    const { name } = renameSessionSchema.parse(req.body);
+
+    await sessionSupervisor.renameSession(id, name);
+
+    res.json({ message: `Session renamed to '${name}'` });
   })
 );
 
