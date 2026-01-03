@@ -23,6 +23,7 @@ import {
   ProjectConflictError,
 } from '../services/projects.js';
 import type { Project } from '../generated/prisma/index.js';
+import { ticketImagesService } from '../services/ticket-images.js';
 
 const router = Router();
 
@@ -228,6 +229,48 @@ router.delete(
 
     res.status(204).send();
   })
+);
+
+/**
+ * GET /api/projects/:id/images/*
+ * Serve an image file from docs/images/<subdir>/<filename>
+ * Example: /api/projects/123/images/multi-tenancy/MT-001_01.jpg
+ */
+router.get(
+  '/projects/:id/images/*',
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const imagePath = req.params[0]; // Everything after /images/
+
+      if (!id) {
+        res.status(400).json({ error: 'Project ID required' });
+        return;
+      }
+
+      if (!imagePath) {
+        res.status(400).json({ error: 'Image path required' });
+        return;
+      }
+
+      // Split into subdir and filename
+      const lastSlash = imagePath.lastIndexOf('/');
+      const subdir = lastSlash > 0 ? imagePath.slice(0, lastSlash) : '';
+      const filename = lastSlash > 0 ? imagePath.slice(lastSlash + 1) : imagePath;
+
+      const absolutePath = await ticketImagesService.getImagePath(id, subdir, filename);
+
+      if (!absolutePath) {
+        res.status(404).json({ error: 'Image not found' });
+        return;
+      }
+
+      res.sendFile(absolutePath);
+    } catch (err) {
+      console.error('Image serve error:', err);
+      res.status(500).json({ error: 'Failed to serve image' });
+    }
+  }
 );
 
 export default router;

@@ -90,6 +90,7 @@ export interface AdhocTicketResponse {
   title: string;
   state: TicketState;
   file_path: string;
+  prefix: string;
   is_adhoc: boolean;
   is_explore: boolean;
   rejection_feedback: string | null;

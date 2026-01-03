@@ -101,6 +101,7 @@ model Ticket {
   reviewResults ReviewResult[]
 
   // Indexes
+  @@unique([projectId, externalId], name: "tickets_project_external_id_unique")
   @@index([projectId, state], name: "tickets_project_state_idx")
   @@map("tickets")
 }

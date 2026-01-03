@@ -8,7 +8,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useShortcutScope } from '../shortcuts';
 import { Button } from '../components/ui/button';
+import { EditProjectModal } from '../components/EditProjectModal';
 import { cn } from '../lib/utils';
+import type { Project } from '../types/api';
 
 // Icons as inline SVGs to match desktop app pattern
 function PlusIcon({ className }: { className?: string }) {
@@ -72,10 +74,30 @@ function RefreshIcon({ className }: { className?: string }) {
   );
 }
 
+function EditIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
 export function Projects() {
   const navigate = useNavigate();
   const { data, isLoading, error, refetch, isRefetching } = useProjects();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   const projects = data?.data ?? [];
 
@@ -221,9 +243,8 @@ export function Projects() {
         /* Projects Grid */
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project, index) => (
-            <Link
+            <div
               key={project.id}
-              to={`/projects/${project.id}`}
               className={cn(
                 'group rounded-xl border bg-surface-secondary p-5 hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/5 transition-all',
                 index === selectedIndex
@@ -232,21 +253,34 @@ export function Projects() {
               )}
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="rounded-lg bg-indigo-500/10 p-2">
+                <Link to={`/projects/${project.id}`} className="rounded-lg bg-indigo-500/10 p-2 hover:bg-indigo-500/20 transition-colors">
                   <FolderKanbanIcon className="w-5 h-5 text-indigo-400" />
+                </Link>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setEditingProject(project);
+                  }}
+                  className="p-2 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface-tertiary transition-colors opacity-0 group-hover:opacity-100"
+                  title="Edit project"
+                >
+                  <EditIcon />
+                </button>
+              </div>
+              <Link to={`/projects/${project.id}`} className="block">
+                <h3 className="font-semibold text-content-primary mb-1 group-hover:text-indigo-400 transition-colors">
+                  {project.name}
+                </h3>
+                <p className="text-sm text-content-secondary truncate mb-3">
+                  {project.repo_path}
+                </p>
+                <div className="text-xs text-content-muted">
+                  tmux: {project.tmux_session}
+                  {project.tmux_window && `:${project.tmux_window}`}
                 </div>
-              </div>
-              <h3 className="font-semibold text-content-primary mb-1 group-hover:text-indigo-400 transition-colors">
-                {project.name}
-              </h3>
-              <p className="text-sm text-content-secondary truncate mb-3">
-                {project.repo_path}
-              </p>
-              <div className="text-xs text-content-muted">
-                tmux: {project.tmux_session}
-                {project.tmux_window && `:${project.tmux_window}`}
-              </div>
-            </Link>
+              </Link>
+            </div>
           ))}
         </div>
       )}
@@ -259,6 +293,13 @@ export function Projects() {
           </span>
         </div>
       )}
+
+      {/* Edit Project Modal */}
+      <EditProjectModal
+        project={editingProject}
+        isOpen={editingProject !== null}
+        onClose={() => setEditingProject(null)}
+      />
     </div>
   );
 }

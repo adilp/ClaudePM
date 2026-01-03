@@ -7,11 +7,9 @@ Tauri-based desktop application for Claude Session Manager. Provides native macO
 | Project | Path | Description |
 |---------|------|-------------|
 | **Server** | `../../server/` | Node.js backend (Express + WebSocket) - provides all APIs |
-| **Web App** | `../web/` | Browser-based client - reference for UI patterns |
+| **iOS** | `../ios/` | Native iOS app (SwiftUI) |
 
-- Desktop and web share similar UI patterns and component structure
-- Both consume the same server REST API and WebSocket events
-- Web app is the reference implementation - desktop ports features from web
+- Desktop and iOS apps consume the same server REST API and WebSocket events
 - Server must be running for desktop app to function
 
 ## Tech Stack

@@ -122,7 +122,7 @@ struct TicketBoardView: View {
                 CreateAdhocTicketSheet(
                     projectName: selectedProjectName,
                     onCreate: { title, slug, isExplore in
-                        await viewModel.createAdhocTicket(title: title, slug: slug, isExplore: isExplore)
+                        try await viewModel.createAdhocTicket(title: title, slug: slug, isExplore: isExplore)
                     }
                 )
             }

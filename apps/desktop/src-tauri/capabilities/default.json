@@ -7,6 +7,7 @@
     "core:default",
     "shell:allow-open",
     "store:default",
-    "notification:default"
+    "notification:default",
+    "clipboard-manager:allow-read-image"
   ]
 }

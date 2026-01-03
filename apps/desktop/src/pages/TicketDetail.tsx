@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { readImage } from '@tauri-apps/plugin-clipboard-manager';
 import { useShortcutScope } from '../shortcuts';
 import { cn } from '../lib/utils';
 import { MarkdownContent } from '../components/MarkdownContent';
@@ -27,9 +28,11 @@ import {
 } from '../hooks/useTickets';
 import { useSessions, useFocusSession } from '../hooks/useSessions';
 import { activateAlacritty } from '../services/window-manager';
+import { getApiUrl } from '../services/api';
 import { toast } from '../hooks/use-toast';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useReviewResults, useTriggerReview } from '../hooks/useReviewResults';
+import { useUploadImage } from '../hooks/useImageUpload';
 import type { TicketState } from '../types/api';
 import {
   ArrowLeft,
@@ -83,6 +86,9 @@ export function TicketDetail() {
   const { latestResult, results: reviewResults, isLoading: reviewResultsLoading, refresh: refreshReviewResults } = useReviewResults(ticketId, lastMessage);
   const triggerReview = useTriggerReview(ticketId);
 
+  // Image upload mutation
+  const uploadImage = useUploadImage();
+
   // Local state
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectFeedback, setRejectFeedback] = useState('');
@@ -93,6 +99,12 @@ export function TicketDetail() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [showFileStager, setShowFileStager] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>('');
+
+  // Fetch API URL on mount for image resolution
+  useEffect(() => {
+    getApiUrl().then(setApiBaseUrl);
+  }, []);
 
   // Scroll container ref
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -154,6 +166,74 @@ export function TicketDetail() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isEditing, isEditingTitle, showRejectModal, showDeleteModal, showStartConfirm, showFileStager]);
+
+  // Handle paste for images
+  const handlePaste = useCallback(async () => {
+    if (!isEditing || !ticketId) return;
+
+    try {
+      // Read image from clipboard via Tauri
+      const image = await readImage();
+
+      if (image) {
+        // Get image data using Tauri Image API methods
+        const [rgbaData, imageSize] = await Promise.all([
+          image.rgba(),
+          image.size(),
+        ]);
+
+        // Convert RGBA to PNG blob
+        const canvas = document.createElement('canvas');
+        canvas.width = imageSize.width;
+        canvas.height = imageSize.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const imgData = new ImageData(
+          new Uint8ClampedArray(rgbaData),
+          imageSize.width,
+          imageSize.height
+        );
+        ctx.putImageData(imgData, 0, 0);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) return;
+
+          try {
+            const result = await uploadImage.mutateAsync({
+              ticketId,
+              imageBlob: blob,
+              filename: `screenshot-${Date.now()}.png`,
+            });
+
+            // Insert markdown reference at cursor position or end
+            setEditContent((prev) => prev + '\n\n' + result.markdownRef + '\n');
+          } catch (err) {
+            console.error('Upload failed:', (err as Error).message);
+          }
+        }, 'image/png');
+      }
+    } catch (err) {
+      // No image in clipboard or read failed - this is fine, just ignore
+      console.debug('No image in clipboard:', err);
+    }
+  }, [isEditing, ticketId, uploadImage]);
+
+  // Listen for Cmd+V paste in edit mode
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // Only handle Cmd+V / Ctrl+V when editing
+      if (!isEditing) return;
+      if (!((e.metaKey || e.ctrlKey) && e.key === 'v')) return;
+
+      // Check if we have image in clipboard
+      // The native paste will still work for text
+      await handlePaste();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEditing, handlePaste]);
 
   // Get sessions for this ticket
   const ticketSessions = sessions?.filter((s) => s.ticket_id === ticketId) ?? [];
@@ -590,7 +670,7 @@ export function TicketDetail() {
           </div>
         ) : (
           <div className="p-5">
-            <MarkdownContent>{ticket.content}</MarkdownContent>
+            <MarkdownContent projectId={projectId} baseUrl={apiBaseUrl}>{ticket.content}</MarkdownContent>
           </div>
         )}
       </div>

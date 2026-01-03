@@ -7,6 +7,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { prisma } from '../config/db.js';
 import type { Ticket } from '../generated/prisma/index.js';
+import { ticketImagesService } from './ticket-images.js';
 
 // ============================================================================
 // Error Classes
@@ -302,6 +303,9 @@ export async function deleteTicket(ticketId: string): Promise<void> {
       throw new FileOperationError('delete', absoluteFilePath, error);
     }
   }
+
+  // 4.5. Delete associated images
+  await ticketImagesService.deleteTicketImages(ticketId);
 
   // 5. Delete related records first (state history, sessions)
   await prisma.ticketStateHistory.deleteMany({

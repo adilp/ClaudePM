@@ -1,9 +1,15 @@
 import SwiftUI
 
 /// A simple native markdown renderer for iOS
-/// Supports: headers, bold, italic, code blocks, inline code, lists, and links
+/// Supports: headers, bold, italic, code blocks, inline code, lists, links, and images
 struct SimpleMarkdownView: View {
     let content: String
+    let projectId: String?
+
+    init(content: String, projectId: String? = nil) {
+        self.content = content
+        self.projectId = projectId
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -21,6 +27,7 @@ struct SimpleMarkdownView: View {
         case codeBlock(language: String?, code: String)
         case listItem(text: String, indent: Int)
         case divider
+        case image(alt: String, url: String)
     }
 
     // MARK: - Parsing
@@ -150,6 +157,26 @@ struct SimpleMarkdownView: View {
                 continue
             }
 
+            // Check for images ![alt](url)
+            if let imageRange = trimmedLine.range(of: #"!\[([^\]]*)\]\(([^)]+)\)"#, options: .regularExpression) {
+                if !currentParagraph.isEmpty {
+                    blocks.append(.paragraph(text: currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+
+                let imageMatch = String(trimmedLine[imageRange])
+                // Extract alt and url
+                if let altStart = imageMatch.firstIndex(of: "["),
+                   let altEnd = imageMatch.firstIndex(of: "]"),
+                   let urlStart = imageMatch.firstIndex(of: "("),
+                   let urlEnd = imageMatch.lastIndex(of: ")") {
+                    let alt = String(imageMatch[imageMatch.index(after: altStart)..<altEnd])
+                    let url = String(imageMatch[imageMatch.index(after: urlStart)..<urlEnd])
+                    blocks.append(.image(alt: alt, url: url))
+                }
+                continue
+            }
+
             // Regular text - add to paragraph
             currentParagraph.append(line)
         }
@@ -185,6 +212,9 @@ struct SimpleMarkdownView: View {
         case .divider:
             Divider()
                 .padding(.vertical, 4)
+
+        case .image(let alt, let url):
+            imageView(alt: alt, url: url)
         }
     }
 
@@ -246,6 +276,57 @@ struct SimpleMarkdownView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.leading, CGFloat(indent) * 16)
+    }
+
+    @ViewBuilder
+    private func imageView(alt: String, url: String) -> some View {
+        // Convert relative URL to absolute server URL
+        let imageURL: URL? = {
+            if url.hasPrefix("http") {
+                return URL(string: url)
+            }
+            // Relative path like: ../../images/multi-tenancy/MT-001_01.jpg
+            // Extract: multi-tenancy/MT-001_01.jpg
+            guard let projectId = projectId,
+                  let baseURL = UserDefaults.standard.string(forKey: "backendURL"),
+                  let match = url.range(of: #"images/(.+)$"#, options: .regularExpression) else {
+                return nil
+            }
+            let imagePath = String(url[match])
+            return URL(string: "\(baseURL)/api/projects/\(projectId)/\(imagePath)")
+        }()
+
+        if let imageURL = imageURL {
+            AsyncImage(url: imageURL) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .frame(height: 100)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                case .failure:
+                    Label("Failed to load image", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+        } else {
+            // Placeholder for images we can't resolve
+            HStack {
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+                Text(alt.isEmpty ? "Image" : alt)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+            .padding()
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
     }
 
     // MARK: - Inline Formatting

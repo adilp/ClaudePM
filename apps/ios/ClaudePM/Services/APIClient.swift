@@ -27,6 +27,14 @@ enum APIError: Error, LocalizedError {
     }
 }
 
+/// Upload image response
+struct ImageUploadResponse: Codable {
+    let success: Bool
+    let filename: String
+    let path: String
+    let markdownRef: String
+}
+
 /// API client for communicating with the Claude PM backend
 actor APIClient {
     static let shared = APIClient()
@@ -389,6 +397,32 @@ actor APIClient {
             return try decoder.decode(TicketDetail.self, from: data)
         } catch {
             throw APIError.decodingError(error)
+        }
+    }
+
+    /// Update ticket content
+    /// - Parameters:
+    ///   - ticketId: The ticket ID
+    ///   - content: The new content for the ticket
+    func updateTicketContent(ticketId: String, content: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/tickets/\(ticketId)/content")
+        let body = try JSONEncoder().encode(["content": content])
+        let (_, response) = try await performRequest(url: url, method: "PUT", body: body, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -1121,6 +1155,74 @@ actor APIClient {
 
         guard httpResponse.statusCode == 200 else {
             throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
+    // MARK: - Image Upload Methods
+
+    /// Upload an image for a ticket
+    /// - Parameters:
+    ///   - ticketId: The ticket ID to attach the image to
+    ///   - imageData: The image data (PNG format)
+    ///   - filename: The filename for the image
+    /// - Returns: ImageUploadResponse with path and markdown reference
+    func uploadTicketImage(ticketId: String, imageData: Data, filename: String) async throws -> ImageUploadResponse {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        var urlComponents = URLComponents(url: baseURL.appendingPathComponent("api/tickets/\(ticketId)/images"), resolvingAgainstBaseURL: false)!
+        urlComponents.queryItems = [URLQueryItem(name: "autoAppend", value: "true")]
+        let url = urlComponents.url!
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        // Add API key if configured
+        if let apiKey = KeychainHelper.getAPIKey() {
+            request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        }
+
+        // Create multipart form data
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+
+        // Add image field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"image\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        request.httpBody = body
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.invalidResponse
+            }
+
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                throw APIError.serverError(httpResponse.statusCode)
+            }
+
+            do {
+                return try JSONDecoder().decode(ImageUploadResponse.self, from: data)
+            } catch {
+                throw APIError.decodingError(error)
+            }
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(error)
         }
     }
 

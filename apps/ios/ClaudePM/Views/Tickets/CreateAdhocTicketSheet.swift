@@ -3,12 +3,20 @@ import SwiftUI
 /// Sheet for creating a new adhoc ticket
 struct CreateAdhocTicketSheet: View {
     let projectName: String
-    let onCreate: (String, String, Bool) async -> Ticket?
+    let onCreate: (String, String, Bool) async throws -> Ticket
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
     @State private var slug = ""
+    @State private var content = """
+## Description
+
+<your idea here>
+
+## Notes
+
+"""
     @State private var isExplore = false
     @State private var isCreating = false
     @State private var hasEditedSlug = false
@@ -21,7 +29,9 @@ struct CreateAdhocTicketSheet: View {
 
     private var isSlugValid: Bool {
         let trimmed = slug.trimmingCharacters(in: .whitespaces)
-        let regex = try? NSRegularExpression(pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$")
+        // Must match server regex: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        // This means: alphanumeric, with hyphens only between alphanumeric segments
+        let regex = try? NSRegularExpression(pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$")
         let range = NSRange(trimmed.startIndex..., in: trimmed)
         return trimmed.count >= 3 && trimmed.count <= 50 && regex?.firstMatch(in: trimmed, range: range) != nil
     }
@@ -71,8 +81,13 @@ struct CreateAdhocTicketSheet: View {
                     TextField("e.g., add-user-auth", text: $slug)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .onChange(of: slug) { _, _ in
-                            hasEditedSlug = true
+                        .onChange(of: slug) { oldValue, newValue in
+                            // Only mark as edited if user manually changed it
+                            // (not if it was auto-generated from title)
+                            let expectedSlug = generateSlug(from: title)
+                            if newValue != expectedSlug {
+                                hasEditedSlug = true
+                            }
                         }
 
                     if !slug.isEmpty && !isSlugValid {
@@ -84,6 +99,17 @@ struct CreateAdhocTicketSheet: View {
                     Text("Slug")
                 } footer: {
                     Text("URL-friendly identifier (auto-generated from title)")
+                }
+
+                // Content
+                Section {
+                    TextEditor(text: $content)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 150)
+                } header: {
+                    Text("Content (Optional)")
+                } footer: {
+                    Text("Markdown description of the task. You can add more details later.")
                 }
 
                 // Explore mode
@@ -145,31 +171,86 @@ struct CreateAdhocTicketSheet: View {
     // MARK: - Helpers
 
     private func generateSlug(from text: String) -> String {
-        text
+        var result = text
             .lowercased()
             .trimmingCharacters(in: .whitespaces)
+            // Replace spaces and underscores with hyphens
             .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "_", with: "-")
+            // Remove any character that isn't alphanumeric or hyphen
             .replacingOccurrences(of: "[^a-z0-9-]", with: "", options: .regularExpression)
+            // Collapse multiple hyphens into one
             .replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
+            // Remove leading/trailing hyphens
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+
+        // Ensure we don't have hyphens at start or end after all transformations
+        while result.hasPrefix("-") {
+            result.removeFirst()
+        }
+        while result.hasSuffix("-") {
+            result.removeLast()
+        }
+
+        return result
     }
 
+    @MainActor
     private func createTicket() async {
         isCreating = true
         error = nil
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
         let trimmedSlug = slug.trimmingCharacters(in: .whitespaces)
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if let ticket = await onCreate(trimmedTitle, trimmedSlug, isExplore) {
-            await MainActor.run {
-                dismiss()
+        do {
+            print("DEBUG: Creating ticket with title: \(trimmedTitle), slug: \(trimmedSlug)")
+            let ticket = try await onCreate(trimmedTitle, trimmedSlug, isExplore)
+            print("DEBUG: Ticket created successfully: \(ticket.id)")
+
+            // Build full content with title header (matching server template format)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            let dateString = formatter.string(from: Date())
+
+            let fullContent = """
+# \(trimmedTitle)
+
+\(trimmedContent)
+
+- Created: \(dateString)
+"""
+
+            // Save content to the ticket
+            do {
+                try await APIClient.shared.updateTicketContent(ticketId: ticket.id, content: fullContent)
+                print("DEBUG: Content saved successfully")
+            } catch {
+                print("Warning: Failed to save ticket content: \(error)")
             }
-        } else {
-            await MainActor.run {
-                error = "Failed to create ticket. The slug may already exist."
-                isCreating = false
+
+            print("DEBUG: Dismissing sheet")
+            isCreating = false
+            dismiss()
+            print("DEBUG: Dismiss called")
+        } catch let apiError as APIError {
+            print("DEBUG: API error: \(apiError)")
+            switch apiError {
+            case .serverError(409):
+                error = "A ticket with this slug already exists. Please choose a different slug."
+            case .serverError(let code):
+                error = "Server error (\(code)). Please check slug format and try again."
+            case .unauthorized:
+                error = "Authentication failed. Please check your API key in settings."
+            default:
+                error = apiError.localizedDescription
             }
+            isCreating = false
+        } catch {
+            print("DEBUG: Other error: \(error)")
+            self.error = error.localizedDescription
+            isCreating = false
         }
     }
 }
@@ -177,6 +258,8 @@ struct CreateAdhocTicketSheet: View {
 #Preview {
     CreateAdhocTicketSheet(
         projectName: "Claude Session Manager",
-        onCreate: { _, _, _ in nil }
+        onCreate: { _, _, _ in
+            throw APIError.serverError(500)
+        }
     )
 }

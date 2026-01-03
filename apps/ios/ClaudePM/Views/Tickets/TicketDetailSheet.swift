@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Sheet view for displaying ticket details, content, and AI analysis
 struct TicketDetailSheet: View {
@@ -25,6 +26,11 @@ struct TicketDetailSheet: View {
     @State private var showStartConfirmation = false
     @State private var showRejectSheet = false
     @State private var rejectFeedback = ""
+    @State private var isEditing = false
+    @State private var editContent = ""
+    @State private var isSaving = false
+    @State private var isUploadingImage = false
+    @State private var uploadError: String?
 
     private enum DetailSection: String, CaseIterable {
         case content = "Content"
@@ -70,9 +76,36 @@ struct TicketDetailSheet: View {
             .navigationTitle("Ticket Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !isEditing {
+                        Button("Edit") {
+                            editContent = ticketDetail?.content ?? ""
+                            isEditing = true
+                        }
+                        .disabled(ticketDetail == nil)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                    if isEditing {
+                        HStack(spacing: 12) {
+                            Button("Cancel") {
+                                isEditing = false
+                                editContent = ""
+                            }
+                            .disabled(isSaving)
+
+                            Button(isSaving ? "Saving..." : "Save") {
+                                Task {
+                                    await saveContent()
+                                }
+                            }
+                            .disabled(isSaving)
+                            .fontWeight(.semibold)
+                        }
+                    } else {
+                        Button("Done") {
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -184,10 +217,49 @@ struct TicketDetailSheet: View {
     @ViewBuilder
     private var contentSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Description")
-                .font(.headline)
+            HStack {
+                Text("Description")
+                    .font(.headline)
+                Spacer()
+                if isEditing && UIPasteboard.general.hasImages {
+                    Button {
+                        Task {
+                            await pasteImage()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isUploadingImage {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "photo.badge.plus")
+                            }
+                            Text("Paste Image")
+                        }
+                        .font(.subheadline)
+                    }
+                    .disabled(isUploadingImage)
+                }
+            }
 
-            if isLoadingDetail {
+            if let uploadError = uploadError {
+                Text(uploadError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            if isEditing {
+                TextEditor(text: $editContent)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(minHeight: 300)
+                    .padding(8)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 1)
+                    )
+            } else if isLoadingDetail {
                 HStack {
                     Spacer()
                     ProgressView()
@@ -195,7 +267,7 @@ struct TicketDetailSheet: View {
                 }
                 .padding()
             } else if let detail = ticketDetail, !detail.content.isEmpty {
-                SimpleMarkdownView(content: detail.content)
+                SimpleMarkdownView(content: detail.content, projectId: projectId)
                     .padding()
                     .background(Color(.secondarySystemGroupedBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -627,6 +699,55 @@ struct TicketDetailSheet: View {
             dismiss()
         }
         isRejecting = false
+    }
+
+    private func saveContent() async {
+        isSaving = true
+        do {
+            try await APIClient.shared.updateTicketContent(ticketId: ticket.id, content: editContent)
+            // Reload ticket detail to get the updated content
+            await loadTicketDetail()
+            isEditing = false
+            editContent = ""
+        } catch {
+            self.error = "Failed to save: \(error.localizedDescription)"
+        }
+        isSaving = false
+    }
+
+    private func pasteImage() async {
+        guard let image = UIPasteboard.general.image else {
+            uploadError = "No image in clipboard"
+            return
+        }
+
+        guard let imageData = image.pngData() else {
+            uploadError = "Failed to process image"
+            return
+        }
+
+        isUploadingImage = true
+        uploadError = nil
+
+        do {
+            let filename = "screenshot-\(Int(Date().timeIntervalSince1970)).png"
+            let _ = try await APIClient.shared.uploadTicketImage(
+                ticketId: ticket.id,
+                imageData: imageData,
+                filename: filename
+            )
+
+            // Reload ticket detail to show the new image
+            await loadTicketDetail()
+            // Update edit content if in edit mode
+            if isEditing {
+                editContent = ticketDetail?.content ?? editContent
+            }
+        } catch {
+            uploadError = error.localizedDescription
+        }
+
+        isUploadingImage = false
     }
 }
 

@@ -10,9 +10,11 @@ import clsx from 'clsx';
 interface MarkdownContentProps {
   children: string;
   className?: string;
+  projectId?: string;
+  baseUrl?: string;
 }
 
-export function MarkdownContent({ children, className }: MarkdownContentProps) {
+export function MarkdownContent({ children, className, projectId, baseUrl }: MarkdownContentProps) {
   return (
     <div className={clsx('markdown-content', className)}>
       <ReactMarkdown
@@ -62,6 +64,29 @@ export function MarkdownContent({ children, className }: MarkdownContentProps) {
               <div className="markdown-table-wrapper">
                 <table {...props}>{children}</table>
               </div>
+            );
+          },
+          // Custom image rendering for relative paths
+          img({ src, alt, ...props }) {
+            // Handle relative image paths - route through server
+            let imageSrc = src;
+            if (src && !src.startsWith('http') && !src.startsWith('data:') && projectId) {
+              // Path like: ../../images/multi-tenancy/MT-001_01.jpg
+              // Extract: multi-tenancy/MT-001_01.jpg
+              const match = src.match(/images\/(.+)$/);
+              if (match) {
+                const apiPath = `/api/projects/${projectId}/images/${match[1]}`;
+                imageSrc = baseUrl ? `${baseUrl}${apiPath}` : apiPath;
+              }
+            }
+            return (
+              <img
+                src={imageSrc}
+                alt={alt || ''}
+                className="max-w-full h-auto rounded-lg my-4"
+                loading="lazy"
+                {...props}
+              />
             );
           },
         }}

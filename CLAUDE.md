@@ -2,179 +2,91 @@
 
 ## Project Overview
 
-Claude Session Manager is a tmux-based orchestration server for managing Claude Code sessions. It provides real-time monitoring, ticket workflow management, and web/mobile clients for remote control.
+Claude Session Manager is a tmux-based orchestration server for managing Claude Code sessions. It provides real-time monitoring, ticket workflow management, and native apps for remote control.
 
 ## Repository Structure
 
 ```
 claudePM/
 ├── server/                    # Node.js backend (Express + WebSocket)
-│   ├── src/
-│   │   ├── api/              # Express routers (thin, delegates to services)
-│   │   ├── services/         # Business logic (testable, no HTTP concerns)
-│   │   ├── models/           # Data types and database models
-│   │   ├── config/           # Configuration (Zod validated)
-│   │   └── websocket/        # WebSocket handlers
-│   ├── tests/                # Vitest tests (mirrors src structure)
-│   ├── prisma/               # Database schema and migrations
-│   └── package.json
+│   └── CLAUDE.md              # Server-specific documentation
 ├── apps/
-│   ├── web/                  # React web client (Vite + Tailwind)
-│   └── desktop/              # Tauri desktop app (React + Tailwind)
+│   ├── desktop/               # Tauri desktop app (React + Tailwind)
+│   │   └── CLAUDE.md          # Desktop app documentation
+│   ├── ios/                   # Native iOS app (SwiftUI)
+│   │   └── CLAUDE.md          # iOS app documentation
+│   └── web/                   # DEPRECATED - not maintained
 ├── docs/
-│   ├── jira-tickets/         # Implementation tickets
-│   │   └── desktop-parity/   # Desktop app tickets (DWP-001+)
-│   ├── plans/                # Design documents
-│   └── ai-context/           # Handoff documents
+│   ├── jira-tickets/          # Implementation tickets
+│   │   └── desktop-parity/    # Desktop app tickets (DWP-001+)
+│   ├── plans/                 # Design documents
+│   ├── ai-context/            # Handoff documents
+│   └── api-reference.md       # Full REST API documentation
 └── README.md
 ```
 
-## Tech Stack
+## Tech Stack Summary
 
-### Server
-- **Runtime**: Node.js 20+ with ESM modules
-- **Language**: TypeScript 5.6 (strict mode)
-- **Server**: Express 4.21
-- **Database**: PostgreSQL with Prisma ORM
-- **WebSocket**: ws library
-- **Validation**: Zod
-- **Testing**: Vitest
+| Component | Stack |
+|-----------|-------|
+| **Server** | Node.js 20+, Express, PostgreSQL + Prisma, WebSocket (ws), Zod, Vitest |
+| **Desktop** | Tauri 2.x, React 18, TypeScript, Tailwind CSS v4, React Query, Vite |
+| **iOS** | Swift 5.9+, SwiftUI, iOS 17+ (targeting iOS 26 Liquid Glass) |
 
-### Client Apps (Web & Desktop)
-- **Framework**: React 18 + TypeScript
-- **Styling**: Tailwind CSS v4
-- **State**: React Query (TanStack Query)
-- **Routing**: React Router v6
-- **Build**: Vite
-- **Desktop**: Tauri 2.x (Rust backend)
+For detailed stack information, see each component's CLAUDE.md.
 
-## Client Applications
+## Quick Start
 
-### Web App (`apps/web/`)
-Browser-based client for session monitoring and ticket management.
 ```bash
-cd apps/web
-npm run dev      # Start dev server (port 5173)
-npm run build    # Production build
-```
-
-### Desktop App (`apps/desktop/`)
-Native desktop app with system notifications and offline support.
-```bash
-cd apps/desktop
-npm run dev          # Vite dev server only
-npm run tauri dev    # Full Tauri app with hot reload
-npm run tauri build  # Build distributable
-```
-
-See `apps/desktop/CLAUDE.md` for desktop-specific documentation.
-
-### Running Full Stack
-```bash
-# Terminal 1: Server
+# Terminal 1: Start server
 cd server && npm run dev
 
-# Terminal 2: Web OR Desktop
-cd apps/web && npm run dev
-# OR
+# Terminal 2: Start desktop app
 cd apps/desktop && npm run tauri dev
+
+# Or iOS: Open in Xcode
+open apps/ios/ClaudePM.xcodeproj
 ```
 
-## Code Conventions
+## Component Documentation
+
+Each subdirectory has its own CLAUDE.md with detailed documentation:
+
+| Component | Documentation | Covers |
+|-----------|---------------|--------|
+| **Server** | `server/CLAUDE.md` | API routes, services, WebSocket, ticket system, session lifecycle, Prisma schema |
+| **Desktop** | `apps/desktop/CLAUDE.md` | React patterns, styling (Tailwind v4 theme), WebSocket client, routes |
+| **iOS** | `apps/ios/CLAUDE.md` | SwiftUI patterns, terminal view, Xcode project setup, API models |
+
+## Code Conventions (Project-Wide)
 
 ### Naming
-- **Files**: `kebab-case.ts`
+- **Files**: `kebab-case.ts` (server/desktop), `PascalCase.swift` (iOS)
 - **Functions**: `camelCase`
 - **Types/Interfaces**: `PascalCase`
 - **Constants**: `SCREAMING_SNAKE_CASE`
 
-### ESM Requirements
+### ESM Requirements (Server & Desktop)
 - Use `.js` extension in imports even for `.ts` files
 - Use `import`/`export`, never `require`
 
 ```typescript
 // Correct
 import { env } from './config/env.js';
-import healthRouter from './api/health.js';
 
 // Wrong - will fail at runtime
 import { env } from './config/env';
 ```
 
-### Architecture Patterns
+### Architecture Patterns (Server)
 - **API routes**: Thin, delegate to services
 - **Services**: Business logic, testable, no HTTP concerns
 - **Validation**: Use Zod at API boundaries
-- **Errors**: Services throw typed errors, global handler catches
 
-### Import Order
-```typescript
-// 1. External dependencies first
-import express from 'express';
-import { z } from 'zod';
-
-// 2. Internal imports
-import { env } from './config/env.js';
-import { TmuxError } from './services/tmux-types.js';
-```
-
-## Development Commands
-
-```bash
-cd server
-
-# Development
-npm run dev          # Start with hot reload (tsx watch)
-npm run build        # Compile TypeScript
-npm run start        # Run compiled code
-
-# Testing
-npm run test         # Run tests in watch mode
-npm run test:run     # Run tests once
-npm run typecheck    # TypeScript type checking
-
-# Linting
-npm run lint         # Check for issues
-npm run lint:fix     # Auto-fix issues
-npm run format       # Format with Prettier
-
-# Database
-npm run db:migrate   # Run migrations
-npm run db:push      # Push schema changes
-npm run db:studio    # Open Prisma Studio
-npm run db:generate  # Regenerate Prisma client
-```
-
-## Implementation Status
-
-See `docs/jira-tickets/README.md` for full roadmap.
-
-**Completed:**
-- CSM-001: Project Scaffolding
-- CSM-002: Database Schema
-- CSM-004: tmux Integration
-
-**In Progress:**
-- Phase 1 foundation complete, ready for Phase 2
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `server/src/index.ts` | Express app entry point |
-| `server/src/config/env.ts` | Environment config with Zod validation |
-| `server/src/config/db.ts` | Prisma client singleton |
-| `server/src/services/session-supervisor.ts` | Session lifecycle, Claude spawning |
-| `server/src/services/tmux.ts` | tmux integration service |
-| `server/prisma/schema.prisma` | Database schema |
-| `docs/api-reference.md` | **Full REST API documentation** |
-| `server/CLAUDE.md` | Server-specific documentation |
-
-## API Overview
+## Key Server Endpoints
 
 Full API documentation: **`docs/api-reference.md`**
 
-### Key Endpoints
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/projects/:id/tickets` | List tickets with filtering, pagination, sorting |
@@ -182,17 +94,11 @@ Full API documentation: **`docs/api-reference.md`**
 | `POST /api/sessions/:id/input` | Send input to session |
 | `GET /api/sessions/:id/output` | Get terminal output |
 | `POST /api/hooks/claude` | Receive Claude Code hook events |
-
-### Ticket Query Parameters
-The ticket list endpoint supports extensive filtering:
-- `prefixes=CSM,DWP` - Filter by ticket prefix
-- `state=in_progress` - Filter by state
-- `excludeOldDone=true` - Hide old completed tickets
-- `orderBy=updatedAt&orderDir=desc` - Sorting
+| `WS /` | WebSocket for real-time updates |
 
 ## Claude Session Spawning
 
-Sessions are started in `server/src/services/session-supervisor.ts` via tmux:
+Sessions are started via tmux in `server/src/services/session-supervisor.ts`:
 
 ```typescript
 claudeCommand = `claude "${escapedPrompt}" --allowedTools Edit Read Write Bash Grep Glob`;
@@ -205,53 +111,9 @@ claudeCommand = `claude "${escapedPrompt}" --allowedTools Edit Read Write Bash G
 - Escape `\` and `"` in prompts for shell safety
 - Ticket sessions include `---TASK_COMPLETE---` marker instruction
 
-## Terminal Architecture
-
-The web UI displays terminal sessions via **ttyd** (embedded in an iframe). User uses `C-a` as tmux prefix (not default `C-b`).
-
-### Key Components
-
-| File | Purpose |
-|------|---------|
-| `server/src/services/ttyd-manager.ts` | Spawns/manages ttyd instances per session |
-| `server/src/services/tmux.ts` | tmux commands including copy-mode scrolling |
-| `apps/web/src/pages/SessionDetail.tsx` | Terminal UI with scroll controls |
-
-### How ttyd Works
-
-1. `POST /api/sessions/:id/ttyd` starts a ttyd instance on port 7681+
-2. ttyd runs: `tmux select-pane -t {paneId}; attach-session -t {session}`
-3. Frontend embeds ttyd in iframe: `<iframe src="http://host:7681" />`
-4. User keystrokes go through ttyd's WebSocket directly to tmux
-
-### Sending Keys to Terminal
-
-**DO NOT use `tmux send-keys` for tmux prefix commands** - it sends keys to the *program* in the pane, bypassing tmux's prefix handling.
-
-For scrolling/copy-mode, use tmux commands directly:
-```typescript
-// In server/src/services/tmux.ts
-await execTmux(['copy-mode', '-t', paneId]);           // Enter copy mode
-await execTmux(['send-keys', '-t', paneId, '-X', 'halfpage-up']);   // Scroll up
-await execTmux(['send-keys', '-t', paneId, '-X', 'halfpage-down']); // Scroll down
-await execTmux(['send-keys', '-t', paneId, '-X', 'cancel']);        // Exit copy mode
-```
-
-The `-X` flag sends copy-mode commands, not literal keys.
-
-### Mobile Scroll Controls
-
-`POST /api/sessions/:id/scroll` with `{ action: "up" | "down" | "exit" }`
-
-Floating buttons in `SessionDetail.tsx` call this endpoint. The `up` action auto-enters copy mode if not already in it.
-
-### PTY Fallback Mode
-
-If ttyd fails, falls back to node-pty (`server/src/services/pty-manager.ts`) with xterm.js in the browser. Toggle button in UI switches modes.
-
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure:
+Copy `.env.example` to `.env` in the server directory:
 
 ```bash
 PORT=3000
@@ -266,42 +128,21 @@ LOG_LEVEL=info
 API_KEY=your-api-key-here
 ```
 
-## Native App Integration
+## Native App Authentication
 
-The server supports native iOS/macOS apps with API key authentication and push notifications.
-
-### API Key Authentication
-
-Protected endpoints (under `/api/devices`) require `X-API-Key` header when `API_KEY` env var is set:
-
-```bash
-curl -X POST http://localhost:4847/api/devices/register \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key" \
-  -d '{"token": "apns-device-token", "platform": "ios"}'
-```
-
-**Note:** When `API_KEY` is not configured, these endpoints are accessible without authentication (development mode).
-
-### Device Token Registration
-
-For push notifications, native apps register their APNs device tokens:
-
-- `POST /api/devices/register` - Register/update device token
-- `DELETE /api/devices/:token` - Remove device token
-
-See `docs/api-reference.md` for full API documentation.
-
-## Testing Guidelines
-
-- Unit tests go in `tests/` mirroring `src/` structure
-- Integration tests that need tmux: use `TMUX_INTEGRATION_TESTS=1`
-- Mock external dependencies in unit tests
-- Test services in isolation from HTTP layer
+When `API_KEY` env var is set on the server:
+- HTTP requests require `X-API-Key` header
+- WebSocket connections require `?apiKey=xxx` query parameter
+- Without `API_KEY` configured, auth is disabled (development mode)
 
 ## Common Pitfalls
 
-- ESM requires `.js` extension in imports (even for `.ts` files)
-- Path aliases in tsconfig.json don't work at runtime without additional setup
-- Don't put business logic in API routes - use services
-- Prisma client must be regenerated after schema changes
+- **ESM imports require `.js` extension** even for `.ts` files
+- **Claude CLI prompt must come BEFORE `--allowedTools`** or the flag won't work
+- **Prisma client must be regenerated** after schema changes: `npm run db:generate`
+- **tmux pane IDs start with `%`** (e.g., `%42`)
+- **WebSocket clients must use singleton pattern** to avoid reconnect loops
+
+## Implementation Status
+
+See `docs/jira-tickets/README.md` for full roadmap.

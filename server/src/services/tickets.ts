@@ -229,34 +229,38 @@ export async function syncTicketsFromFilesystem(projectId: string): Promise<Sync
 
   const discoveredExternalIds = new Set(discoveredTickets.map((t) => t.externalId));
 
-  // Create or update tickets
+  // Create or update tickets using upsert to prevent duplicates
   for (const discovered of discoveredTickets) {
     try {
       const existing = existingByExternalId.get(discovered.externalId);
 
+      // Use upsert to handle race conditions and ensure no duplicates
+      const upsertResult = await prisma.ticket.upsert({
+        where: {
+          tickets_project_external_id_unique: {
+            projectId,
+            externalId: discovered.externalId,
+          },
+        },
+        update: {
+          title: discovered.title,
+          filePath: discovered.filePath,
+        },
+        create: {
+          projectId,
+          externalId: discovered.externalId,
+          title: discovered.title,
+          filePath: discovered.filePath,
+          state: 'backlog',
+        },
+      });
+
+      // Track whether it was a create or update
       if (existing) {
-        // Update if title or file path changed
         if (existing.title !== discovered.title || existing.filePath !== discovered.filePath) {
-          await prisma.ticket.update({
-            where: { id: existing.id },
-            data: {
-              title: discovered.title,
-              filePath: discovered.filePath,
-            },
-          });
           result.updated++;
         }
       } else {
-        // Create new ticket
-        await prisma.ticket.create({
-          data: {
-            projectId,
-            externalId: discovered.externalId,
-            title: discovered.title,
-            filePath: discovered.filePath,
-            state: 'backlog',
-          },
-        });
         result.created++;
       }
     } catch (err) {

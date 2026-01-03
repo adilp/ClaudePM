@@ -263,12 +263,12 @@ class TicketBoardViewModel {
     ///   - title: Ticket title
     ///   - slug: Ticket slug (lowercase alphanumeric + hyphens)
     ///   - isExplore: Whether this is an explore/research-only ticket
-    /// - Returns: The created ticket, or nil if failed
+    /// - Returns: The created ticket
+    /// - Throws: APIError if creation fails
     @MainActor
-    func createAdhocTicket(title: String, slug: String, isExplore: Bool) async -> Ticket? {
+    func createAdhocTicket(title: String, slug: String, isExplore: Bool) async throws -> Ticket {
         guard let projectId = selectedProjectId else {
-            error = "No project selected"
-            return nil
+            throw APIError.invalidURL // No project selected
         }
 
         isCreating = true
@@ -296,7 +296,7 @@ class TicketBoardViewModel {
         } catch {
             self.error = error.localizedDescription
             isCreating = false
-            return nil
+            throw error
         }
     }
 

@@ -15,6 +15,7 @@ import {
   type TicketContentResponse,
   type ErrorResponse,
 } from './adhoc-tickets-schemas.js';
+import multer from 'multer';
 import {
   adhocTicketsService,
   AdhocTicketError,
@@ -24,9 +25,23 @@ import {
   FileOperationError,
   TicketCannotBeDeletedError,
 } from '../services/adhoc-tickets.js';
+import {
+  ticketImagesService,
+  InvalidImageError,
+  TicketNotFoundError as ImageTicketNotFoundError,
+} from '../services/ticket-images.js';
+import { getTicketContent, updateTicketContent } from '../services/adhoc-tickets.js';
 import type { Ticket } from '../generated/prisma/index.js';
 
 const router = Router();
+
+// Configure multer for memory storage (we'll save manually)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+});
 
 // ============================================================================
 // Helpers
@@ -36,6 +51,9 @@ const router = Router();
  * Convert Ticket to API response format
  */
 function toAdhocTicketResponse(ticket: Ticket): AdhocTicketResponse {
+  // Extract prefix from externalId (e.g., "ADHOC-001" -> "ADHOC", "CSM-001" -> "CSM")
+  const prefix = ticket.externalId?.split('-')[0] ?? 'ADHOC';
+
   return {
     id: ticket.id,
     project_id: ticket.projectId,
@@ -43,6 +61,7 @@ function toAdhocTicketResponse(ticket: Ticket): AdhocTicketResponse {
     title: ticket.title,
     state: ticket.state,
     file_path: ticket.filePath,
+    prefix,
     is_adhoc: ticket.isAdhoc,
     is_explore: ticket.isExplore,
     rejection_feedback: ticket.rejectionFeedback,
@@ -226,6 +245,69 @@ router.delete(
 
     res.json({ message: 'Ticket deleted successfully' });
   })
+);
+
+/**
+ * POST /api/tickets/:id/images
+ * Upload an image for a ticket
+ * Returns the markdown reference to insert
+ */
+router.post(
+  '/tickets/:id/images',
+  upload.single('image'),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        res.status(400).json({ error: 'Ticket ID required' });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({ error: 'No image file provided' });
+        return;
+      }
+
+      const result = await ticketImagesService.uploadTicketImage(
+        id,
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname
+      );
+
+      // Auto-append markdown reference to ticket content if requested
+      const autoAppend = req.query.autoAppend === 'true';
+      if (autoAppend) {
+        try {
+          const { content } = await getTicketContent(id);
+          const newContent = content.trimEnd() + '\n\n' + result.markdownRef + '\n';
+          await updateTicketContent(id, newContent);
+        } catch (err) {
+          console.warn('Failed to auto-append image reference:', err);
+          // Continue - image was still uploaded successfully
+        }
+      }
+
+      res.json({
+        success: true,
+        filename: result.filename,
+        path: result.relativePath,
+        markdownRef: result.markdownRef,
+      });
+    } catch (err) {
+      if (err instanceof ImageTicketNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
+      if (err instanceof InvalidImageError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      console.error('Image upload error:', err);
+      res.status(500).json({ error: 'Failed to upload image' });
+    }
+  }
 );
 
 export default router;
