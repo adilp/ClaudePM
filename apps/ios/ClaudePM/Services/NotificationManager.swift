@@ -14,6 +14,12 @@ final class NotificationManager {
     /// All notifications (most recent first)
     private(set) var notifications: [InAppNotification] = []
 
+    /// Track server notification IDs we've already loaded
+    private var serverNotificationIds: Set<String> = []
+
+    /// Whether we're currently fetching from server
+    private(set) var isFetching: Bool = false
+
     /// The current notification to show in the banner (most recent unread high-priority)
     var currentBannerNotification: InAppNotification? {
         notifications.first { !$0.isRead && $0.priority >= .normal }
@@ -84,10 +90,100 @@ final class NotificationManager {
         }
     }
 
-    /// Clear all notifications
+    /// Clear all notifications (also dismisses on server)
     func clearAll() {
         notifications.removeAll()
+        serverNotificationIds.removeAll()
         dismissBanner()
+
+        // Also dismiss on server
+        Task {
+            do {
+                let dismissed = try await APIClient.shared.dismissAllNotifications()
+                print("[NotificationManager] Dismissed \(dismissed) notifications on server")
+            } catch {
+                print("[NotificationManager] Failed to dismiss on server: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Server Sync
+
+    /// Fetch notifications from server and merge with local notifications
+    func fetchFromServer() {
+        guard !isFetching else {
+            print("[NotificationManager] Already fetching, skipping")
+            return
+        }
+
+        isFetching = true
+
+        Task {
+            defer {
+                Task { @MainActor in
+                    self.isFetching = false
+                }
+            }
+
+            do {
+                let serverNotifications = try await APIClient.shared.getNotifications()
+                print("[NotificationManager] Fetched \(serverNotifications.count) notifications from server")
+
+                await MainActor.run {
+                    self.mergeServerNotifications(serverNotifications)
+                }
+            } catch {
+                print("[NotificationManager] Failed to fetch notifications: \(error)")
+            }
+        }
+    }
+
+    /// Merge server notifications with local notifications
+    private func mergeServerNotifications(_ serverNotifications: [ServerNotification]) {
+        var newNotifications: [InAppNotification] = []
+        var hasNewHighPriority = false
+
+        for serverNotif in serverNotifications {
+            // Skip if we already have this notification
+            if serverNotificationIds.contains(serverNotif.id) {
+                continue
+            }
+
+            // Also skip if it's already in our local list (by ID)
+            if notifications.contains(where: { $0.id == serverNotif.id }) {
+                serverNotificationIds.insert(serverNotif.id)
+                continue
+            }
+
+            // Convert and add
+            let inAppNotif = serverNotif.toInAppNotification()
+            newNotifications.append(inAppNotif)
+            serverNotificationIds.insert(serverNotif.id)
+
+            if inAppNotif.priority >= .high {
+                hasNewHighPriority = true
+            }
+
+            print("[NotificationManager] Added server notification: \(inAppNotif.title) - \(inAppNotif.body)")
+        }
+
+        if !newNotifications.isEmpty {
+            // Insert new notifications at the beginning
+            notifications.insert(contentsOf: newNotifications, at: 0)
+
+            // Sort by timestamp (most recent first)
+            notifications.sort { $0.timestamp > $1.timestamp }
+
+            // Trim old notifications
+            if notifications.count > maxNotifications {
+                notifications = Array(notifications.prefix(maxNotifications))
+            }
+
+            // Show banner for high+ priority notifications
+            if hasNewHighPriority {
+                showBannerWithAutoDismiss()
+            }
+        }
     }
 
     // MARK: - Convenience Methods

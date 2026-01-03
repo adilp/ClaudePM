@@ -1226,6 +1226,71 @@ actor APIClient {
         }
     }
 
+    // MARK: - Notification Methods
+
+    /// Fetch all active notifications from the server
+    /// - Returns: Array of ServerNotification objects
+    func getNotifications() async throws -> [ServerNotification] {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/notifications")
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+            let result = try decoder.decode(NotificationsResponse.self, from: data)
+            return result.data
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Dismiss all notifications on the server
+    /// - Returns: Number of notifications dismissed
+    func dismissAllNotifications() async throws -> Int {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/notifications")
+        let (data, response) = try await performRequest(url: url, method: "DELETE", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let result = try JSONDecoder().decode(DismissAllNotificationsResponse.self, from: data)
+            return result.dismissed
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
     // MARK: - Private Helpers
 
     /// Perform a network request with optional method and body

@@ -21,6 +21,9 @@ struct ClaudePMApp: App {
             print("[App] Scene became active, connecting WebSocket")
             WebSocketClient.shared.connect()
 
+            // Fetch any missed notifications from server
+            NotificationManager.shared.fetchFromServer()
+
         case .background:
             // App went to background - disconnect WebSocket to save battery
             print("[App] Scene went to background, disconnecting WebSocket")

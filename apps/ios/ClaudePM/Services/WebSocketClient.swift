@@ -408,8 +408,11 @@ final class WebSocketClient {
 
         print("[WebSocket] Notification: \(title) - \(body)")
 
-        // Create in-app notification
+        // Create in-app notification for immediate display
         NotificationManager.shared.notifyGeneric(id: id, title: title, body: body)
+
+        // Also refresh from server to get full notification details and sync state
+        NotificationManager.shared.fetchFromServer()
     }
 
     /// Handle error message

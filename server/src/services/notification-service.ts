@@ -176,11 +176,33 @@ export class NotificationService extends TypedEventEmitter<NotificationServiceEv
 
   /**
    * Create notification for waiting input (session)
+   * Fetches session info to include project/ticket context in the message
    */
   async notifyWaitingInput(sessionId: string, reason: string): Promise<NotificationData> {
+    // Fetch session with project and ticket to build display name
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId },
+      include: {
+        project: { select: { name: true } },
+        ticket: { select: { title: true, externalId: true } },
+      },
+    });
+
+    // Build display name: prefer ticket title, then project name, then session ID
+    let displayName: string;
+    if (session?.ticket?.title) {
+      displayName = session.ticket.title;
+    } else if (session?.ticket?.externalId) {
+      displayName = session.ticket.externalId;
+    } else if (session?.project?.name) {
+      displayName = `${session.project.name} session`;
+    } else {
+      displayName = `Session ${sessionId.slice(0, 8)}`;
+    }
+
     return this.create({
       type: 'waiting_input',
-      message: `Session waiting for input: ${reason}`,
+      message: `${displayName}: ${reason}`,
       sessionId,
       upsertBySession: true,
     });

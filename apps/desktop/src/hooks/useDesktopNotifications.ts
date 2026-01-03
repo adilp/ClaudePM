@@ -93,15 +93,15 @@ async function processMessage(
     switch (newStatus) {
       case 'completed':
         await sendDesktopNotification(
-          'Session Complete',
-          `${displayName} finished successfully`
+          `Session Complete: ${displayName}`,
+          'Finished successfully'
         );
         break;
 
       case 'error':
         await sendDesktopNotification(
-          'Session Error',
-          error || `${displayName} encountered an error`
+          `Session Error: ${displayName}`,
+          error || 'Encountered an error'
         );
         break;
     }
@@ -114,8 +114,8 @@ async function processMessage(
     if (waiting) {
       const displayName = getSessionDisplayName(sessionId, sessions);
       await sendDesktopNotification(
-        'Input Required',
-        reason || `${displayName} is waiting for input`
+        `Input Required: ${displayName}`,
+        reason || 'Waiting for input'
       );
     }
   }
