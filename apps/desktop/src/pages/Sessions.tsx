@@ -24,6 +24,110 @@ type SourceFilter = 'all' | 'api' | 'discovered';
 type CommandFilter = 'all' | 'node' | 'nvim' | 'other';
 
 // ============================================================================
+// Project Grouping Types & Helpers
+// ============================================================================
+
+const COLLAPSED_PROJECTS_KEY = 'sessions.collapsedProjects';
+
+interface ProjectGroup {
+  projectName: string;
+  projectId: string | null;
+  sessions: Session[];
+  mostRecentActivity: Date;
+}
+
+function loadCollapsedProjects(): Set<string> {
+  try {
+    const stored = localStorage.getItem(COLLAPSED_PROJECTS_KEY);
+    if (stored) {
+      return new Set(JSON.parse(stored));
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return new Set();
+}
+
+function saveCollapsedProjects(collapsed: Set<string>): void {
+  localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify([...collapsed]));
+}
+
+function groupSessionsByProject(sessions: Session[]): ProjectGroup[] {
+  const groups = new Map<string, ProjectGroup>();
+
+  for (const session of sessions) {
+    const projectName = session.project?.name ?? 'Unassigned';
+    const projectId = session.project?.id ?? null;
+    const key = projectId ?? 'unassigned';
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        projectName,
+        projectId,
+        sessions: [],
+        mostRecentActivity: new Date(0),
+      });
+    }
+
+    const group = groups.get(key)!;
+    group.sessions.push(session);
+
+    // Track most recent activity for sorting
+    const updatedAt = new Date(session.updated_at);
+    if (updatedAt > group.mostRecentActivity) {
+      group.mostRecentActivity = updatedAt;
+    }
+  }
+
+  // Sort groups by most recent activity (descending)
+  return Array.from(groups.values()).sort(
+    (a, b) => b.mostRecentActivity.getTime() - a.mostRecentActivity.getTime()
+  );
+}
+
+// ============================================================================
+// Collapsible Project Group Component
+// ============================================================================
+
+interface CollapsibleProjectGroupProps {
+  group: ProjectGroup;
+  isCollapsed: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+function CollapsibleProjectGroup({
+  group,
+  isCollapsed,
+  onToggle,
+  children,
+}: CollapsibleProjectGroupProps) {
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-2 w-full text-left py-1.5 px-2 -ml-2 rounded hover:bg-surface-tertiary transition-colors"
+      >
+        <span
+          className={cn(
+            'text-content-muted transition-transform text-sm',
+            !isCollapsed && 'rotate-90'
+          )}
+        >
+          ▶
+        </span>
+        <span className="font-medium text-content-primary">{group.projectName}</span>
+      </button>
+      {!isCollapsed && (
+        <div className="flex flex-col gap-3 pl-4">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 // Collapsible Section Component
 // ============================================================================
 
@@ -452,6 +556,24 @@ export function Sessions() {
   // Rename dialog state
   const [renameTarget, setRenameTarget] = useState<{ sessionId: string; currentName: string | null } | null>(null);
 
+  // Project collapse state (persisted to localStorage)
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(loadCollapsedProjects);
+
+  // Toggle project collapse state
+  const toggleProjectCollapse = useCallback((projectId: string | null) => {
+    const key = projectId ?? 'unassigned';
+    setCollapsedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      saveCollapsedProjects(next);
+      return next;
+    });
+  }, []);
+
   // Get active sessions (running/paused)
   const allActiveSessions = useMemo(
     () =>
@@ -496,6 +618,12 @@ export function Sessions() {
 
     return filtered;
   }, [allActiveSessions, sourceFilter, commandFilter]);
+
+  // Group active sessions by project
+  const groupedSessions = useMemo(
+    () => groupSessionsByProject(activeSessions),
+    [activeSessions]
+  );
 
   const completedSessions = useMemo(
     () =>
@@ -809,17 +937,29 @@ export function Sessions() {
             icon="session"
           />
         ) : (
-          <div className="flex flex-col gap-3" role="listbox" aria-label="Active sessions">
-            {activeSessions.map((session, index) => (
-              <div key={session.id} className="group">
-                <SessionCard
-                  session={session}
-                  isSelected={index === selectedIndex}
-                  onSelect={() => setSelectedIndex(index)}
-                  onDoubleClick={() => setDetailSession(session)}
-                  onRename={handleOpenRename}
-                />
-              </div>
+          <div className="flex flex-col gap-4" role="listbox" aria-label="Active sessions">
+            {groupedSessions.map((group) => (
+              <CollapsibleProjectGroup
+                key={group.projectId ?? 'unassigned'}
+                group={group}
+                isCollapsed={collapsedProjects.has(group.projectId ?? 'unassigned')}
+                onToggle={() => toggleProjectCollapse(group.projectId)}
+              >
+                {group.sessions.map((session) => {
+                  const flatIndex = activeSessions.findIndex((s) => s.id === session.id);
+                  return (
+                    <div key={session.id} className="group">
+                      <SessionCard
+                        session={session}
+                        isSelected={flatIndex === selectedIndex}
+                        onSelect={() => setSelectedIndex(flatIndex)}
+                        onDoubleClick={() => setDetailSession(session)}
+                        onRename={handleOpenRename}
+                      />
+                    </div>
+                  );
+                })}
+              </CollapsibleProjectGroup>
             ))}
           </div>
         )}

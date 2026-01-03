@@ -1,6 +1,7 @@
 /**
  * SessionList Component
  * Main list container for displaying all sessions with keyboard navigation
+ * Sessions are grouped by project with collapsible headers
  */
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -12,10 +13,135 @@ import { focusSession, showErrorNotification } from '../services/session-control
 import { cn } from '../lib/utils';
 import type { Session } from '../types/api';
 
+// ============================================================================
+// Constants
+// ============================================================================
+
+const COLLAPSED_PROJECTS_KEY = 'sessionList.collapsedProjects';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface ProjectGroup {
+  projectName: string;
+  projectId: string | null;
+  sessions: Session[];
+  mostRecentActivity: Date;
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function loadCollapsedProjects(): Set<string> {
+  try {
+    const stored = localStorage.getItem(COLLAPSED_PROJECTS_KEY);
+    if (stored) {
+      return new Set(JSON.parse(stored));
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return new Set();
+}
+
+function saveCollapsedProjects(collapsed: Set<string>): void {
+  localStorage.setItem(COLLAPSED_PROJECTS_KEY, JSON.stringify([...collapsed]));
+}
+
+function groupSessionsByProject(sessions: Session[]): ProjectGroup[] {
+  const groups = new Map<string, ProjectGroup>();
+
+  for (const session of sessions) {
+    const projectName = session.project?.name ?? 'Unassigned';
+    const projectId = session.project?.id ?? null;
+    const key = projectId ?? 'unassigned';
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        projectName,
+        projectId,
+        sessions: [],
+        mostRecentActivity: new Date(0),
+      });
+    }
+
+    const group = groups.get(key)!;
+    group.sessions.push(session);
+
+    // Track most recent activity for sorting
+    const updatedAt = new Date(session.updated_at);
+    if (updatedAt > group.mostRecentActivity) {
+      group.mostRecentActivity = updatedAt;
+    }
+  }
+
+  // Sort groups by most recent activity (descending)
+  return Array.from(groups.values()).sort(
+    (a, b) => b.mostRecentActivity.getTime() - a.mostRecentActivity.getTime()
+  );
+}
+
+// ============================================================================
+// CollapsibleProjectGroup Component
+// ============================================================================
+
+interface CollapsibleProjectGroupProps {
+  group: ProjectGroup;
+  isCollapsed: boolean;
+  onToggle: () => void;
+  selectedSessionId: string | null;
+  onSelectSession: (session: Session) => void;
+  onDoubleClickSession: (session: Session) => void;
+}
+
+function CollapsibleProjectGroup({
+  group,
+  isCollapsed,
+  onToggle,
+  selectedSessionId,
+  onSelectSession,
+  onDoubleClickSession,
+}: CollapsibleProjectGroupProps) {
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-2 w-full text-left py-2 px-1 rounded hover:bg-surface-tertiary transition-colors group"
+      >
+        <span
+          className={cn(
+            'text-content-muted transition-transform text-sm',
+            !isCollapsed && 'rotate-90'
+          )}
+        >
+          ▶
+        </span>
+        <span className="font-medium text-content-primary">{group.projectName}</span>
+      </button>
+      {!isCollapsed && (
+        <div className="flex flex-col gap-2 pl-5">
+          {group.sessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              isSelected={session.id === selectedSessionId}
+              onSelect={() => onSelectSession(session)}
+              onDoubleClick={() => onDoubleClickSession(session)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SessionList() {
   const { sessions, loading, error, fetchSessions, clearError } = useSessionStore();
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [detailSession, setDetailSession] = useState<Session | null>(null);
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(loadCollapsedProjects);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Filter out completed sessions
@@ -23,6 +149,39 @@ export function SessionList() {
     () => sessions.filter((s) => s.status !== 'completed'),
     [sessions]
   );
+
+  // Group sessions by project, sorted by recent activity
+  const groupedSessions = useMemo(
+    () => groupSessionsByProject(activeSessions),
+    [activeSessions]
+  );
+
+  // Flatten sessions for keyboard navigation (respecting collapsed state)
+  const flattenedSessions = useMemo(() => {
+    const result: Session[] = [];
+    for (const group of groupedSessions) {
+      const key = group.projectId ?? 'unassigned';
+      if (!collapsedProjects.has(key)) {
+        result.push(...group.sessions);
+      }
+    }
+    return result;
+  }, [groupedSessions, collapsedProjects]);
+
+  // Toggle project collapse state
+  const toggleProjectCollapse = useCallback((projectId: string | null) => {
+    const key = projectId ?? 'unassigned';
+    setCollapsedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      saveCollapsedProjects(next);
+      return next;
+    });
+  }, []);
 
   // Connect to WebSocket for real-time updates
   useWebSocket();
@@ -34,44 +193,47 @@ export function SessionList() {
 
   // Select first session when sessions load
   useEffect(() => {
-    if (activeSessions.length > 0 && selectedIndex === null) {
-      setSelectedIndex(0);
+    if (flattenedSessions.length > 0 && selectedSessionId === null) {
+      setSelectedSessionId(flattenedSessions[0].id);
     }
-  }, [activeSessions.length, selectedIndex]);
+  }, [flattenedSessions, selectedSessionId]);
 
-  // Reset selection if sessions change and index is out of bounds
+  // Reset selection if selected session is no longer visible
   useEffect(() => {
-    if (selectedIndex !== null && selectedIndex >= activeSessions.length) {
-      setSelectedIndex(activeSessions.length > 0 ? activeSessions.length - 1 : null);
+    if (selectedSessionId !== null) {
+      const stillVisible = flattenedSessions.some((s) => s.id === selectedSessionId);
+      if (!stillVisible && flattenedSessions.length > 0) {
+        setSelectedSessionId(flattenedSessions[0].id);
+      } else if (!stillVisible) {
+        setSelectedSessionId(null);
+      }
     }
-  }, [activeSessions.length, selectedIndex]);
+  }, [flattenedSessions, selectedSessionId]);
 
   const selectNextSession = useCallback(() => {
-    if (activeSessions.length === 0) return;
-    setSelectedIndex((prev) => {
-      if (prev === null) return 0;
-      return Math.min(prev + 1, activeSessions.length - 1);
-    });
-  }, [activeSessions.length]);
+    if (flattenedSessions.length === 0) return;
+    const currentIndex = flattenedSessions.findIndex((s) => s.id === selectedSessionId);
+    const nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, flattenedSessions.length - 1);
+    setSelectedSessionId(flattenedSessions[nextIndex].id);
+  }, [flattenedSessions, selectedSessionId]);
 
   const selectPreviousSession = useCallback(() => {
-    if (activeSessions.length === 0) return;
-    setSelectedIndex((prev) => {
-      if (prev === null) return 0;
-      return Math.max(prev - 1, 0);
-    });
-  }, [activeSessions.length]);
+    if (flattenedSessions.length === 0) return;
+    const currentIndex = flattenedSessions.findIndex((s) => s.id === selectedSessionId);
+    const prevIndex = currentIndex === -1 ? 0 : Math.max(currentIndex - 1, 0);
+    setSelectedSessionId(flattenedSessions[prevIndex].id);
+  }, [flattenedSessions, selectedSessionId]);
 
   const handleFocusSelected = useCallback(async () => {
-    if (selectedIndex === null || !activeSessions[selectedIndex]) return;
+    if (selectedSessionId === null) return;
 
     try {
-      await focusSession(activeSessions[selectedIndex].id);
+      await focusSession(selectedSessionId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to focus session';
       await showErrorNotification(message);
     }
-  }, [selectedIndex, activeSessions]);
+  }, [selectedSessionId]);
 
   const handleSessionDoubleClick = useCallback((session: Session) => {
     setDetailSession(session);
@@ -107,18 +269,18 @@ export function SessionList() {
           break;
         case 'Home':
           e.preventDefault();
-          if (activeSessions.length > 0) setSelectedIndex(0);
+          if (flattenedSessions.length > 0) setSelectedSessionId(flattenedSessions[0].id);
           break;
         case 'End':
           e.preventDefault();
-          if (activeSessions.length > 0) setSelectedIndex(activeSessions.length - 1);
+          if (flattenedSessions.length > 0) setSelectedSessionId(flattenedSessions[flattenedSessions.length - 1].id);
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleFocusSelected, selectNextSession, selectPreviousSession, activeSessions.length]);
+  }, [handleFocusSelected, selectNextSession, selectPreviousSession, flattenedSessions]);
 
   const handleRetry = () => {
     clearError();
@@ -212,14 +374,16 @@ export function SessionList() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-3" role="listbox" aria-label="Sessions">
-        {activeSessions.map((session, index) => (
-          <SessionCard
-            key={session.id}
-            session={session}
-            isSelected={index === selectedIndex}
-            onSelect={() => setSelectedIndex(index)}
-            onDoubleClick={() => handleSessionDoubleClick(session)}
+      <div className="flex flex-col gap-4" role="listbox" aria-label="Sessions">
+        {groupedSessions.map((group) => (
+          <CollapsibleProjectGroup
+            key={group.projectId ?? 'unassigned'}
+            group={group}
+            isCollapsed={collapsedProjects.has(group.projectId ?? 'unassigned')}
+            onToggle={() => toggleProjectCollapse(group.projectId)}
+            selectedSessionId={selectedSessionId}
+            onSelectSession={(session) => setSelectedSessionId(session.id)}
+            onDoubleClickSession={handleSessionDoubleClick}
           />
         ))}
       </div>

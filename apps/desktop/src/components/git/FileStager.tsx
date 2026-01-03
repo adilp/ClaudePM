@@ -413,10 +413,12 @@ export function FileStager({
       toast.success('Pushed', `Pushed to ${result.branch}`);
       setShowPushConfirm(false);
       setLastCommitHash(null);
+      // Close modal after successful push
+      onClose();
     } catch (error) {
       toast.error('Push Failed', (error as Error).message);
     }
-  }, [push, branchInfo]);
+  }, [push, branchInfo, onClose]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -531,7 +533,8 @@ export function FileStager({
   const hasUnstagedChanges = unstagedCount > 0;
   const hasStagedChanges = stagedCount > 0;
   const canCommit = hasStagedChanges && commitMessage.trim().length > 0;
-  const canPush = lastCommitHash || (branchInfo && branchInfo.remote && status && !status.clean);
+  // Only show push button after a commit has been made in this session
+  const canPush = !!lastCommitHash;
 
   if (!open) return null;
 

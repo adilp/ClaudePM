@@ -795,6 +795,7 @@ export function TicketDetail() {
           projectId={projectId}
           open={showFileStager}
           onClose={() => setShowFileStager(false)}
+          initialCommitMessage={ticket ? `feat(${ticket.external_id || ticket.id.slice(0, 8)}): ${ticket.title}` : undefined}
         />
       )}
     </div>

@@ -15,6 +15,14 @@ enum SessionCommandFilter: String, CaseIterable {
     case other = "Other"
 }
 
+/// Group of sessions under a project
+struct ProjectSessionGroup: Identifiable {
+    let id: String  // projectId or "unassigned"
+    let projectName: String
+    let sessions: [Session]
+    let mostRecentActivity: Date
+}
+
 /// ViewModel for the session list view
 @MainActor
 @Observable
@@ -44,6 +52,28 @@ class SessionListViewModel {
 
     /// Session being renamed (nil if no rename in progress)
     var renamingSession: Session?
+
+    /// Set of collapsed project IDs (persisted to UserDefaults)
+    var collapsedProjects: Set<String> {
+        didSet {
+            saveCollapsedProjects()
+        }
+    }
+
+    // MARK: - Constants
+
+    private static let collapsedProjectsKey = "sessionList.collapsedProjects"
+
+    // MARK: - Initialization
+
+    init() {
+        // Load collapsed state from UserDefaults
+        if let stored = UserDefaults.standard.array(forKey: Self.collapsedProjectsKey) as? [String] {
+            self.collapsedProjects = Set(stored)
+        } else {
+            self.collapsedProjects = []
+        }
+    }
 
     // MARK: - Computed Properties
 
@@ -77,6 +107,37 @@ class SessionListViewModel {
         }
 
         return result
+    }
+
+    /// Sessions grouped by project, sorted by most recent activity
+    var groupedSessions: [ProjectSessionGroup] {
+        var groups: [String: (projectName: String, sessions: [Session], mostRecent: Date)] = [:]
+
+        for session in visibleSessions {
+            let projectName = session.project.name
+            let projectId = session.project.id
+
+            if groups[projectId] == nil {
+                groups[projectId] = (projectName: projectName, sessions: [], mostRecent: Date.distantPast)
+            }
+
+            groups[projectId]!.sessions.append(session)
+
+            // Track most recent activity for sorting
+            if session.updatedAt > groups[projectId]!.mostRecent {
+                groups[projectId]!.mostRecent = session.updatedAt
+            }
+        }
+
+        // Convert to array and sort by most recent activity (descending)
+        return groups.map { (id, data) in
+            ProjectSessionGroup(
+                id: id,
+                projectName: data.projectName,
+                sessions: data.sessions,
+                mostRecentActivity: data.mostRecent
+            )
+        }.sorted { $0.mostRecentActivity > $1.mostRecentActivity }
     }
 
     /// Filter counts for badges
@@ -196,7 +257,28 @@ class SessionListViewModel {
         }
     }
 
+    // MARK: - Project Collapse
+
+    /// Toggle the collapse state of a project group
+    func toggleProjectCollapse(_ projectId: String) {
+        if collapsedProjects.contains(projectId) {
+            collapsedProjects.remove(projectId)
+        } else {
+            collapsedProjects.insert(projectId)
+        }
+    }
+
+    /// Check if a project is collapsed
+    func isProjectCollapsed(_ projectId: String) -> Bool {
+        return collapsedProjects.contains(projectId)
+    }
+
     // MARK: - Private Helpers
+
+    /// Save collapsed projects to UserDefaults
+    private func saveCollapsedProjects() {
+        UserDefaults.standard.set(Array(collapsedProjects), forKey: Self.collapsedProjectsKey)
+    }
 
     /// Update a session at the given index with new values
     /// Since Session is a struct, we create a new instance with updated values

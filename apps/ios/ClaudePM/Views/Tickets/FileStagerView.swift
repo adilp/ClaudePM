@@ -288,8 +288,9 @@ struct FileStagerView: View {
         stagedCount > 0 && !commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // Only show push button after a commit has been made in this session
     private var canPush: Bool {
-        lastCommitHash != nil || (branchInfo?.remote != nil && !(status?.clean ?? true))
+        lastCommitHash != nil
     }
 
     // MARK: - Unified Tree Building
@@ -654,7 +655,8 @@ struct FileStagerView: View {
             )
             lastCommitHash = nil
             showToast("Pushed to \(result.branch)")
-            await loadData()
+            // Close modal after successful push
+            dismiss()
         } catch let apiError as APIError {
             showToast(apiError.errorDescription ?? "Push failed")
         } catch {

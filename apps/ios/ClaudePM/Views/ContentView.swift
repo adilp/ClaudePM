@@ -267,19 +267,46 @@ struct SessionsTabView: View {
                 }
             }
 
-            // Sessions list
-            Section {
-                ForEach(viewModel.visibleSessions) { session in
-                    NavigationLink(value: session) {
-                        SessionRowView(session: session)
-                    }
-                    .swipeActions(edge: .trailing) {
-                        Button {
-                            viewModel.renamingSession = session
-                        } label: {
-                            Label("Rename", systemImage: "pencil")
+            // Sessions list - grouped by project
+            ForEach(viewModel.groupedSessions) { group in
+                Section {
+                    // Collapsible header
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            viewModel.toggleProjectCollapse(group.id)
                         }
-                        .tint(.blue)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(viewModel.isProjectCollapsed(group.id) ? 0 : 90))
+
+                            Text(group.projectName)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+
+                            Spacer()
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+
+                    // Sessions (only if not collapsed)
+                    if !viewModel.isProjectCollapsed(group.id) {
+                        ForEach(group.sessions) { session in
+                            NavigationLink(value: session) {
+                                SessionRowView(session: session)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button {
+                                    viewModel.renamingSession = session
+                                } label: {
+                                    Label("Rename", systemImage: "pencil")
+                                }
+                                .tint(.blue)
+                            }
+                        }
                     }
                 }
             }
