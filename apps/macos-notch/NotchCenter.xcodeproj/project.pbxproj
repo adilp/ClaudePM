@@ -10,6 +10,9 @@
 		NC000001NC000001 /* NotchCenterApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC000000NC000000 /* NotchCenterApp.swift */; };
 		NC000003NC000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = NC000002NC000002 /* Assets.xcassets */; };
 		NC000010NC000010 /* DynamicNotchKit in Frameworks */ = {isa = PBXBuildFile; productRef = NC000009NC000009 /* DynamicNotchKit */; };
+		NC002001NC002001 /* NotchPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC002000NC002000 /* NotchPresenter.swift */; };
+		NC002003NC002003 /* TestNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC002002NC002002 /* TestNotificationView.swift */; };
+		NC002005NC002005 /* ScheduledNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC002004NC002004 /* ScheduledNotification.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +20,9 @@
 		NC000002NC000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		NC000004NC000004 /* NotchCenter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchCenter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		NC000005NC000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		NC002000NC002000 /* NotchPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPresenter.swift; sourceTree = "<group>"; };
+		NC002002NC002002 /* TestNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestNotificationView.swift; sourceTree = "<group>"; };
+		NC002004NC002004 /* ScheduledNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledNotification.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +49,9 @@
 			isa = PBXGroup;
 			children = (
 				NC000033NC000033 /* App */,
+				NC002010NC002010 /* Services */,
+				NC002011NC002011 /* Views */,
+				NC002012NC002012 /* Models */,
 				NC000002NC000002 /* Assets.xcassets */,
 				NC000005NC000005 /* Info.plist */,
 			);
@@ -63,6 +72,30 @@
 				NC000000NC000000 /* NotchCenterApp.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		NC002010NC002010 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				NC002000NC002000 /* NotchPresenter.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		NC002011NC002011 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				NC002002NC002002 /* TestNotificationView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		NC002012NC002012 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				NC002004NC002004 /* ScheduledNotification.swift */,
+			);
+			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -141,6 +174,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				NC000001NC000001 /* NotchCenterApp.swift in Sources */,
+				NC002001NC002001 /* NotchPresenter.swift in Sources */,
+				NC002003NC002003 /* TestNotificationView.swift in Sources */,
+				NC002005NC002005 /* ScheduledNotification.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
