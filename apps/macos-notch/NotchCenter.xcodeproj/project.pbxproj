@@ -13,6 +13,11 @@
 		NC002001NC002001 /* NotchPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC002000NC002000 /* NotchPresenter.swift */; };
 		NC002003NC002003 /* TestNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC002002NC002002 /* TestNotificationView.swift */; };
 		NC002005NC002005 /* ScheduledNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC002004NC002004 /* ScheduledNotification.swift */; };
+		NC003001NC003001 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003000NC003000 /* CalendarService.swift */; };
+		NC003003NC003003 /* SoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003002NC003002 /* SoundPlayer.swift */; };
+		NC003005NC003005 /* MeetingEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003004NC003004 /* MeetingEvent.swift */; };
+		NC003007NC003007 /* MeetingNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003006NC003006 /* MeetingNotificationView.swift */; };
+		NC003009NC003009 /* LinkParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003008NC003008 /* LinkParser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +28,12 @@
 		NC002000NC002000 /* NotchPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPresenter.swift; sourceTree = "<group>"; };
 		NC002002NC002002 /* TestNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestNotificationView.swift; sourceTree = "<group>"; };
 		NC002004NC002004 /* ScheduledNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledNotification.swift; sourceTree = "<group>"; };
+		NC003000NC003000 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
+		NC003002NC003002 /* SoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundPlayer.swift; sourceTree = "<group>"; };
+		NC003004NC003004 /* MeetingEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingEvent.swift; sourceTree = "<group>"; };
+		NC003006NC003006 /* MeetingNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingNotificationView.swift; sourceTree = "<group>"; };
+		NC003008NC003008 /* LinkParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkParser.swift; sourceTree = "<group>"; };
+		NC003010NC003010 /* NotchCenter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotchCenter.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,8 +63,10 @@
 				NC002010NC002010 /* Services */,
 				NC002011NC002011 /* Views */,
 				NC002012NC002012 /* Models */,
+				NC003013NC003013 /* Utilities */,
 				NC000002NC000002 /* Assets.xcassets */,
 				NC000005NC000005 /* Info.plist */,
+				NC003010NC003010 /* NotchCenter.entitlements */,
 			);
 			path = NotchCenter;
 			sourceTree = "<group>";
@@ -78,6 +91,8 @@
 			isa = PBXGroup;
 			children = (
 				NC002000NC002000 /* NotchPresenter.swift */,
+				NC003000NC003000 /* CalendarService.swift */,
+				NC003002NC003002 /* SoundPlayer.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -86,6 +101,7 @@
 			isa = PBXGroup;
 			children = (
 				NC002002NC002002 /* TestNotificationView.swift */,
+				NC003006NC003006 /* MeetingNotificationView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -94,8 +110,17 @@
 			isa = PBXGroup;
 			children = (
 				NC002004NC002004 /* ScheduledNotification.swift */,
+				NC003004NC003004 /* MeetingEvent.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		NC003013NC003013 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				NC003008NC003008 /* LinkParser.swift */,
+			);
+			path = Utilities;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -177,6 +202,11 @@
 				NC002001NC002001 /* NotchPresenter.swift in Sources */,
 				NC002003NC002003 /* TestNotificationView.swift in Sources */,
 				NC002005NC002005 /* ScheduledNotification.swift in Sources */,
+				NC003001NC003001 /* CalendarService.swift in Sources */,
+				NC003003NC003003 /* SoundPlayer.swift in Sources */,
+				NC003005NC003005 /* MeetingEvent.swift in Sources */,
+				NC003007NC003007 /* MeetingNotificationView.swift in Sources */,
+				NC003009NC003009 /* LinkParser.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,7 +336,7 @@
 				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_ENTITLEMENTS = NotchCenter/NotchCenter.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -335,7 +365,7 @@
 				ARCHS = "arm64 x86_64";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_ENTITLEMENTS = NotchCenter/NotchCenter.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
