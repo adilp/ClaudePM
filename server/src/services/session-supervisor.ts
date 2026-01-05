@@ -38,7 +38,7 @@ import { waitingDetector } from './waiting-detector.js';
 const DEFAULT_OUTPUT_BUFFER_SIZE = 10_000;
 
 /** Polling interval for process monitoring (ms) */
-const PROCESS_POLL_INTERVAL = 2_000;
+const PROCESS_POLL_INTERVAL = 10_000;
 
 /** Output capture interval (ms) */
 const OUTPUT_CAPTURE_INTERVAL = 1_000;
@@ -48,6 +48,9 @@ const STOP_GRACE_PERIOD = 5_000;
 
 /** Pane discovery interval (ms) - discovers manually created panes */
 const PANE_DISCOVERY_INTERVAL = 30_000;
+
+/** Session sync interval (ms) - cleans up orphaned sessions */
+const SESSION_SYNC_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
 // ============================================================================
 // Session Supervisor Class
@@ -82,6 +85,9 @@ export class SessionSupervisor extends EventEmitter {
 
   /** Pane discovery interval handle */
   private discoveryInterval: ReturnType<typeof setInterval> | null = null;
+
+  /** Session sync interval handle */
+  private syncInterval: ReturnType<typeof setInterval> | null = null;
 
   /** Whether the supervisor is running */
   private running: boolean = false;
@@ -134,6 +140,11 @@ export class SessionSupervisor extends EventEmitter {
     if (this.discoveryInterval) {
       clearInterval(this.discoveryInterval);
       this.discoveryInterval = null;
+    }
+
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
     }
   }
 
@@ -743,6 +754,13 @@ ${completionMarker}" ${allowedTools}`;
         console.error('Error discovering panes:', error);
       });
     }, PANE_DISCOVERY_INTERVAL);
+
+    // Session sync (cleans up orphaned sessions)
+    this.syncInterval = setInterval(() => {
+      this.syncSessions().catch((error) => {
+        console.error('Error syncing sessions:', error);
+      });
+    }, SESSION_SYNC_INTERVAL);
   }
 
   /**

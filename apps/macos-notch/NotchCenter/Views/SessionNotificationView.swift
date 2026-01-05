@@ -19,7 +19,7 @@ struct SessionNotificationView: View {
                     .foregroundStyle(.white)
             }
 
-            // Notification info
+            // Notification info - flexible width, text wraps as needed
             VStack(alignment: .leading, spacing: 4) {
                 Text(notification.title)
                     .font(.system(size: 16, weight: .semibold))
@@ -29,19 +29,20 @@ struct SessionNotificationView: View {
                 Text(notification.subtitle)
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
-                    .lineLimit(4)
+                    .lineLimit(nil)  // Allow unlimited lines for long text
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let detail = notification.detail {
                     Text(detail)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary.opacity(0.8))
-                        .lineLimit(3)
+                        .lineLimit(4)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: 400, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 12)
 
             // Action buttons
             HStack(spacing: 8) {
@@ -71,7 +72,7 @@ struct SessionNotificationView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        .frame(minWidth: 500, maxWidth: 600)
+        .frame(minWidth: 500, maxWidth: 700)  // Wider max to fit longer text
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(.black.opacity(0.85))
@@ -150,6 +151,18 @@ extension SessionNotificationView {
 #Preview("No Ticket Title") {
     SessionNotificationView(
         notification: .completed(sessionId: "abc123def456", ticketTitle: nil),
+        onView: { print("View tapped") },
+        onDismiss: { print("Dismiss tapped") }
+    )
+    .padding()
+}
+
+#Preview("Long Text") {
+    SessionNotificationView(
+        notification: .completed(
+            sessionId: "abc-123-def",
+            ticketTitle: "Context Low: Ticket Roster improvement still in progress: The session output shows Claude has presented multiple design options for the roster improvement (Sleeper-style player cards with expandable details, compact grid view, and hybrid approach)"
+        ),
         onView: { print("View tapped") },
         onDismiss: { print("Dismiss tapped") }
     )

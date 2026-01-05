@@ -64,19 +64,15 @@ enum SessionNotification {
         }
     }
 
-    /// Whether notification should persist until dismissed
-    var persistUntilDismissed: Bool {
+    /// Auto-dismiss duration - all session notifications auto-dismiss
+    /// (only meeting notifications persist until dismissed)
+    var autoDismissAfter: TimeInterval {
         switch self {
         case .completed:
-            return false
+            return 5.0
         case .inputRequired, .error:
-            return true
+            return 8.0  // Slightly longer for actionable notifications
         }
-    }
-
-    /// Auto-dismiss duration (nil if persistent)
-    var autoDismissAfter: TimeInterval? {
-        persistUntilDismissed ? nil : 5.0
     }
 
     /// Session ID for this notification

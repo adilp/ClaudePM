@@ -13,6 +13,9 @@ final class NotchPresenter: ObservableObject {
     private var autoDismissTask: Task<Void, Never>?
     private var isPresenting = false
 
+    /// Pending session notification (queued if one is already presenting)
+    private var pendingSessionNotification: SessionNotification?
+
     private init() {}
 
     /// Presents a test notification from the notch
@@ -91,12 +94,31 @@ final class NotchPresenter: ObservableObject {
     }
 
     /// Presents a Claude PM session notification from the notch
+    /// If already presenting, queues the notification and shows it after current one finishes
     func presentSession(_ notification: SessionNotification) async {
+        // If already presenting, queue this notification (latest wins)
+        if isPresenting {
+            pendingSessionNotification = notification
+            return
+        }
+
+        isPresenting = true
+        defer {
+            isPresenting = false
+            // Check for pending notification after this one completes
+            if let pending = pendingSessionNotification {
+                pendingSessionNotification = nil
+                Task { @MainActor in
+                    await self.presentSession(pending)
+                }
+            }
+        }
+
         // Cancel any pending auto-dismiss
         autoDismissTask?.cancel()
         autoDismissTask = nil
 
-        // Dismiss any existing notification first (allow replacing)
+        // Dismiss any existing notification first
         await dismissAll()
 
         let notch = DynamicNotch {
@@ -120,10 +142,8 @@ final class NotchPresenter: ObservableObject {
         activeSessionNotch = notch
         await notch.expand()
 
-        // Auto-dismiss after configured time, or persist until dismissed
-        if let autoDismiss = notification.autoDismissAfter {
-            scheduleAutoDismiss(seconds: autoDismiss)
-        }
+        // Auto-dismiss after configured time (all session notifications auto-dismiss)
+        scheduleAutoDismiss(seconds: notification.autoDismissAfter)
     }
 
     /// Public dismiss - cancels auto-dismiss, stops sound, and hides all
@@ -135,18 +155,30 @@ final class NotchPresenter: ObservableObject {
     }
 
     /// Hide all notches
+    /// NOTE: We capture and clear references BEFORE awaiting hide() to prevent
+    /// race conditions where a new notification arrives during the hide animation.
+    /// If we cleared after hide(), a new notch could be created and then immediately
+    /// have its reference set to nil when the old hide() completes.
     private func dismissAll() async {
-        if let notch = activeTestNotch {
+        // Capture and clear references atomically BEFORE awaiting
+        let testNotch = activeTestNotch
+        activeTestNotch = nil
+
+        let meetingNotch = activeMeetingNotch
+        activeMeetingNotch = nil
+
+        let sessionNotch = activeSessionNotch
+        activeSessionNotch = nil
+
+        // Now hide all captured notches (safe even if new ones are created during await)
+        if let notch = testNotch {
             await notch.hide()
-            activeTestNotch = nil
         }
-        if let notch = activeMeetingNotch {
+        if let notch = meetingNotch {
             await notch.hide()
-            activeMeetingNotch = nil
         }
-        if let notch = activeSessionNotch {
+        if let notch = sessionNotch {
             await notch.hide()
-            activeSessionNotch = nil
         }
     }
 
