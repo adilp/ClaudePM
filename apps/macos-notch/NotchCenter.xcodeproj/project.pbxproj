@@ -18,6 +18,10 @@
 		NC003005NC003005 /* MeetingEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003004NC003004 /* MeetingEvent.swift */; };
 		NC003007NC003007 /* MeetingNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003006NC003006 /* MeetingNotificationView.swift */; };
 		NC003009NC003009 /* LinkParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC003008NC003008 /* LinkParser.swift */; };
+		NC006001NC006001 /* SessionNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC006000NC006000 /* SessionNotification.swift */; };
+		NC006003NC006003 /* ClaudePMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC006002NC006002 /* ClaudePMService.swift */; };
+		NC006005NC006005 /* ClaudePMAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC006004NC006004 /* ClaudePMAPIClient.swift */; };
+		NC006007NC006007 /* SessionNotificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NC006006NC006006 /* SessionNotificationView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +38,10 @@
 		NC003006NC003006 /* MeetingNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingNotificationView.swift; sourceTree = "<group>"; };
 		NC003008NC003008 /* LinkParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkParser.swift; sourceTree = "<group>"; };
 		NC003010NC003010 /* NotchCenter.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotchCenter.entitlements; sourceTree = "<group>"; };
+		NC006000NC006000 /* SessionNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNotification.swift; sourceTree = "<group>"; };
+		NC006002NC006002 /* ClaudePMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePMService.swift; sourceTree = "<group>"; };
+		NC006004NC006004 /* ClaudePMAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudePMAPIClient.swift; sourceTree = "<group>"; };
+		NC006006NC006006 /* SessionNotificationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNotificationView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +101,8 @@
 				NC002000NC002000 /* NotchPresenter.swift */,
 				NC003000NC003000 /* CalendarService.swift */,
 				NC003002NC003002 /* SoundPlayer.swift */,
+				NC006002NC006002 /* ClaudePMService.swift */,
+				NC006004NC006004 /* ClaudePMAPIClient.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -102,6 +112,7 @@
 			children = (
 				NC002002NC002002 /* TestNotificationView.swift */,
 				NC003006NC003006 /* MeetingNotificationView.swift */,
+				NC006006NC006006 /* SessionNotificationView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -111,6 +122,7 @@
 			children = (
 				NC002004NC002004 /* ScheduledNotification.swift */,
 				NC003004NC003004 /* MeetingEvent.swift */,
+				NC006000NC006000 /* SessionNotification.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -207,6 +219,10 @@
 				NC003005NC003005 /* MeetingEvent.swift in Sources */,
 				NC003007NC003007 /* MeetingNotificationView.swift in Sources */,
 				NC003009NC003009 /* LinkParser.swift in Sources */,
+				NC006001NC006001 /* SessionNotification.swift in Sources */,
+				NC006003NC006003 /* ClaudePMService.swift in Sources */,
+				NC006005NC006005 /* ClaudePMAPIClient.swift in Sources */,
+				NC006007NC006007 /* SessionNotificationView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

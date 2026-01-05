@@ -4,10 +4,16 @@ import AppKit
 
 @MainActor
 final class NotchPresenter: ObservableObject {
+    // MARK: - Singleton
+    static let shared = NotchPresenter()
+
     private var activeTestNotch: DynamicNotch<TestNotificationView, EmptyView, EmptyView>?
     private var activeMeetingNotch: DynamicNotch<MeetingNotificationView, EmptyView, EmptyView>?
+    private var activeSessionNotch: DynamicNotch<SessionNotificationView, EmptyView, EmptyView>?
     private var autoDismissTask: Task<Void, Never>?
     private var isPresenting = false
+
+    private init() {}
 
     /// Presents a test notification from the notch
     func presentTest(persistent: Bool = false) async {
@@ -84,6 +90,42 @@ final class NotchPresenter: ObservableObject {
         }
     }
 
+    /// Presents a Claude PM session notification from the notch
+    func presentSession(_ notification: SessionNotification) async {
+        // Cancel any pending auto-dismiss
+        autoDismissTask?.cancel()
+        autoDismissTask = nil
+
+        // Dismiss any existing notification first (allow replacing)
+        await dismissAll()
+
+        let notch = DynamicNotch {
+            SessionNotificationView(
+                notification: notification,
+                onView: {
+                    // Activate Claude PM desktop app
+                    SessionNotificationView.activateClaudePM()
+                    Task { @MainActor [weak self] in
+                        await self?.dismiss()
+                    }
+                },
+                onDismiss: { [weak self] in
+                    Task { @MainActor in
+                        await self?.dismiss()
+                    }
+                }
+            )
+        }
+
+        activeSessionNotch = notch
+        await notch.expand()
+
+        // Auto-dismiss after configured time, or persist until dismissed
+        if let autoDismiss = notification.autoDismissAfter {
+            scheduleAutoDismiss(seconds: autoDismiss)
+        }
+    }
+
     /// Public dismiss - cancels auto-dismiss, stops sound, and hides all
     func dismiss() async {
         autoDismissTask?.cancel()
@@ -101,6 +143,10 @@ final class NotchPresenter: ObservableObject {
         if let notch = activeMeetingNotch {
             await notch.hide()
             activeMeetingNotch = nil
+        }
+        if let notch = activeSessionNotch {
+            await notch.hide()
+            activeSessionNotch = nil
         }
     }
 
