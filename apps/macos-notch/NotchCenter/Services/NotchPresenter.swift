@@ -11,7 +11,11 @@ final class NotchPresenter: ObservableObject {
     private var activeMeetingNotch: DynamicNotch<MeetingNotificationView, EmptyView, EmptyView>?
     private var activeSessionNotch: DynamicNotch<SessionNotificationView, EmptyView, EmptyView>?
     private var autoDismissTask: Task<Void, Never>?
+    private var ringTimeoutTask: Task<Void, Never>?
     private var isPresenting = false
+
+    /// How long the ring plays before auto-stopping (2 minutes)
+    private let ringTimeoutSeconds: TimeInterval = 120
 
     /// Pending session notification (queued if one is already presenting)
     private var pendingSessionNotification: SessionNotification?
@@ -58,9 +62,10 @@ final class NotchPresenter: ObservableObject {
         // Dismiss any existing notification first
         await dismissAll()
 
-        // Start looping ring sound for T-0 notifications
+        // Start looping ring sound for T-0 notifications (with timeout)
         if isStarting && meeting.hasVideoLink {
             SoundPlayer.shared.startMeetingRing()
+            scheduleRingTimeout()
         }
 
         let notch = DynamicNotch {
@@ -150,6 +155,8 @@ final class NotchPresenter: ObservableObject {
     func dismiss() async {
         autoDismissTask?.cancel()
         autoDismissTask = nil
+        ringTimeoutTask?.cancel()
+        ringTimeoutTask = nil
         SoundPlayer.shared.stopMeetingRing()
         await dismissAll()
     }
@@ -188,6 +195,17 @@ final class NotchPresenter: ObservableObject {
             try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled {
                 await self.dismissAll()
+            }
+        }
+    }
+
+    /// Schedules the ring to stop after timeout (notification stays visible)
+    private func scheduleRingTimeout() {
+        ringTimeoutTask?.cancel()
+        ringTimeoutTask = Task {
+            try? await Task.sleep(for: .seconds(ringTimeoutSeconds))
+            if !Task.isCancelled {
+                SoundPlayer.shared.stopMeetingRing()
             }
         }
     }

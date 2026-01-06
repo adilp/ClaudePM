@@ -1,44 +1,104 @@
-# Claude Session Manager
+# Claude PM
 
-A tmux-based orchestration server for managing Claude Code sessions with real-time monitoring, ticket workflow management, and mobile/web clients.
+**Multi-platform orchestration system for managing Claude Code sessions with native iOS, macOS, and desktop apps.**
 
-## Features
+Control your Claude sessions from anywhere — your phone, your desktop, or the MacBook notch. Get real-time notifications when Claude needs input, manage tickets through a kanban board, and never lose context with automatic session handoff.
 
-- **Session Management**: Monitor and control Claude Code sessions running in tmux
-- **Ticket Workflow**: Track ticket state from backlog through completion
-- **Context Monitoring**: Track token usage and trigger auto-handoff before context overflow
-- **Real-time Updates**: WebSocket-based live updates to connected clients
-- **Remote Control**: Web and mobile interfaces for monitoring and input
-- **Automatic Handoff**: Seamless context preservation across sessions
+<p align="center">
+  <img src="docs/images/CSM/CSM-001-project-scaffolding_01.png" width="280" alt="iOS Ticket View" />
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/images/adhoc/fix-desktop-notificaiton_01.png" width="380" alt="Desktop Notification" />
+</p>
+
+## Why Claude PM?
+
+Running Claude Code in the terminal is great — until you step away and miss a question, or lose track of multiple sessions, or hit context limits mid-task.
+
+Claude PM solves this by wrapping your tmux-based Claude sessions with:
+
+- **Real-time notifications** — Get alerts on your phone or desktop when Claude needs input
+- **Remote control** — Send input to any session from any device
+- **Full terminal access** — Interactive PTY over WebSocket, same as being at your machine
+- **Ticket workflows** — Track tasks from backlog through completion with automatic review
+- **Context preservation** — Auto-handoff before overflow, with full session lineage tracking
+
+## Native Apps
+
+| Platform | Stack | Features |
+|----------|-------|----------|
+| **iOS** | SwiftUI, SwiftTerm | Full terminal, ticket kanban, real-time sync, deep linking |
+| **macOS Desktop** | Tauri 2, React, TypeScript | Cross-platform, native notifications, git integration |
+| **macOS Notch** | SwiftUI, DynamicNotchKit | Meeting alerts, session notifications in the notch area |
+
+All apps share the same WebSocket connection with sub-second latency updates.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Your Mac                              │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │                     tmux                              │   │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐              │   │
-│  │  │ Claude  │  │ Claude  │  │ Claude  │              │   │
-│  │  │ Pane 1  │  │ Pane 2  │  │ Pane 3  │              │   │
-│  │  └─────────┘  └─────────┘  └─────────┘              │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                          ↕                                   │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              Session Manager Server                   │   │
-│  │  • REST API    • WebSocket    • Session Supervisor   │   │
-│  │  • PostgreSQL  • tmux I/O     • Notifications        │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                          ↕                                   │
-└─────────────────────────────────────────────────────────────┘
-                           │
-            ┌──────────────┼──────────────┐
-            ↓              ↓              ↓
-       ┌─────────┐   ┌─────────┐   ┌─────────┐
-       │   Web   │   │ Mobile  │   │ Direct  │
-       │  Client │   │   App   │   │  tmux   │
-       └─────────┘   └─────────┘   └─────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                          Your Mac                               │
+│                                                                 │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │                        tmux                             │   │
+│   │   ┌───────────┐   ┌───────────┐   ┌───────────┐        │   │
+│   │   │  Claude   │   │  Claude   │   │  Claude   │        │   │
+│   │   │ Session 1 │   │ Session 2 │   │ Session 3 │        │   │
+│   │   └───────────┘   └───────────┘   └───────────┘        │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                              ↕                                  │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │               Claude PM Server                          │   │
+│   │                                                         │   │
+│   │   REST API  ←→  PostgreSQL  ←→  Session Supervisor      │   │
+│   │      ↓              ↓               ↓                   │   │
+│   │   WebSocket     Prisma ORM      tmux I/O Capture        │   │
+│   │                                 (10k line buffer)       │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                              ↕                                  │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         ↓                     ↓                     ↓
+   ┌───────────┐         ┌───────────┐         ┌───────────┐
+   │    iOS    │         │  Desktop  │         │   Notch   │
+   │    App    │         │   App     │         │  Center   │
+   └───────────┘         └───────────┘         └───────────┘
 ```
+
+## Key Features
+
+### Session Management
+- Spawn and monitor Claude Code sessions in tmux
+- 10,000-line circular buffer captures all output
+- Graceful shutdown with 5-second grace period
+- Auto-discovery of manually created panes every 30s
+
+### Real-Time WebSocket
+- Singleton connection pattern prevents reconnect loops
+- Smart subscriptions — only receive updates for sessions you're watching
+- Exponential backoff reconnection (1s → 30s max)
+- PTY support for full interactive terminal access
+
+### Ticket Workflow
+- State machine: `backlog` → `in_progress` → `review` → `done`
+- Automated review after 60s idle — validates work against requirements
+- Three ticket types: Regular, Explore (research-only), Adhoc
+- Context monitoring with auto-handoff at 80% threshold
+
+### Notifications
+- Priority levels: low, normal, high, urgent
+- Native notifications on desktop and iOS
+- Unread badge counting
+- "Input Required" alerts when Claude asks questions
+
+## Tech Stack
+
+| Component | Technologies |
+|-----------|--------------|
+| **Server** | Node.js 20+, Express, PostgreSQL, Prisma, WebSocket (ws), Zod, Vitest |
+| **Desktop** | Tauri 2.x, React 18, TypeScript, Tailwind CSS v4, React Query, Vite |
+| **iOS** | Swift 5.9+, SwiftUI, iOS 17+, SwiftTerm |
+| **macOS Notch** | Swift 5.9+, SwiftUI, macOS 13+, DynamicNotchKit, EventKit |
 
 ## Quick Start
 
@@ -47,36 +107,53 @@ A tmux-based orchestration server for managing Claude Code sessions with real-ti
 - Node.js 20+
 - PostgreSQL
 - tmux
+- Xcode 15+ (for iOS/macOS apps)
 
-### Installation
+### Server Setup
 
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd claudePM
-
-# Install server dependencies
 cd server
 npm install
-
-# Set up environment
 cp .env.example .env
-# Edit .env with your database URL
+# Edit .env with your DATABASE_URL
 
-# Run database migrations
 npm run db:migrate
-
-# Start the server
 npm run dev
+```
+
+### Desktop App
+
+```bash
+cd apps/desktop
+npm install
+npm run tauri dev
+```
+
+### iOS App
+
+```bash
+open apps/ios/ClaudePM.xcodeproj
+# Build and run in Xcode
 ```
 
 ### Verify Installation
 
 ```bash
-# Server should be running
 curl http://localhost:3000/api/health
-# Returns: {"status":"ok","timestamp":"...","version":"0.1.0","uptime":...}
+# {"status":"ok","timestamp":"...","version":"0.1.0"}
 ```
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 3000 | Server port |
+| `HOST` | 0.0.0.0 | Server host |
+| `DATABASE_URL` | — | PostgreSQL connection string |
+| `HANDOFF_THRESHOLD_PERCENT` | 20 | Context threshold for auto-handoff |
+| `API_KEY` | — | Optional API key for native app auth |
+
+When `API_KEY` is set, HTTP requests require `X-API-Key` header and WebSocket connections require `?apiKey=xxx` query parameter.
 
 ## Project Structure
 
@@ -84,81 +161,31 @@ curl http://localhost:3000/api/health
 claudePM/
 ├── server/                    # Node.js backend
 │   ├── src/
-│   │   ├── api/              # REST endpoints
+│   │   ├── api/              # REST endpoints (60+ routes)
 │   │   ├── services/         # Business logic
-│   │   ├── config/           # Configuration
 │   │   └── websocket/        # Real-time updates
-│   ├── prisma/               # Database schema
-│   └── tests/                # Test suite
-├── docs/
-│   ├── jira-tickets/         # Implementation tickets
-│   ├── plans/                # Design documents
-│   └── ai-context/           # Session handoff docs
-└── CLAUDE.md                 # AI assistant guidelines
+│   └── prisma/               # Database schema
+├── apps/
+│   ├── desktop/              # Tauri + React desktop app
+│   ├── ios/                  # Native SwiftUI iOS app
+│   └── macos-notch/          # MacBook notch integration
+└── docs/
+    ├── api-reference.md      # Full API documentation
+    └── jira-tickets/         # Implementation tickets
 ```
 
-## Development
+## API Highlights
 
-```bash
-cd server
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/sessions` | List all sessions with status |
+| `POST /api/sessions/:id/input` | Send input to a session |
+| `GET /api/sessions/:id/output` | Get terminal output |
+| `POST /api/tickets/:id/start` | Start Claude session for ticket |
+| `WS /` | WebSocket for real-time updates |
 
-# Development server with hot reload
-npm run dev
-
-# Run tests
-npm run test:run
-
-# Type checking
-npm run typecheck
-
-# Database management
-npm run db:studio    # Open Prisma Studio
-npm run db:migrate   # Run migrations
-```
-
-## Configuration
-
-Environment variables (`.env`):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 3000 | Server port |
-| `HOST` | 0.0.0.0 | Server host |
-| `DATABASE_URL` | - | PostgreSQL connection string |
-| `HANDOFF_THRESHOLD_PERCENT` | 20 | Context threshold for auto-handoff |
-| `LOG_LEVEL` | info | Logging level |
-
-## Implementation Status
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| 1. Foundation | Complete | Server scaffolding, database, tmux integration |
-| 2. Session Core | Next | Session supervisor, context monitor, WebSocket |
-| 3. Ticket Workflow | Pending | State machine, reviewer, auto-handoff |
-| 4. Notifications | Pending | Push notifications, server discovery |
-| 5. Web Client | Pending | React dashboard and session views |
-| 6. Mobile Client | Pending | React Native app |
-
-See `docs/jira-tickets/README.md` for detailed ticket breakdown.
-
-## API Endpoints
-
-### Health Check
-```
-GET /api/health
-```
-
-Returns server status, version, and uptime.
-
-*More endpoints coming in subsequent tickets.*
-
-## Contributing
-
-1. Check `docs/jira-tickets/` for available work
-2. Follow the dependency graph in `docs/jira-tickets/README.md`
-3. Adhere to code conventions in `CLAUDE.md`
-4. Write tests for new functionality
+See `docs/api-reference.md` for full API documentation.
 
 ## License
 
-Private - Personal use only
+Private — Personal use only
