@@ -4,3 +4,9 @@ xcuserdata/
 
 # macOS
 .DS_Store
+
+# docs
+docs/ai-context/*
+docs/jira-tickets/*
+docs/images/*
+docs/plans/*
