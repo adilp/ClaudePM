@@ -4,6 +4,7 @@ import SwiftUI
 enum AppTab: Hashable {
     case sessions
     case tickets
+    case docs
 }
 
 /// Root content view with tab bar navigation
@@ -33,6 +34,13 @@ struct ContentView: View {
                         Label("Tickets", systemImage: "list.bullet.rectangle.portrait")
                     }
                     .tag(AppTab.tickets)
+
+                // Docs tab
+                DocsTabView()
+                    .tabItem {
+                        Label("Docs", systemImage: "doc.text")
+                    }
+                    .tag(AppTab.docs)
             }
 
             // Notification banner overlay (appears above everything)

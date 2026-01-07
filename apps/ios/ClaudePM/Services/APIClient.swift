@@ -1226,6 +1226,82 @@ actor APIClient {
         }
     }
 
+    // MARK: - Documentation Methods
+
+    /// Get the documentation tree for a project
+    /// - Parameter projectId: The project ID
+    /// - Returns: Array of DocTreeNode representing the docs folder structure
+    func getDocsTree(projectId: String) async throws -> [DocTreeNode] {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/docs")
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            // No docs folder for this project
+            return []
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            let result = try decoder.decode(DocTreeResponse.self, from: data)
+            return result.tree
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Get the content of a documentation file
+    /// - Parameters:
+    ///   - projectId: The project ID
+    ///   - path: The relative path to the document within the docs folder
+    /// - Returns: DocContentResponse with the file content
+    func getDocContent(projectId: String, path: String) async throws -> DocContentResponse {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/projects/\(projectId)/docs/\(path)")
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        if httpResponse.statusCode == 404 {
+            throw APIError.serverError(404)
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode(DocContentResponse.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
     // MARK: - Notification Methods
 
     /// Fetch all active notifications from the server

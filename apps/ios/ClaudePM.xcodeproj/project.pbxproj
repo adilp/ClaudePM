@@ -47,6 +47,10 @@
 		E4FF50B93823CEF46EC44D62 /* ReviewHistoryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B8CC33D130D7F588859FF00 /* ReviewHistoryPanel.swift */; };
 		F1LE5TAGER001F1LE5TAGER01 /* FileStagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1LE5TAGER000F1LE5TAGER00 /* FileStagerView.swift */; };
 		CREAT3ADHOC01CREAT3ADHOC01 /* CreateAdhocTicketSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CREAT3ADHOC00CREAT3ADHOC00 /* CreateAdhocTicketSheet.swift */; };
+		DOCTREENODE01DOCTREENODE01 /* DocTreeNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCTREENODE00DOCTREENODE00 /* DocTreeNode.swift */; };
+		DOCSTABVIEW01DOCSTABVIEW01 /* DocsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCSTABVIEW00DOCSTABVIEW00 /* DocsTabView.swift */; };
+		DOCSBROWSER01DOCSBROWSER01 /* DocsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCSBROWSER00DOCSBROWSER00 /* DocsBrowserView.swift */; };
+		DOCDETAILV001DOCDETAILV001 /* DocDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCDETAILV000DOCDETAILV000 /* DocDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +105,10 @@
 		C52F58592F06CFDB00531618 /* JetBrainsMonoNerdFontMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMonoNerdFontMono-Regular.ttf"; sourceTree = "<group>"; };
 		F1LE5TAGER000F1LE5TAGER00 /* FileStagerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileStagerView.swift; sourceTree = "<group>"; };
 		CREAT3ADHOC00CREAT3ADHOC00 /* CreateAdhocTicketSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateAdhocTicketSheet.swift; sourceTree = "<group>"; };
+		DOCTREENODE00DOCTREENODE00 /* DocTreeNode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocTreeNode.swift; sourceTree = "<group>"; };
+		DOCSTABVIEW00DOCSTABVIEW00 /* DocsTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocsTabView.swift; sourceTree = "<group>"; };
+		DOCSBROWSER00DOCSBROWSER00 /* DocsBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocsBrowserView.swift; sourceTree = "<group>"; };
+		DOCDETAILV000DOCDETAILV000 /* DocDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -170,6 +178,7 @@
 				A1000012A1000012A1000000 /* Project.swift */,
 				A1000019A1000019A1000000 /* InAppNotification.swift */,
 				B02EF6DE785916C7BBABC59B /* AIAnalysis.swift */,
+				DOCTREENODE00DOCTREENODE00 /* DocTreeNode.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -207,9 +216,20 @@
 				A100001CA100001CA1000000 /* NotificationsListView.swift */,
 				A100001EA100001EA1000000 /* TerminalView.swift */,
 				A1000470A1000470A1000000 /* Tickets */,
+				D0C5V1EWS000D0C5V1EWS000 /* Docs */,
 				391CD4AFAA0C073F6288997A /* Components */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		D0C5V1EWS000D0C5V1EWS000 /* Docs */ = {
+			isa = PBXGroup;
+			children = (
+				DOCSTABVIEW00DOCSTABVIEW00 /* DocsTabView.swift */,
+				DOCSBROWSER00DOCSBROWSER00 /* DocsBrowserView.swift */,
+				DOCDETAILV000DOCDETAILV000 /* DocDetailView.swift */,
+			);
+			path = Docs;
 			sourceTree = "<group>";
 		};
 		A1000460A1000460A1000000 /* Resources */ = {
@@ -400,6 +420,10 @@
 				50C9E3F1376BD91EAD73693B /* ReviewResultBanner.swift in Sources */,
 				F1LE5TAGER001F1LE5TAGER01 /* FileStagerView.swift in Sources */,
 				CREAT3ADHOC01CREAT3ADHOC01 /* CreateAdhocTicketSheet.swift in Sources */,
+				DOCTREENODE01DOCTREENODE01 /* DocTreeNode.swift in Sources */,
+				DOCSTABVIEW01DOCSTABVIEW01 /* DocsTabView.swift in Sources */,
+				DOCSBROWSER01DOCSBROWSER01 /* DocsBrowserView.swift in Sources */,
+				DOCDETAILV001DOCDETAILV001 /* DocDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

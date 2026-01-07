@@ -12,6 +12,7 @@ import { useShortcutScope } from '../shortcuts';
 import { useUIStore } from '../stores/uiStore';
 import { KanbanBoard } from '../components/kanban/KanbanBoard';
 import { CreateAdhocTicketModal } from '../components/CreateAdhocTicketModal';
+import { DocumentationModal } from '../components/DocumentationModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { Button } from '../components/ui/button';
 import { toast } from '../hooks/use-toast';
@@ -150,6 +151,7 @@ export function ProjectDetail() {
   const focusSessionMutation = useFocusSession();
   const stopSessionMutation = useStopSession();
   const [showAdhocModal, setShowAdhocModal] = useState(false);
+  const [showDocsModal, setShowDocsModal] = useState(false);
 
   // Keyboard navigation state
   const {
@@ -413,6 +415,27 @@ export function ProjectDetail() {
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
+            onClick={() => setShowDocsModal(true)}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            Docs
+          </Button>
+          <Button
+            variant="secondary"
             onClick={handleSync}
             disabled={syncProject.isPending}
           >
@@ -570,6 +593,13 @@ export function ProjectDetail() {
         projectId={projectId!}
         isOpen={showAdhocModal}
         onClose={() => setShowAdhocModal(false)}
+      />
+
+      {/* Documentation Modal */}
+      <DocumentationModal
+        projectId={projectId!}
+        isOpen={showDocsModal}
+        onClose={() => setShowDocsModal(false)}
       />
     </div>
   );

@@ -10,6 +10,7 @@ import adhocTicketsRouter from './api/adhoc-tickets.js';
 import hooksRouter from './api/hooks.js';
 import gitRouter from './api/git.js';
 import tmuxRouter from './api/tmux.js';
+import docsRouter from './api/docs.js';
 import notificationsRouter from './api/notifications.js';
 import devicesRouter from './api/devices.js';
 import { apiKeyAuth } from './middleware/api-key-auth.js';
@@ -47,6 +48,7 @@ app.use('/api', apiKeyAuth);
 // Protected API Routes
 app.use('/api/projects', projectsRouter);
 app.use('/api/projects', gitRouter);
+app.use('/api/projects', docsRouter);
 app.use('/api', sessionsRouter);
 app.use('/api', ticketsRouter);
 app.use('/api', adhocTicketsRouter);
