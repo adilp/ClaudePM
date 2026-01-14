@@ -404,18 +404,9 @@ export async function dismissAllNotifications(): Promise<void> {
 // ============================================================================
 
 import type {
-  SessionSummary,
   ReviewReport,
   SessionActivity,
 } from '../types/api';
-
-export async function getSessionSummary(
-  sessionId: string,
-  regenerate = false
-): Promise<SessionSummary> {
-  const query = regenerate ? '?regenerate=true' : '';
-  return request<SessionSummary>(`/api/sessions/${sessionId}/summary${query}`);
-}
 
 export async function getSessionReviewReport(
   sessionId: string,

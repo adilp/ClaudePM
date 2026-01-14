@@ -261,7 +261,7 @@ export interface TicketStateMessage {
 /**
  * AI analysis generation status
  */
-export type AiAnalysisType = 'summary' | 'review_report';
+export type AiAnalysisType = 'review_report';
 export type AiAnalysisStatus = 'generating' | 'completed' | 'failed';
 
 /**

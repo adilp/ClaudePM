@@ -293,7 +293,7 @@ export class TicketStateMachine extends TypedEventEmitter<TicketStateMachineEven
 
   /**
    * Move ticket to review (when completion is detected)
-   * Also triggers AI summary and review report generation
+   * Also triggers AI review report generation
    */
   async moveToReview(ticketId: string, sessionId?: string): Promise<TransitionResult> {
     const request: TransitionRequest = {
@@ -309,7 +309,7 @@ export class TicketStateMachine extends TypedEventEmitter<TicketStateMachineEven
 
     const result = await this.transition(request);
 
-    // Trigger AI summary and review report generation in the background
+    // Trigger AI review report generation in the background
     if (sessionId) {
       // Don't await - let it run in background
       this.generateAiAnalysis(sessionId, ticketId).catch((error) => {
@@ -324,28 +324,21 @@ export class TicketStateMachine extends TypedEventEmitter<TicketStateMachineEven
   }
 
   /**
-   * Generate AI summary and review report for a session (internal helper)
+   * Generate AI review report for a session (internal helper)
    * Emits WebSocket events for status updates
    */
   private async generateAiAnalysis(sessionId: string, ticketId: string): Promise<void> {
     const options = { ticketId };
 
     try {
-      // Emit generating status for summary
-      wsManager.sendAiAnalysisStatus(sessionId, 'summary', 'generating', options);
-      await sessionAnalyzer.generateSummary(sessionId);
-      wsManager.sendAiAnalysisStatus(sessionId, 'summary', 'completed', options);
-
       // Emit generating status for review report
       wsManager.sendAiAnalysisStatus(sessionId, 'review_report', 'generating', options);
       await sessionAnalyzer.generateReviewReport(sessionId);
       wsManager.sendAiAnalysisStatus(sessionId, 'review_report', 'completed', options);
 
-      console.log(`[TicketStateMachine] Generated AI analysis for session ${sessionId}`);
+      console.log(`[TicketStateMachine] Generated AI review report for session ${sessionId}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      // Emit failed status - we don't know which one failed, so emit for both
-      wsManager.sendAiAnalysisStatus(sessionId, 'summary', 'failed', { ...options, error: errorMessage });
       wsManager.sendAiAnalysisStatus(sessionId, 'review_report', 'failed', { ...options, error: errorMessage });
       throw error;
     }

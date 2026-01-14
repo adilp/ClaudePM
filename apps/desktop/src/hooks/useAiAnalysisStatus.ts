@@ -1,6 +1,6 @@
 /**
  * AI Analysis Status Hook
- * Tracks the generation status of AI summaries and review reports via WebSocket
+ * Tracks the generation status of AI review reports via WebSocket
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -8,7 +8,6 @@ import { useWebSocket } from './useWebSocket';
 import type { AiAnalysisType, AiAnalysisStatus } from '../types/api';
 
 export interface AiAnalysisState {
-  summary: AiAnalysisStatus | null;
   reviewReport: AiAnalysisStatus | null;
   lastUpdated: string | null;
   error?: string;
@@ -17,8 +16,6 @@ export interface AiAnalysisState {
 interface UseAiAnalysisStatusReturn {
   /** Current status for a specific session */
   getStatus: (sessionId: string) => AiAnalysisState;
-  /** Whether summary is currently generating */
-  isSummaryGenerating: (sessionId: string) => boolean;
   /** Whether review report is currently generating */
   isReviewReportGenerating: (sessionId: string) => boolean;
 }
@@ -47,7 +44,6 @@ export function useAiAnalysisStatus(): UseAiAnalysisStatusReturn {
     setStatusMap((prev) => {
       const newMap = new Map(prev);
       const current = newMap.get(sessionId) || {
-        summary: null,
         reviewReport: null,
         lastUpdated: null,
       };
@@ -57,9 +53,7 @@ export function useAiAnalysisStatus(): UseAiAnalysisStatusReturn {
         lastUpdated: timestamp,
       };
 
-      if (analysisType === 'summary') {
-        updated.summary = status;
-      } else if (analysisType === 'review_report') {
+      if (analysisType === 'review_report') {
         updated.reviewReport = status;
       }
 
@@ -75,18 +69,9 @@ export function useAiAnalysisStatus(): UseAiAnalysisStatusReturn {
   const getStatus = useCallback(
     (sessionId: string): AiAnalysisState => {
       return statusMap.get(sessionId) || {
-        summary: null,
         reviewReport: null,
         lastUpdated: null,
       };
-    },
-    [statusMap]
-  );
-
-  const isSummaryGenerating = useCallback(
-    (sessionId: string): boolean => {
-      const state = statusMap.get(sessionId);
-      return state?.summary === 'generating';
     },
     [statusMap]
   );
@@ -101,7 +86,6 @@ export function useAiAnalysisStatus(): UseAiAnalysisStatusReturn {
 
   return {
     getStatus,
-    isSummaryGenerating,
     isReviewReportGenerating,
   };
 }

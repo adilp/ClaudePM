@@ -10,7 +10,7 @@ import { useShortcutScope } from '../shortcuts';
 import { cn } from '../lib/utils';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { VimEditor } from '../components/VimEditor';
-import { SessionSummaryCard, ReviewReportPanel } from '../components/session';
+import { ReviewReportPanel } from '../components/session';
 import { ReviewResultBanner } from '../components/ticket/ReviewResultBanner';
 import { ReviewHistoryPanel } from '../components/ticket/ReviewHistoryPanel';
 import { FileStager } from '../components/git';
@@ -731,15 +731,10 @@ export function TicketDetail() {
             </Link>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Session Summary */}
-            <SessionSummaryCard sessionId={latestSession.id} />
-
-            {/* Review Report - Show if ticket is in review or done */}
-            {(ticket.state === 'review' || ticket.state === 'done') && (
-              <ReviewReportPanel sessionId={latestSession.id} projectId={projectId} />
-            )}
-          </div>
+          {/* Review Report - Show if ticket is in review or done */}
+          {(ticket.state === 'review' || ticket.state === 'done') && (
+            <ReviewReportPanel sessionId={latestSession.id} projectId={projectId} />
+          )}
 
           {/* Review History - Show all review attempts */}
           {reviewResults.length > 0 && (

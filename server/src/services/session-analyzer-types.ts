@@ -8,54 +8,6 @@
 // ============================================================================
 
 /**
- * Summary of a session's work
- */
-export interface SessionSummary {
-  /** Session ID */
-  sessionId: string;
-  /** Ticket ID (if associated) */
-  ticketId?: string;
-  /** Brief one-line summary */
-  headline: string;
-  /** Detailed summary (2-4 sentences) */
-  description: string;
-  /** Key actions taken */
-  actions: SessionAction[];
-  /** Files that were modified */
-  filesChanged: FileChange[];
-  /** Overall status */
-  status: 'completed' | 'in_progress' | 'blocked' | 'failed';
-  /** Timestamp of analysis */
-  analyzedAt: Date;
-}
-
-/**
- * Individual action taken during session
- */
-export interface SessionAction {
-  /** Type of action */
-  type: 'read' | 'write' | 'edit' | 'bash' | 'test' | 'other';
-  /** Brief description */
-  description: string;
-  /** File or command involved */
-  target?: string;
-  /** Timestamp (if known) */
-  timestamp?: Date;
-}
-
-/**
- * File change information
- */
-export interface FileChange {
-  /** File path */
-  path: string;
-  /** Type of change */
-  changeType: 'created' | 'modified' | 'deleted';
-  /** Brief description of changes */
-  summary?: string;
-}
-
-/**
  * Structured review report for UI
  */
 export interface ReviewReport {
@@ -132,20 +84,6 @@ export interface PrDescriptionResult {
 // ============================================================================
 // Request Types
 // ============================================================================
-
-/**
- * Request to generate a session summary
- */
-export interface SummaryRequest {
-  /** Session ID */
-  sessionId: string;
-  /** Session output (last N lines) */
-  sessionOutput: string;
-  /** Git diff (optional) */
-  gitDiff?: string;
-  /** Ticket content (optional) */
-  ticketContent?: string;
-}
 
 /**
  * Request to generate a review report
@@ -235,7 +173,6 @@ export const DEFAULT_ANALYZER_CONFIG: SessionAnalyzerConfig = {
  * Events emitted by SessionAnalyzer
  */
 export interface SessionAnalyzerEvents {
-  'analysis:summary': (summary: SessionSummary) => void;
   'analysis:review': (report: ReviewReport) => void;
   'analysis:activity': (event: ActivityEvent) => void;
   'analysis:error': (error: Error, sessionId: string) => void;

@@ -196,29 +196,6 @@ export interface TmuxSessionDetail extends TmuxSession {
 // Session Analysis Types
 // ============================================================================
 
-export interface SessionAction {
-  type: 'read' | 'write' | 'edit' | 'bash' | 'test' | 'other';
-  description: string;
-  target?: string;
-}
-
-export interface FileChange {
-  path: string;
-  changeType: 'created' | 'modified' | 'deleted';
-  summary?: string;
-}
-
-export interface SessionSummary {
-  session_id: string;
-  ticket_id?: string;
-  headline: string;
-  description: string;
-  actions: SessionAction[];
-  files_changed: FileChange[];
-  status: 'completed' | 'in_progress' | 'blocked' | 'failed';
-  analyzed_at: string;
-}
-
 export interface ReviewReport {
   session_id: string;
   ticket_id: string;
@@ -352,7 +329,7 @@ export interface SessionStatusPayload {
 }
 
 /** AI analysis status message */
-export type AiAnalysisType = 'summary' | 'review_report';
+export type AiAnalysisType = 'review_report';
 export type AiAnalysisStatus = 'generating' | 'complete' | 'error';
 
 export interface AiAnalysisStatusMessage {

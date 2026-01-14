@@ -109,34 +109,6 @@ export function useSyncProject() {
 // ============================================================================
 
 /**
- * Fetch AI-generated session summary
- * Provides headline, description, actions taken, and files changed
- */
-export function useSessionSummary(sessionId: string, enabled = false) {
-  return useQuery({
-    queryKey: queryKeys.sessions.summary(sessionId),
-    queryFn: () => api.getSessionSummary(sessionId),
-    enabled: !!sessionId && enabled,
-    staleTime: Infinity, // Never mark as stale - summaries are cached in DB
-    retry: 1,
-  });
-}
-
-/**
- * Regenerate session summary (forces new AI generation)
- */
-export function useRegenerateSummary() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (sessionId: string) => api.getSessionSummary(sessionId, true),
-    onSuccess: (summary, sessionId) => {
-      queryClient.setQueryData(queryKeys.sessions.summary(sessionId), summary);
-    },
-  });
-}
-
-/**
  * Fetch AI-generated review report for a session
  * Provides completion status, accomplishments, concerns, and suggested commit/PR
  */

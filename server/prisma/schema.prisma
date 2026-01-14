@@ -136,8 +136,7 @@ model Session {
   handoffsTo   HandoffEvent[] @relation("HandoffTo")
 
   // Cached AI analysis
-  summaryCache SessionSummaryCache?
-  reviewCache  ReviewReportCache?
+  reviewCache ReviewReportCache?
 
   // Review history
   reviewResults ReviewResult[]
@@ -220,14 +219,7 @@ model TicketStateHistory {
   @@map("ticket_state_history")
 }
 
-// AI-generated summaries (cached)
-
-enum SummaryStatus {
-  completed
-  in_progress
-  blocked
-  failed
-}
+// AI-generated analysis (cached)
 
 enum CompletionStatus {
   complete
@@ -247,25 +239,6 @@ enum ReviewTrigger {
   idle_timeout
   completion_signal
   manual
-}
-
-model SessionSummaryCache {
-  id           String        @id @default(uuid()) @db.Uuid
-  sessionId    String        @unique @map("session_id") @db.Uuid
-  ticketId     String?       @map("ticket_id") @db.Uuid
-  headline     String        @db.VarChar(255)
-  description  String        @db.Text
-  actions      Json          @default("[]")
-  filesChanged Json          @default("[]") @map("files_changed")
-  status       SummaryStatus
-  analyzedAt   DateTime      @map("analyzed_at")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
-
-  // Relations
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  @@map("session_summary_cache")
 }
 
 model ReviewReportCache {

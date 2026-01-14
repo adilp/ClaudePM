@@ -121,6 +121,7 @@ export const DEFAULT_REVIEWER_CONFIG: ReviewerSubagentConfig = {
   idleTimeoutMs: 60_000,
   enableIdleReview: true,
   claudeCliPath: 'claude',
+  model: 'claude-3-5-haiku-20241022', // Use Haiku for cost efficiency
 };
 
 // ============================================================================

@@ -546,17 +546,11 @@ export class ReviewerSubagent extends TypedEventEmitter<ReviewerSubagentEvents> 
         try {
           await ticketStateMachine.moveToReview(ticketId, sessionId);
 
-          // Generate summary and review report now that work is complete
-          // Run in parallel since they're independent
-          console.log(`[ReviewerSubagent] Generating summary and review report for session ${sessionId}`);
-          await Promise.all([
-            sessionAnalyzer.generateSummary(sessionId, true).catch((err) => {
-              console.error(`[ReviewerSubagent] Failed to generate summary:`, err);
-            }),
-            sessionAnalyzer.generateReviewReport(sessionId, true).catch((err) => {
-              console.error(`[ReviewerSubagent] Failed to generate review report:`, err);
-            }),
-          ]);
+          // Generate review report now that work is complete
+          console.log(`[ReviewerSubagent] Generating review report for session ${sessionId}`);
+          await sessionAnalyzer.generateReviewReport(sessionId, true).catch((err) => {
+            console.error(`[ReviewerSubagent] Failed to generate review report:`, err);
+          });
 
           // Create notification
           await this.createNotification(ticketId, result);

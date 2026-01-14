@@ -1,7 +1,7 @@
 /**
  * SessionDetailModal Component
  * Displays detailed session information in a modal overlay with tabs
- * for Overview, Summary, Activity, and Review
+ * for Overview, Activity, and Review
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -10,11 +10,10 @@ import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Session } from '../types/api';
 import { StatusBadge } from './StatusBadge';
-import { SessionSummaryCard } from './session/SessionSummaryCard';
 import { SessionActivityFeed } from './session/SessionActivityFeed';
 import { ReviewReportPanel } from './session/ReviewReportPanel';
 
-type TabId = 'overview' | 'summary' | 'activity' | 'review';
+type TabId = 'overview' | 'activity' | 'review';
 
 interface Tab {
   id: TabId;
@@ -23,7 +22,6 @@ interface Tab {
 
 const tabs: Tab[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'summary', label: 'Summary' },
   { id: 'activity', label: 'Activity' },
   { id: 'review', label: 'Review' },
 ];
@@ -113,9 +111,6 @@ export function SessionDetailModal({ session, onClose }: SessionDetailModalProps
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === 'overview' && (
             <OverviewTab session={session} />
-          )}
-          {activeTab === 'summary' && (
-            <SessionSummaryCard sessionId={session.id} />
           )}
           {activeTab === 'activity' && (
             <SessionActivityFeed sessionId={session.id} maxEvents={50} />
