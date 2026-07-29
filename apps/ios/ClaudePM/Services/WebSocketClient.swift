@@ -69,6 +69,15 @@ final class WebSocketClient {
     /// Callback for ticket state changes (ticketId, newState)
     var onTicketStateChange: ((String, String) -> Void)?
 
+    /// Callback for the full workmux agent list (sent once on connect)
+    var onAgentSnapshot: (([Agent]) -> Void)?
+
+    /// Callback when a single workmux agent is added or changes
+    var onAgentUpdate: ((Agent) -> Void)?
+
+    /// Callback when a workmux agent's worktree session goes away (by id)
+    var onAgentRemoved: ((String) -> Void)?
+
     // MARK: - Singleton
 
     static let shared = WebSocketClient()
@@ -278,6 +287,14 @@ final class WebSocketClient {
         // Ticket updates
         case "ticket:state":
             handleTicketState(payload)
+
+        // Workmux agents (live worktree state)
+        case "agent:snapshot":
+            handleAgentSnapshot(payload)
+        case "agent:update":
+            handleAgentUpdate(payload)
+        case "agent:removed":
+            handleAgentRemoved(payload)
 
         // Generic notification
         case "notification":
@@ -535,6 +552,38 @@ final class WebSocketClient {
         guard let sessionId = payload["sessionId"] as? String else { return }
         let exitCode = payload["exitCode"] as? Int ?? -1
         print("[WebSocket] PTY exited for session \(sessionId) with code \(exitCode)")
+    }
+
+    // MARK: - Workmux Agent Handlers
+
+    /// Handle the full agent list sent once on connect.
+    private func handleAgentSnapshot(_ payload: [String: Any]) {
+        guard let raw = payload["agents"] as? [[String: Any]] else { return }
+        let agents = raw.compactMap { Self.decodeAgent(from: $0) }
+        print("[WebSocket] Agent snapshot: \(agents.count) agent(s)")
+        onAgentSnapshot?(agents)
+    }
+
+    /// Handle a single agent add/change (payload carries the whole agent).
+    private func handleAgentUpdate(_ payload: [String: Any]) {
+        guard let dict = payload["agent"] as? [String: Any],
+              let agent = Self.decodeAgent(from: dict) else { return }
+        print("[WebSocket] Agent update: \(agent.id) [\(agent.status)]")
+        onAgentUpdate?(agent)
+    }
+
+    /// Handle an agent removal (payload carries just the id).
+    private func handleAgentRemoved(_ payload: [String: Any]) {
+        guard let id = payload["id"] as? String else { return }
+        print("[WebSocket] Agent removed: \(id)")
+        onAgentRemoved?(id)
+    }
+
+    /// Decode an `Agent` from a parsed JSON object. The agents payload is
+    /// camelCase, so a plain decoder (no key strategy) matches the model.
+    private static func decodeAgent(from dict: [String: Any]) -> Agent? {
+        guard let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+        return try? JSONDecoder().decode(Agent.self, from: data)
     }
 
     // MARK: - Disconnection Handling

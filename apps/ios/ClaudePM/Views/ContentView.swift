@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Tabs available in the app
 enum AppTab: Hashable {
+    case agents
     case sessions
     case tickets
     case docs
@@ -11,13 +12,23 @@ enum AppTab: Hashable {
 struct ContentView: View {
     @State private var connectionViewModel = ConnectionViewModel()
     @State private var showingSettings = false
-    @State private var selectedTab: AppTab = .sessions
+    @State private var selectedTab: AppTab = .agents
     private var notificationManager = NotificationManager.shared
 
     var body: some View {
         ZStack(alignment: .top) {
             // Main tab view
             TabView(selection: $selectedTab) {
+                // Agents tab (live workmux agent status) — the app's primary surface
+                AgentsTabView(
+                    connectionViewModel: connectionViewModel,
+                    showingSettings: $showingSettings
+                )
+                .tabItem {
+                    Label("Agents", systemImage: "cpu")
+                }
+                .tag(AppTab.agents)
+
                 // Sessions tab
                 SessionsTabView(
                     connectionViewModel: connectionViewModel,

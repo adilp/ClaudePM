@@ -48,6 +48,9 @@
 		F1LE5TAGER001F1LE5TAGER01 /* FileStagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1LE5TAGER000F1LE5TAGER00 /* FileStagerView.swift */; };
 		CREAT3ADHOC01CREAT3ADHOC01 /* CreateAdhocTicketSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CREAT3ADHOC00CREAT3ADHOC00 /* CreateAdhocTicketSheet.swift */; };
 		DOCTREENODE01DOCTREENODE01 /* DocTreeNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCTREENODE00DOCTREENODE00 /* DocTreeNode.swift */; };
+		AGENT101AGENT101AGENT101 /* Agent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGENT100AGENT100AGENT100 /* Agent.swift */; };
+		AGENT201AGENT201AGENT201 /* AgentsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGENT200AGENT200AGENT200 /* AgentsViewModel.swift */; };
+		AGENT301AGENT301AGENT301 /* AgentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGENT300AGENT300AGENT300 /* AgentsView.swift */; };
 		DOCSTABVIEW01DOCSTABVIEW01 /* DocsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCSTABVIEW00DOCSTABVIEW00 /* DocsTabView.swift */; };
 		DOCSBROWSER01DOCSBROWSER01 /* DocsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCSBROWSER00DOCSBROWSER00 /* DocsBrowserView.swift */; };
 		DOCDETAILV001DOCDETAILV001 /* DocDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCDETAILV000DOCDETAILV000 /* DocDetailView.swift */; };
@@ -106,6 +109,9 @@
 		F1LE5TAGER000F1LE5TAGER00 /* FileStagerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FileStagerView.swift; sourceTree = "<group>"; };
 		CREAT3ADHOC00CREAT3ADHOC00 /* CreateAdhocTicketSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CreateAdhocTicketSheet.swift; sourceTree = "<group>"; };
 		DOCTREENODE00DOCTREENODE00 /* DocTreeNode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocTreeNode.swift; sourceTree = "<group>"; };
+		AGENT100AGENT100AGENT100 /* Agent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Agent.swift; sourceTree = "<group>"; };
+		AGENT200AGENT200AGENT200 /* AgentsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentsViewModel.swift; sourceTree = "<group>"; };
+		AGENT300AGENT300AGENT300 /* AgentsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentsView.swift; sourceTree = "<group>"; };
 		DOCSTABVIEW00DOCSTABVIEW00 /* DocsTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocsTabView.swift; sourceTree = "<group>"; };
 		DOCSBROWSER00DOCSBROWSER00 /* DocsBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocsBrowserView.swift; sourceTree = "<group>"; };
 		DOCDETAILV000DOCDETAILV000 /* DocDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocDetailView.swift; sourceTree = "<group>"; };
@@ -179,6 +185,7 @@
 				A1000019A1000019A1000000 /* InAppNotification.swift */,
 				B02EF6DE785916C7BBABC59B /* AIAnalysis.swift */,
 				DOCTREENODE00DOCTREENODE00 /* DocTreeNode.swift */,
+				AGENT100AGENT100AGENT100 /* Agent.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -201,6 +208,7 @@
 				A1000007A1000007A1000000 /* ConnectionViewModel.swift */,
 				A100000BA100000BA1000000 /* SessionListViewModel.swift */,
 				A1000013A1000013A1000000 /* TicketBoardViewModel.swift */,
+				AGENT200AGENT200AGENT200 /* AgentsViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -215,6 +223,7 @@
 				A100001BA100001BA1000000 /* NotificationBannerView.swift */,
 				A100001CA100001CA1000000 /* NotificationsListView.swift */,
 				A100001EA100001EA1000000 /* TerminalView.swift */,
+				AGENT300AGENT300AGENT300 /* AgentsView.swift */,
 				A1000470A1000470A1000000 /* Tickets */,
 				D0C5V1EWS000D0C5V1EWS000 /* Docs */,
 				391CD4AFAA0C073F6288997A /* Components */,
@@ -421,6 +430,9 @@
 				F1LE5TAGER001F1LE5TAGER01 /* FileStagerView.swift in Sources */,
 				CREAT3ADHOC01CREAT3ADHOC01 /* CreateAdhocTicketSheet.swift in Sources */,
 				DOCTREENODE01DOCTREENODE01 /* DocTreeNode.swift in Sources */,
+				AGENT101AGENT101AGENT101 /* Agent.swift in Sources */,
+				AGENT201AGENT201AGENT201 /* AgentsViewModel.swift in Sources */,
+				AGENT301AGENT301AGENT301 /* AgentsView.swift in Sources */,
 				DOCSTABVIEW01DOCSTABVIEW01 /* DocsTabView.swift in Sources */,
 				DOCSBROWSER01DOCSBROWSER01 /* DocsBrowserView.swift in Sources */,
 				DOCDETAILV001DOCDETAILV001 /* DocDetailView.swift in Sources */,

@@ -115,6 +115,38 @@ actor APIClient {
         }
     }
 
+    /// Fetch the current list of live workmux agents from the backend.
+    /// - Returns: Array of Agent objects (same set pushed over WebSocket)
+    func getAgents() async throws -> [Agent] {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/agents")
+        let (data, response) = try await performRequest(url: url, requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        do {
+            // Agents are camelCase — a plain decoder matches; do NOT use
+            // .convertFromSnakeCase (that's for the snake_case sessions API).
+            let decoder = JSONDecoder()
+            return try decoder.decode(AgentsResponse.self, from: data).agents
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
     /// Discover manually created panes in tmux sessions
     /// - Returns: DiscoverSessionsResponse with discovered and existing panes
     func discoverSessions() async throws -> DiscoverSessionsResponse {
