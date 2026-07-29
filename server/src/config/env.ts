@@ -11,6 +11,10 @@ const envSchema = z.object({
   HANDOFF_THRESHOLD_PERCENT: z.coerce.number().min(5).max(50).default(20),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   API_KEY: z.string().min(32).optional(),
+
+  // WorkmuxBridge: how often to poll workmux agent state, and where it lives.
+  WORKMUX_POLL_MS: z.coerce.number().min(200).default(1000),
+  WORKMUX_AGENTS_DIR: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

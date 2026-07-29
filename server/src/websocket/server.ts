@@ -34,10 +34,15 @@ import {
   type PtyDetachedMessage,
   type PtyOutputMessage,
   type PtyExitMessage,
+  type AgentSnapshotMessage,
+  type AgentUpdateMessage,
+  type AgentRemovedMessage,
   type WebSocketServerConfig,
   DEFAULT_WS_CONFIG,
   WS_ERROR_CODES,
 } from './types.js';
+import { workmuxBridge } from '../services/workmux-bridge.js';
+import type { Agent } from '../services/workmux-bridge-types.js';
 import {
   sessionSupervisor,
   SessionNotFoundError,
@@ -117,6 +122,7 @@ export class WebSocketManager {
 
     this.setupServer();
     this.setupSessionSupervisorListeners();
+    this.setupWorkmuxBridgeListeners();
     this.startPingInterval();
 
     return this.wss;
@@ -144,6 +150,10 @@ export class WebSocketManager {
     ptyManager.removeListener('pty:data', this.handlePtyData);
     // eslint-disable-next-line @typescript-eslint/unbound-method
     ptyManager.removeListener('pty:exit', this.handlePtyExit);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    workmuxBridge.removeListener('agent:update', this.handleAgentUpdate);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    workmuxBridge.removeListener('agent:removed', this.handleAgentRemoved);
 
     // Detach all PTY connections
     ptyManager.detachAll();
@@ -222,6 +232,20 @@ export class WebSocketManager {
   }
 
   /**
+   * Setup listeners for the workmux bridge. Agent changes are global (not
+   * session-scoped), so they broadcast to every connected client.
+   */
+  private setupWorkmuxBridgeListeners(): void {
+    this.handleAgentUpdate = this.handleAgentUpdate.bind(this);
+    this.handleAgentRemoved = this.handleAgentRemoved.bind(this);
+
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    workmuxBridge.on('agent:update', this.handleAgentUpdate);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    workmuxBridge.on('agent:removed', this.handleAgentRemoved);
+  }
+
+  /**
    * Start ping/pong interval for connection health
    */
   private startPingInterval(): void {
@@ -297,6 +321,14 @@ export class WebSocketManager {
       ws.connectionInfo.isAlive = true;
       ws.connectionInfo.lastActivity = new Date();
     });
+
+    // Send the current workmux agent list up front so the client renders
+    // immediately without waiting for the next change.
+    const snapshot: AgentSnapshotMessage = {
+      type: 'agent:snapshot',
+      payload: { agents: workmuxBridge.list() },
+    };
+    this.send(ws, snapshot);
 
     console.log(`WebSocket connection established: ${connectionId}`);
   }
@@ -868,6 +900,28 @@ export class WebSocketManager {
     if (skippedPty > 0) {
       console.log(`[WebSocket] Broadcast ${message.type} to ${sentCount} subscribers, skipped ${skippedPty} PTY connections`);
     }
+  }
+
+  /**
+   * Handle a workmux agent add/change — broadcast the full agent to all clients.
+   */
+  private handleAgentUpdate(agent: Agent): void {
+    const message: AgentUpdateMessage = {
+      type: 'agent:update',
+      payload: { agent },
+    };
+    this.broadcast(message);
+  }
+
+  /**
+   * Handle a workmux agent removal — broadcast just the id to all clients.
+   */
+  private handleAgentRemoved(agent: Agent): void {
+    const message: AgentRemovedMessage = {
+      type: 'agent:removed',
+      payload: { id: agent.id },
+    };
+    this.broadcast(message);
   }
 
   /**

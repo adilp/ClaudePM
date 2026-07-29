@@ -13,8 +13,10 @@ import tmuxRouter from './api/tmux.js';
 import docsRouter from './api/docs.js';
 import notificationsRouter from './api/notifications.js';
 import devicesRouter from './api/devices.js';
+import agentsRouter from './api/agents.js';
 import { apiKeyAuth } from './middleware/api-key-auth.js';
 import { sessionSupervisor } from './services/session-supervisor.js';
+import { workmuxBridge } from './services/workmux-bridge.js';
 import { waitingDetector } from './services/waiting-detector.js';
 import { ticketStateMachine } from './services/ticket-state-machine.js';
 import { reviewerSubagent } from './services/reviewer-subagent.js';
@@ -56,6 +58,7 @@ app.use('/api/hooks', hooksRouter);
 app.use('/api/tmux', tmuxRouter);
 app.use('/api', notificationsRouter);
 app.use('/api/devices', devicesRouter);
+app.use('/api/agents', agentsRouter);
 
 // 404 handler
 app.use((_req: Request, res: Response): void => {
@@ -102,6 +105,11 @@ httpServer.listen(env.PORT, env.HOST, () => {
   }).catch((err) => {
     console.error('Failed to start session supervisor:', err);
   });
+
+  // Start workmux bridge (independent of the session supervisor)
+  workmuxBridge.start()
+    .then(() => console.log('Workmux bridge started'))
+    .catch((err) => console.error('Failed to start workmux bridge:', err));
 });
 
 // Graceful shutdown
@@ -125,6 +133,9 @@ const shutdown = (): void => {
 
   // Stop session supervisor
   sessionSupervisor.stop();
+
+  // Stop workmux bridge
+  workmuxBridge.stop();
 
   httpServer.close(() => {
     console.log('Server closed');

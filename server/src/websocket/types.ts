@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import type { SessionStatus } from '../generated/prisma/index.js';
+import type { Agent } from '../services/workmux-bridge-types.js';
 
 // ============================================================================
 // Message Schemas (Zod validation)
@@ -226,6 +227,35 @@ export interface SessionWaitingMessage {
   };
 }
 
+// ============================================================================
+// Workmux agent messages
+// ============================================================================
+
+/**
+ * Full current list of workmux agents — sent once when a client connects.
+ */
+export interface AgentSnapshotMessage {
+  type: 'agent:snapshot';
+  payload: { agents: Agent[] };
+}
+
+/**
+ * A single agent was added or changed (new status, title, etc.).
+ * Carries the whole agent so the client can upsert by `id`.
+ */
+export interface AgentUpdateMessage {
+  type: 'agent:update';
+  payload: { agent: Agent };
+}
+
+/**
+ * An agent's worktree session went away (file deleted or its pane closed).
+ */
+export interface AgentRemovedMessage {
+  type: 'agent:removed';
+  payload: { id: string };
+}
+
 /**
  * Trigger types for ticket state changes
  */
@@ -419,7 +449,10 @@ export type ServerMessage =
   | PtyAttachedMessage
   | PtyDetachedMessage
   | PtyOutputMessage
-  | PtyExitMessage;
+  | PtyExitMessage
+  | AgentSnapshotMessage
+  | AgentUpdateMessage
+  | AgentRemovedMessage;
 
 // ============================================================================
 // Connection Types

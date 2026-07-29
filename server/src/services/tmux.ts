@@ -294,6 +294,22 @@ export async function listPanes(target: string): Promise<TmuxPane[]> {
 }
 
 /**
+ * List every pane id across all tmux sessions (`tmux list-panes -a`).
+ * Returns an empty set when no tmux server is running. Used as an authoritative
+ * liveness check — a pane id absent from this set is no longer open.
+ */
+export async function listAllPaneIds(): Promise<Set<string>> {
+  const output = await execTmux(['list-panes', '-a', '-F', '"#{pane_id}"']);
+  return new Set(
+    output
+      .trim()
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+  );
+}
+
+/**
  * Create a new pane in a session
  * @returns The pane ID (e.g., "%5")
  */
