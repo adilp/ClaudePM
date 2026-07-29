@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: claudepm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: local_user
+      POSTGRES_PASSWORD: local_password
+      POSTGRES_DB: claude_session_manager
+    ports:
+      # Host 5434 -> container 5432 (5432/5433 are used by other projects)
+      - "5434:5432"
+    volumes:
+      - claudepm-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U local_user -d claude_session_manager"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  claudepm-db-data:

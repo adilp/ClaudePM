@@ -84,7 +84,7 @@ Transitions are managed by `ticketStateMachine` in `ticket-state-machine.ts`.
    └─ Registers in memory + database
    └─ Starts waiting detector monitoring
 
-2. Running: Output captured every 1s, process monitored every 2s
+2. Running: Output captured every 3s, process monitored every 30s
    └─ WebSocket broadcasts output to subscribed clients
    └─ Waiting detector checks for input prompts
 
@@ -123,14 +123,11 @@ Allows ClaudePM to detect and track tmux panes that were manually created (e.g.,
 
 ### How It Works
 
-1. **Automatic Discovery** (every 30 seconds):
+1. **On-Demand Discovery** (no automatic polling):
+   - `POST /api/sessions/discover` triggers discovery
    - `sessionSupervisor.discoverPanes()` scans each project's designated tmux session
    - Compares found panes against existing Session records
    - Creates new Session records with `source: 'discovered'` for unknown panes
-
-2. **On-Demand Discovery**:
-   - `POST /api/sessions/discover` triggers immediate discovery
-   - Returns list of newly discovered and existing panes
 
 ### Session Source Field
 
@@ -197,8 +194,8 @@ Body: { "name": "my-session-name" }
 ### Configuration
 
 ```typescript
-// In session-supervisor.ts
-const PANE_DISCOVERY_INTERVAL = 30_000;  // 30 seconds
+// Pane discovery is on-demand only (no polling interval)
+// Trigger via POST /api/sessions/discover
 ```
 
 ## Database Schema (Quick Reference)

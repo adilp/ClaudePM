@@ -38,16 +38,15 @@ import { waitingDetector } from './waiting-detector.js';
 const DEFAULT_OUTPUT_BUFFER_SIZE = 10_000;
 
 /** Polling interval for process monitoring (ms) */
-const PROCESS_POLL_INTERVAL = 10_000;
+const PROCESS_POLL_INTERVAL = 30_000;
 
 /** Output capture interval (ms) */
-const OUTPUT_CAPTURE_INTERVAL = 1_000;
+const OUTPUT_CAPTURE_INTERVAL = 3_000;
 
 /** Grace period before force killing a session (ms) */
 const STOP_GRACE_PERIOD = 5_000;
 
-/** Pane discovery interval (ms) - discovers manually created panes */
-const PANE_DISCOVERY_INTERVAL = 30_000;
+/** Pane discovery is now on-demand only via POST /api/sessions/discover */
 
 /** Session sync interval (ms) - cleans up orphaned sessions */
 const SESSION_SYNC_INTERVAL = 10 * 60 * 1000; // 10 minutes
@@ -82,9 +81,6 @@ export class SessionSupervisor extends EventEmitter {
 
   /** Output capture interval handle */
   private outputInterval: ReturnType<typeof setInterval> | null = null;
-
-  /** Pane discovery interval handle */
-  private discoveryInterval: ReturnType<typeof setInterval> | null = null;
 
   /** Session sync interval handle */
   private syncInterval: ReturnType<typeof setInterval> | null = null;
@@ -135,11 +131,6 @@ export class SessionSupervisor extends EventEmitter {
     if (this.outputInterval) {
       clearInterval(this.outputInterval);
       this.outputInterval = null;
-    }
-
-    if (this.discoveryInterval) {
-      clearInterval(this.discoveryInterval);
-      this.discoveryInterval = null;
     }
 
     if (this.syncInterval) {
@@ -748,12 +739,7 @@ ${completionMarker}" ${allowedTools}`;
       });
     }, OUTPUT_CAPTURE_INTERVAL);
 
-    // Pane discovery (discovers manually created panes)
-    this.discoveryInterval = setInterval(() => {
-      this.discoverPanes().catch((error) => {
-        console.error('Error discovering panes:', error);
-      });
-    }, PANE_DISCOVERY_INTERVAL);
+    // Pane discovery is now on-demand only (POST /api/sessions/discover)
 
     // Session sync (cleans up orphaned sessions)
     this.syncInterval = setInterval(() => {
