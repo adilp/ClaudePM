@@ -64,3 +64,54 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
 
   next();
 }
+
+/**
+ * Pure authorization decision for the mutating workmux command endpoints.
+ *
+ * Unlike {@link apiKeyAuth} (which is lenient — no key configured means auth is
+ * skipped), command auth is **fail-closed**: with no `API_KEY` configured the
+ * destructive endpoints are disabled outright. When a key IS configured, remote
+ * callers must present it; same-machine (localhost) callers — the desktop app,
+ * local testing — are trusted.
+ */
+export function evaluateCommandAuth(params: {
+  apiKeyConfigured: boolean;
+  localhost: boolean;
+  providedKey: string | undefined;
+  expectedKey: string | undefined;
+}): { authorized: boolean; reason?: 'not_configured' | 'invalid_key' } {
+  if (!params.apiKeyConfigured) return { authorized: false, reason: 'not_configured' };
+  if (params.localhost) return { authorized: true };
+  if (!params.providedKey || params.providedKey !== params.expectedKey) {
+    return { authorized: false, reason: 'invalid_key' };
+  }
+  return { authorized: true };
+}
+
+/**
+ * Stricter auth for state-changing command endpoints (merge/remove/add).
+ * Fail-closed: refuses with 401 unless `API_KEY` is configured. See
+ * {@link evaluateCommandAuth}.
+ */
+export function requireApiKey(req: Request, res: Response, next: NextFunction): void {
+  const providedKey = req.headers['x-api-key'];
+  const result = evaluateCommandAuth({
+    apiKeyConfigured: Boolean(env.API_KEY),
+    localhost: isLocalhost(req),
+    providedKey: typeof providedKey === 'string' ? providedKey : undefined,
+    expectedKey: env.API_KEY,
+  });
+
+  if (result.authorized) {
+    next();
+    return;
+  }
+
+  res.status(401).json({
+    error: 'Unauthorized',
+    message:
+      result.reason === 'not_configured'
+        ? 'Command endpoints are disabled: set API_KEY on the server to enable workmux commands'
+        : 'Missing or invalid API key',
+  });
+}
