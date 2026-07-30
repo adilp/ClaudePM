@@ -24,6 +24,22 @@ const envSchema = z.object({
   APNS_KEY_PATH: z.string().optional(), // path to the AuthKey_<KEYID>.p8 file
   APNS_BUNDLE_ID: z.string().default('com.claudepm.ios'),
   APNS_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
+
+  // Live Activity content pushes (server -> APNs -> lock screen / Dynamic Island).
+  // The bridge's agent stream can flip many times a second; these knobs keep the
+  // push rate inside APNs' Live-Activity budget. See live-activity-push.ts.
+  //  - DEBOUNCE_MS: trailing window that coalesces a burst of agent changes into
+  //    one push (bridge polls ~1s, so ~1s coalesces within-poll bursts).
+  //  - MAX_PER_HOUR: sliding-window ceiling on pushes; over budget we drop and
+  //    let the next real change retry.
+  //  - STALE_MS: how long after a push the system may mark the activity stale
+  //    (dimmed) if no fresher push arrives — a liveness signal, not a timer.
+  //  - MAX_ROWS: rows shown on the lock screen / expanded island. MUST match the
+  //    iOS AgentLiveActivityManager.maxRows (3) or counts and rows disagree.
+  LIVE_ACTIVITY_DEBOUNCE_MS: z.coerce.number().min(0).default(1000),
+  LIVE_ACTIVITY_MAX_PER_HOUR: z.coerce.number().min(1).default(200),
+  LIVE_ACTIVITY_STALE_MS: z.coerce.number().min(0).default(5 * 60 * 1000),
+  LIVE_ACTIVITY_MAX_ROWS: z.coerce.number().min(1).default(3),
 });
 
 const parsed = envSchema.safeParse(process.env);

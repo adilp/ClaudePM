@@ -6,12 +6,12 @@ import WidgetKit
 
 extension Color {
     /// Status colour for a raw workmux status string.
-    /// working=green #30D158 · waiting=orange #FF9F0A · done=blue #0A84FF · other=gray.
+    /// working=blue #0A84FF · waiting=orange #FF9F0A · done=green #30D158 · other=gray.
     static func agentStatus(_ raw: String) -> Color {
         switch AgentActivityStatus(raw) {
-        case .working: return Color(red: 0.188, green: 0.820, blue: 0.345)
+        case .working: return Color(red: 0.039, green: 0.518, blue: 1.000)
         case .waiting: return Color(red: 1.000, green: 0.624, blue: 0.039)
-        case .done:    return Color(red: 0.039, green: 0.518, blue: 1.000)
+        case .done:    return Color(red: 0.188, green: 0.820, blue: 0.345)
         case .other:   return Color(red: 0.557, green: 0.557, blue: 0.576)
         }
     }

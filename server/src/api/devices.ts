@@ -4,6 +4,7 @@ import { prisma } from '../config/db.js';
 import { Prisma } from '../generated/prisma/index.js';
 import { notificationService } from '../services/notification-service.js';
 import { apnsClient } from '../services/apns-client.js';
+import { liveActivityPush } from '../services/live-activity-push.js';
 
 const router = Router();
 
@@ -159,6 +160,36 @@ router.post(
     });
 
     res.json({ success: true, configured: true, registered, ...result });
+  })
+);
+
+/**
+ * POST /api/devices/test-live-activity
+ * Force an immediate Live Activity content push of the *current* fleet to every
+ * registered Live Activity token — the "confirm receipt on device" step for
+ * Live Activity push setup (mirrors /test-push for standard alerts). Bypasses
+ * the automatic path's debounce/dedupe/budget. Returns how many tokens were
+ * targeted and how many sends succeeded, plus a clear message when APNs isn't
+ * configured. With zero live agents there is nothing to render, so `agents: 0`
+ * and no push is attempted.
+ */
+router.post(
+  '/test-live-activity',
+  asyncHandler<
+    | { success: true; configured: boolean; tokens: number; agents: number; sent: number; failed: number }
+    | ErrorResponse
+  >(async (_req, res) => {
+    const configError = apnsClient.configError();
+    if (configError) {
+      (res as Response<ErrorResponse>).status(503).json({
+        error: 'APNs not configured',
+        message: configError,
+      });
+      return;
+    }
+
+    const result = await liveActivityPush.pushNow();
+    res.json({ success: true, ...result });
   })
 );
 

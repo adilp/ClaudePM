@@ -191,9 +191,9 @@ extension AgentStatusKind {
     /// model stays Foundation-only, mirroring `SessionStatus.badgeColor`.
     var badgeColor: Color {
         switch self {
-        case .working: return .green
+        case .working: return .blue
         case .waiting: return .orange
-        case .done:    return .blue
+        case .done:    return .green
         case .other:   return .gray
         }
     }

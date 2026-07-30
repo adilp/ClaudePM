@@ -17,6 +17,7 @@ import agentsRouter from './api/agents.js';
 import { apiKeyAuth } from './middleware/api-key-auth.js';
 import { sessionSupervisor } from './services/session-supervisor.js';
 import { workmuxBridge } from './services/workmux-bridge.js';
+import { liveActivityPush } from './services/live-activity-push.js';
 import { apnsClient } from './services/apns-client.js';
 import { waitingDetector } from './services/waiting-detector.js';
 import { ticketStateMachine } from './services/ticket-state-machine.js';
@@ -78,6 +79,11 @@ const wss = attachWebSocket(httpServer);
 // Wire up notification service with WebSocket manager
 notificationService.setWebSocketManager(wsManager);
 
+// Feed the Live Activity push service off the same bridge stream WebSocket uses.
+// Each change (re)arms a debounced flush; the service dedupes/budgets internally.
+workmuxBridge.on('agent:update', () => liveActivityPush.schedule());
+workmuxBridge.on('agent:removed', () => liveActivityPush.schedule());
+
 // Start server
 httpServer.listen(env.PORT, env.HOST, () => {
   console.log(`Server running at http://${env.HOST}:${env.PORT}`);
@@ -137,6 +143,9 @@ const shutdown = (): void => {
 
   // Stop workmux bridge
   workmuxBridge.stop();
+
+  // Cancel any pending Live Activity flush
+  liveActivityPush.stop();
 
   // Close the APNs http2 session
   apnsClient.close();
