@@ -22,6 +22,12 @@ const liveActivitySchema = z.object({
   platform: z.enum(['ios', 'ipados']).default('ios'),
   // Which Live Activity this token drives; only "agents" exists today.
   activity: z.string().max(64).default('agents'),
+  // Which ActivityKit token this is (issue #13):
+  //   - "update" — a per-activity push token, drives content updates (#10).
+  //   - "start"  — an app-lifetime push-to-start token, lets the server START
+  //                an activity remotely after iOS's ~8h expiry.
+  // Stored under distinct platform suffixes so each push targets the right set.
+  kind: z.enum(['update', 'start']).default('update'),
 });
 
 // Validation schema for the test push (both fields optional)
@@ -88,11 +94,12 @@ router.post(
 
 /**
  * POST /api/devices/live-activity
- * Register an ActivityKit Live Activity push token so the server can push
- * lock-screen / Dynamic Island content updates. The actual content push is a
- * later ticket; this endpoint just persists the token. We reuse the
- * `device_tokens` table with a `<platform>-liveactivity` discriminator so no
- * schema migration is needed — the push side queries that platform prefix.
+ * Register an ActivityKit token so the server can drive the Live Activity. Two
+ * kinds (see `kind`): a per-activity **update** token (content updates, #10) or
+ * an app-lifetime **push-to-start** token (remote start after expiry, #13). We
+ * reuse the `device_tokens` table with a `<platform>-liveactivity[-start]`
+ * discriminator so no schema migration is needed — the push side queries by
+ * that suffix. `kind` defaults to "update" for backward compatibility.
  */
 router.post(
   '/live-activity',
@@ -108,13 +115,23 @@ router.post(
       return;
     }
 
-    const { token, platform } = parseResult.data;
+    const { token, platform, kind } = parseResult.data;
+
+    // "update" => `<platform>-liveactivity`; "start" => `<platform>-liveactivity-start`.
+    const storedPlatform =
+      kind === 'start' ? `${platform}-liveactivity-start` : `${platform}-liveactivity`;
 
     await prisma.deviceToken.upsert({
       where: { token },
-      create: { token, platform: `${platform}-liveactivity` },
-      update: { updatedAt: new Date() },
+      create: { token, platform: storedPlatform },
+      update: { platform: storedPlatform, updatedAt: new Date() },
     });
+
+    // A per-activity update token means the app just observed a *live* activity;
+    // tell the push service so it doesn't redundantly push-to-start (issue #13).
+    if (kind === 'update') {
+      liveActivityPush.noteActivityRegistered();
+    }
 
     res.json({ success: true });
   })
@@ -189,6 +206,35 @@ router.post(
     }
 
     const result = await liveActivityPush.pushNow();
+    res.json({ success: true, ...result });
+  })
+);
+
+/**
+ * POST /api/devices/test-live-activity-start
+ * Force a push-to-START of the *current* fleet to every registered push-to-start
+ * token — the "confirm receipt on device" step for push-to-start setup (issue
+ * #13, mirrors /test-live-activity for content updates). Force-quit the app first
+ * to prove the server can revive the Live Activity with no manual launch. Returns
+ * how many push-to-start tokens were targeted and how many sends succeeded. With
+ * zero live agents there is nothing to start, so `agents: 0` and no push.
+ */
+router.post(
+  '/test-live-activity-start',
+  asyncHandler<
+    | { success: true; configured: boolean; tokens: number; agents: number; sent: number; failed: number }
+    | ErrorResponse
+  >(async (_req, res) => {
+    const configError = apnsClient.configError();
+    if (configError) {
+      (res as Response<ErrorResponse>).status(503).json({
+        error: 'APNs not configured',
+        message: configError,
+      });
+      return;
+    }
+
+    const result = await liveActivityPush.startNow();
     res.json({ success: true, ...result });
   })
 );

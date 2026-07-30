@@ -44,5 +44,26 @@ export interface LiveActivityContentState {
   doneOverflow: number;
 }
 
-/** ActivityKit lifecycle event for a Live Activity push. */
-export type LiveActivityEvent = 'update' | 'end';
+/**
+ * ActivityKit lifecycle event for a Live Activity push.
+ *   - `start`  — remotely START an activity via push-to-start (issue #13). Only
+ *                valid when addressed to a **push-to-start** token; the payload
+ *                additionally carries `attributes-type` + `attributes`.
+ *   - `update` — push new content to an already-running activity (issue #10).
+ *   - `end`    — end a running activity.
+ */
+export type LiveActivityEvent = 'start' | 'update' | 'end';
+
+/**
+ * For a push-to-start (`event: "start"`) payload, `attributes-type` MUST equal
+ * the Swift `ActivityAttributes` struct name exactly, and `attributes` MUST be
+ * the JSON of its non-`ContentState` (root) fields. Our struct is
+ * `AgentActivityAttributes` with a single `appName` field defaulting to
+ * "workmux" — see `apps/ios/ClaudePM/Models/AgentActivityAttributes.swift`.
+ * ActivityKit decodes these with a default `JSONDecoder`, so the key/value must
+ * match the Swift property names verbatim.
+ */
+export const LIVE_ACTIVITY_ATTRIBUTES_TYPE = 'AgentActivityAttributes';
+
+/** The root attributes for a push-to-start payload (mirrors `appName`). */
+export const LIVE_ACTIVITY_ATTRIBUTES = { appName: 'workmux' } as const;

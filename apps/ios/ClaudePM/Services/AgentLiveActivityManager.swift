@@ -31,7 +31,76 @@ final class AgentLiveActivityManager {
     /// activity ends.
     private var pushTokenTask: Task<Void, Never>?
 
+    /// Streams the app-lifetime **push-to-start** token to the server so it can
+    /// START the activity remotely after expiry (issue #13). Lives for the app's
+    /// lifetime, independent of any single activity.
+    private var pushToStartTask: Task<Void, Never>?
+
+    /// Watches for activities the *system* starts (e.g. a server push-to-start
+    /// while the app was backgrounded) so we adopt them instead of ignoring them.
+    private var activityUpdatesTask: Task<Void, Never>?
+
+    /// Tracks the current activity's end so we drop the stale reference.
+    private var stateTask: Task<Void, Never>?
+
+    /// Guards `bootstrap()` against starting its observers more than once.
+    private var didBootstrap = false
+
     private init() {}
+
+    // MARK: - Bootstrap (called once at app launch)
+
+    /// Start the app-lifetime observers: the push-to-start token stream and the
+    /// system activity-start stream. Idempotent — safe to call on every launch /
+    /// foreground. Distinct from the per-activity push-token stream, which is
+    /// wired up per activity in `observePushToken`.
+    func bootstrap() {
+        guard !didBootstrap else { return }
+        didBootstrap = true
+
+        // Adopt any activity already running from a previous app session so we
+        // don't start a duplicate and so its update token gets (re)registered.
+        adoptExistingActivityIfNeeded()
+
+        observePushToStartToken()
+        observeActivityStarts()
+    }
+
+    /// Register the push-to-start token (iOS 17.2+) with the server whenever it
+    /// appears or rotates. Below 17.2 push-to-start is unavailable; the in-app
+    /// start path (#9) still works, we just can't revive remotely.
+    private func observePushToStartToken() {
+        guard #available(iOS 17.2, *) else {
+            print("[LiveActivity] push-to-start needs iOS 17.2+; skipping")
+            return
+        }
+        pushToStartTask?.cancel()
+        pushToStartTask = Task {
+            for await tokenData in Activity<AgentActivityAttributes>.pushToStartTokenUpdates {
+                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                print("[LiveActivity] push-to-start token: \(hex)")
+                do {
+                    try await APIClient.shared.registerLiveActivityStartToken(hex)
+                    print("[LiveActivity] Registered push-to-start token with backend")
+                } catch {
+                    print("[LiveActivity] push-to-start token registration failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Watch for activities the system starts on our behalf — chiefly a server
+    /// push-to-start that materialised while the app was backgrounded. Adopting
+    /// one lets us register its per-activity update token and keep it in sync,
+    /// and collapses any accidental duplicate down to a single activity.
+    private func observeActivityStarts() {
+        activityUpdatesTask?.cancel()
+        activityUpdatesTask = Task {
+            for await activity in Activity<AgentActivityAttributes>.activityUpdates {
+                adopt(activity)
+            }
+        }
+    }
 
     // MARK: - Feed (called from WebSocketClient, always on the main actor)
 
@@ -83,8 +152,42 @@ final class AgentLiveActivityManager {
     private func adoptExistingActivityIfNeeded() {
         guard currentActivity == nil,
               let existing = Activity<AgentActivityAttributes>.activities.first else { return }
-        currentActivity = existing
-        observePushToken(for: existing)
+        adopt(existing)
+    }
+
+    /// Take ownership of an activity — the one we just requested, one already
+    /// running at launch, or one the *system* started for us via a server
+    /// push-to-start (issue #13). Idempotent for the activity we already hold; if
+    /// a *different* one appears (a duplicate from a start race) we keep the new
+    /// one and end the old so the lock screen never stacks two.
+    private func adopt(_ activity: Activity<AgentActivityAttributes>) {
+        if let current = currentActivity {
+            if current.id == activity.id { return } // already ours
+            let stale = current
+            Task { await stale.end(nil, dismissalPolicy: .immediate) }
+            print("[LiveActivity] Replaced duplicate activity \(stale.id) with \(activity.id)")
+        }
+        currentActivity = activity
+        observePushToken(for: activity)
+        observeState(for: activity)
+    }
+
+    /// Drop our reference when the system ends an activity (expiry, user dismiss)
+    /// so `reconcile` starts a fresh one next time the fleet warrants it.
+    private func observeState(for activity: Activity<AgentActivityAttributes>) {
+        stateTask?.cancel()
+        stateTask = Task {
+            for await state in activity.activityStateUpdates {
+                if state == .ended || state == .dismissed {
+                    if currentActivity?.id == activity.id {
+                        pushTokenTask?.cancel(); pushTokenTask = nil
+                        currentActivity = nil
+                    }
+                    print("[LiveActivity] Activity \(activity.id) ended (\(state))")
+                    return
+                }
+            }
+        }
     }
 
     /// Request a new activity. `Activity.request` is synchronous and returns the
@@ -101,8 +204,7 @@ final class AgentLiveActivityManager {
                 content: ActivityContent(state: state, staleDate: nil),
                 pushType: .token
             )
-            currentActivity = activity
-            observePushToken(for: activity)
+            adopt(activity)
             print("[LiveActivity] Started activity \(activity.id)")
         } catch {
             print("[LiveActivity] Failed to start: \(error.localizedDescription)")
@@ -112,6 +214,8 @@ final class AgentLiveActivityManager {
     private func end(_ activity: Activity<AgentActivityAttributes>) {
         pushTokenTask?.cancel()
         pushTokenTask = nil
+        stateTask?.cancel()
+        stateTask = nil
         currentActivity = nil
         Task { await activity.end(nil, dismissalPolicy: .immediate) }
         print("[LiveActivity] Ended activity \(activity.id)")

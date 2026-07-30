@@ -361,6 +361,24 @@ actor APIClient {
     /// so it goes to its own endpoint. Safe to call on every token rotation.
     /// - Parameter token: hex-encoded ActivityKit push token
     func registerLiveActivityToken(_ token: String) async throws {
+        try await registerLiveActivityToken(token, kind: "update")
+    }
+
+    /// Register the app-lifetime **push-to-start** token so the server can START
+    /// the Live Activity remotely after iOS's ~8h expiry, with no app launch
+    /// (issue #13). Distinct from `registerLiveActivityToken` (a per-activity
+    /// *update* token): this one is vended by `pushToStartTokenUpdates` and lives
+    /// for the app's lifetime, so it goes to the server under `kind: "start"`.
+    /// Safe to call on every launch / rotation.
+    /// - Parameter token: hex-encoded ActivityKit push-to-start token
+    func registerLiveActivityStartToken(_ token: String) async throws {
+        try await registerLiveActivityToken(token, kind: "start")
+    }
+
+    /// Shared implementation for both Live Activity token kinds — same endpoint,
+    /// distinguished by the `kind` discriminator the server stores under a
+    /// separate platform suffix.
+    private func registerLiveActivityToken(_ token: String, kind: String) async throws {
         guard let baseURL = baseURL else {
             throw APIError.invalidURL
         }
@@ -370,6 +388,7 @@ actor APIClient {
             "token": token,
             "platform": "ios",
             "activity": "agents",
+            "kind": kind,
         ])
         let (_, response) = try await performRequest(
             url: url, method: "POST", body: payload, requiresAuth: true

@@ -22,6 +22,17 @@
  * pushes stop, the system dims the activity rather than showing stale counts as
  * fresh). When the fleet empties we push `event: "end"` with a `dismissal-date`
  * so a backgrounded activity doesn't linger showing agents that are gone.
+ *
+ * Push-to-start (issue #13): ActivityKit auto-ends an activity after ~8h, after
+ * which the app must be foregrounded to start a fresh one — the lock screen goes
+ * dark in the meantime. So this service also *starts* activities remotely: it
+ * keeps a `<platform>-liveactivity-start` push-to-start token, and on a flush
+ * where the fleet is non-empty and no activity is believed live (`activityLive-
+ * Until` null or elapsed) it sends `event: "start"` carrying `attributes-type` +
+ * `attributes` + the initial `content-state`. The #10 update path then takes
+ * over once the app registers the new per-activity token. Liveness is tracked by
+ * an in-memory TTL clock (see `activityLiveUntil`) so we never stack duplicate
+ * activities on a backgrounded device.
  */
 
 import { prisma } from '../config/db.js';
@@ -29,6 +40,10 @@ import { env } from '../config/env.js';
 import { apnsClient } from './apns-client.js';
 import { workmuxBridge } from './workmux-bridge.js';
 import type { Agent } from './workmux-bridge-types.js';
+import {
+  LIVE_ACTIVITY_ATTRIBUTES,
+  LIVE_ACTIVITY_ATTRIBUTES_TYPE,
+} from './live-activity-push-types.js';
 import type {
   LiveActivityContentState,
   LiveActivityEvent,
@@ -143,13 +158,69 @@ export function renderSignature(state: LiveActivityContentState): string {
   });
 }
 
+/**
+ * Whether the server should send a push-to-start now (issue #13).
+ *
+ * We START when the fleet is non-empty and we do NOT currently believe an
+ * activity is live for the device — i.e. `liveUntil` is null (never started /
+ * fleet had emptied) or has elapsed (the ~8h ActivityKit expiry passed). While
+ * we believe one is live we suppress starts so a backgrounded device never
+ * stacks duplicate lock-screen activities.
+ */
+export function shouldStartActivity(
+  fleetNonEmpty: boolean,
+  liveUntil: number | null,
+  nowMs: number
+): boolean {
+  if (!fleetNonEmpty) return false;
+  return liveUntil === null || nowMs >= liveUntil;
+}
+
+/**
+ * Build the `aps` dictionary for a push-to-start (`event: "start"`) payload.
+ * Unlike an update, a start MUST carry `attributes-type` (the Swift struct name)
+ * and `attributes` (its root fields) so ActivityKit can materialise the activity
+ * with no app involvement; the initial `content-state` is the current fleet.
+ */
+export function buildStartAps(
+  state: LiveActivityContentState,
+  nowSec: number,
+  staleSec: number | null
+): Record<string, unknown> {
+  const active = state.working + state.waiting;
+  return {
+    timestamp: nowSec,
+    event: 'start' satisfies LiveActivityEvent,
+    'attributes-type': LIVE_ACTIVITY_ATTRIBUTES_TYPE,
+    attributes: LIVE_ACTIVITY_ATTRIBUTES,
+    'content-state': state,
+    ...(staleSec !== null && { 'stale-date': staleSec }),
+    // A push-to-START must carry an `alert` to actually surface: a start without
+    // one is accepted by APNs (200) but ActivityKit silently declines to present
+    // it on the lock screen. (An `update` needs no alert — the activity already
+    // exists.) The alert doubles as the "your fleet is live again" nudge on the
+    // ~8h revival, which is exactly when we want the user's attention.
+    alert: {
+      title: 'workmux',
+      body: `${active} active · ${state.waiting} waiting · ${state.done} done`,
+      sound: 'default',
+    },
+  };
+}
+
 // ============================================================================
 // Service
 // ============================================================================
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
-/** Platform discriminator used for Live Activity tokens (see devices.ts). */
-const LIVE_ACTIVITY_PLATFORM_PREFIX = 'ios-liveactivity';
+// Live Activity tokens are stored in device_tokens with a platform suffix
+// (see devices.ts). Two kinds, distinguished by suffix:
+//   - `<platform>-liveactivity`        — per-activity UPDATE tokens (#10). Match
+//     with `endsWith: 'liveactivity'`, which deliberately EXCLUDES the start
+//     suffix below (that ends with `-start`).
+//   - `<platform>-liveactivity-start`  — app-lifetime PUSH-TO-START tokens (#13).
+const UPDATE_TOKEN_SUFFIX = 'liveactivity';
+const START_TOKEN_SUFFIX = 'liveactivity-start';
 
 interface LiveActivityPushDeps {
   /** Current full fleet snapshot (defaults to the workmux bridge). */
@@ -160,6 +231,8 @@ interface LiveActivityPushDeps {
   maxPerHour?: number;
   staleMs?: number;
   maxRows?: number;
+  /** How long a started activity is assumed live (suppresses re-starts). */
+  startTtlMs?: number;
 }
 
 export interface LiveActivityPushResult {
@@ -180,6 +253,7 @@ export class LiveActivityPushService {
   private readonly maxPerHour: number;
   private readonly staleMs: number;
   private readonly maxRows: number;
+  private readonly startTtlMs: number;
 
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   /** Signature of the last state we pushed; null once ended / never pushed. */
@@ -188,6 +262,18 @@ export class LiveActivityPushService {
   private lastWaiting = 0;
   /** Epoch-ms of recent pushes, for the sliding-window budget. */
   private sendWindow: number[] = [];
+  /**
+   * Epoch-ms until which we believe an activity is live on the device, so we
+   * suppress a duplicate push-to-start (issue #13). Set when we send a start OR
+   * when the app confirms a live per-activity token; cleared when the fleet
+   * empties (we end the activity). `null` => nothing believed live.
+   *
+   * In-memory by design: a server restart resets it to null, so the next flush
+   * may push one start even if an activity is already live — the client dedupes
+   * it (adopts one, ends the extra). For a single-user app that's an acceptable
+   * self-healing edge over persisting cross-process activity state.
+   */
+  private activityLiveUntil: number | null = null;
 
   constructor(deps: LiveActivityPushDeps) {
     this.listAgents = deps.listAgents;
@@ -196,6 +282,7 @@ export class LiveActivityPushService {
     this.maxPerHour = deps.maxPerHour ?? env.LIVE_ACTIVITY_MAX_PER_HOUR;
     this.staleMs = deps.staleMs ?? env.LIVE_ACTIVITY_STALE_MS;
     this.maxRows = deps.maxRows ?? env.LIVE_ACTIVITY_MAX_ROWS;
+    this.startTtlMs = deps.startTtlMs ?? env.LIVE_ACTIVITY_START_TTL_MS;
   }
 
   /**
@@ -220,6 +307,16 @@ export class LiveActivityPushService {
   }
 
   /**
+   * The app registered a per-activity **update** token — i.e. it just observed a
+   * live activity (started in-app, adopted on relaunch, or materialised from a
+   * remote start). That's a positive confirmation an activity is on screen, so
+   * push its liveness window forward and suppress redundant starts (issue #13).
+   */
+  noteActivityRegistered(): void {
+    this.activityLiveUntil = this.now() + this.startTtlMs;
+  }
+
+  /**
    * Recompute the rendered state and push it if it changed and we're in budget.
    * Never throws — a bad tick is logged and skipped.
    */
@@ -232,18 +329,36 @@ export class LiveActivityPushService {
       const nowSec = Math.floor(nowMs / 1000);
       const agents = this.listAgents();
 
-      // Fleet empty => end a live activity if one is running.
+      // Fleet empty => end a live activity if one is running, and forget any
+      // liveness window (nothing should be on screen now).
       if (agents.length === 0) {
         if (this.activeSignature !== null) {
           await this.pushEnd(nowSec);
           this.activeSignature = null;
           this.lastWaiting = 0;
         }
+        this.activityLiveUntil = null;
         return;
       }
 
       const state = renderContentState(agents, this.maxRows, nowSec);
       const signature = renderSignature(state);
+
+      // Push-to-start FIRST, and independently of the content dedupe below: an
+      // activity can expire (~8h) while the fleet sits unchanged, so a start may
+      // be due even when nothing visible changed (issue #13).
+      if (shouldStartActivity(true, this.activityLiveUntil, nowMs)) {
+        const result = await this.pushStart(state, nowSec);
+        if (result.tokens > 0) {
+          this.activityLiveUntil = nowMs + this.startTtlMs;
+          // The start payload carries the current content, so the running
+          // activity is now in sync — record it as the pushed signature so the
+          // update path below doesn't immediately re-send the same frame.
+          this.activeSignature = signature;
+          this.lastWaiting = state.waiting;
+        }
+      }
+
       if (signature === this.activeSignature) return; // dedupe: nothing visible changed
 
       if (!this.withinBudget(nowMs)) {
@@ -277,7 +392,7 @@ export class LiveActivityPushService {
   async pushNow(): Promise<LiveActivityPushResult> {
     const nowSec = Math.floor(this.now() / 1000);
     const agents = this.listAgents();
-    const tokens = await this.getTokens();
+    const tokens = await this.getUpdateTokens();
 
     if (agents.length === 0) {
       return {
@@ -305,6 +420,45 @@ export class LiveActivityPushService {
     };
   }
 
+  /**
+   * Force a push-to-START of the current fleet to every push-to-start token,
+   * bypassing the liveness guard — the "confirm receipt on device" trigger for
+   * push-to-start setup (mirrors `pushNow` for content updates, issue #13).
+   * With an empty fleet there is nothing to start, so `agents: 0` and no push.
+   */
+  async startNow(): Promise<LiveActivityPushResult> {
+    const nowSec = Math.floor(this.now() / 1000);
+    const agents = this.listAgents();
+    const tokens = await this.getStartTokens();
+
+    if (agents.length === 0) {
+      return {
+        configured: !apnsClient.configError(),
+        tokens: tokens.length,
+        agents: 0,
+        sent: 0,
+        failed: 0,
+      };
+    }
+
+    const state = renderContentState(agents, this.maxRows, nowSec);
+    const result = await this.pushStart(state, nowSec, tokens);
+    if (result.tokens > 0) {
+      // We just (re)started; treat the activity as live and in-sync so the
+      // automatic path doesn't immediately re-start or re-send the same frame.
+      this.activityLiveUntil = this.now() + this.startTtlMs;
+      this.activeSignature = renderSignature(state);
+      this.lastWaiting = state.waiting;
+    }
+    return {
+      configured: !apnsClient.configError(),
+      tokens: result.tokens,
+      agents: agents.length,
+      sent: result.sent,
+      failed: result.failed,
+    };
+  }
+
   // -- internals -------------------------------------------------------------
 
   /** Prune the sliding window and report whether we may push again. */
@@ -314,9 +468,21 @@ export class LiveActivityPushService {
     return this.sendWindow.length < this.maxPerHour;
   }
 
-  private async getTokens(): Promise<string[]> {
+  /** Per-activity UPDATE tokens (`*-liveactivity`, NOT the `-start` push tokens). */
+  private async getUpdateTokens(): Promise<string[]> {
     const rows = await prisma.deviceToken.findMany({
-      where: { platform: { startsWith: LIVE_ACTIVITY_PLATFORM_PREFIX } },
+      where: { platform: { endsWith: UPDATE_TOKEN_SUFFIX } },
+      select: { token: true },
+    });
+    // `endsWith: 'liveactivity'` excludes `*-liveactivity-start` (ends with
+    // `-start`), so update pushes never target a push-to-start token.
+    return rows.map((r) => r.token);
+  }
+
+  /** App-lifetime PUSH-TO-START tokens (`*-liveactivity-start`). */
+  private async getStartTokens(): Promise<string[]> {
+    const rows = await prisma.deviceToken.findMany({
+      where: { platform: { endsWith: START_TOKEN_SUFFIX } },
       select: { token: true },
     });
     return rows.map((r) => r.token);
@@ -336,7 +502,24 @@ export class LiveActivityPushService {
         ...(this.staleMs > 0 && { 'stale-date': nowSec + Math.floor(this.staleMs / 1000) }),
       },
     };
-    return this.sendToTokens(payload, priority, knownTokens);
+    const tokens = knownTokens ?? (await this.getUpdateTokens());
+    return this.sendToTokens(payload, priority, tokens);
+  }
+
+  /**
+   * Send a push-to-start to every registered push-to-start token (issue #13).
+   * The initial content is the current fleet; the running activity then rides
+   * the normal update path (#10) once the app registers its per-activity token.
+   */
+  private async pushStart(
+    state: LiveActivityContentState,
+    nowSec: number,
+    knownTokens?: string[]
+  ): Promise<{ sent: number; failed: number; tokens: number }> {
+    const staleSec = this.staleMs > 0 ? nowSec + Math.floor(this.staleMs / 1000) : null;
+    const payload: Record<string, unknown> = { aps: buildStartAps(state, nowSec, staleSec) };
+    const tokens = knownTokens ?? (await this.getStartTokens());
+    return this.sendToTokens(payload, 10, tokens);
   }
 
   private async pushEnd(nowSec: number): Promise<{ sent: number; failed: number; tokens: number }> {
@@ -357,7 +540,7 @@ export class LiveActivityPushService {
         'dismissal-date': nowSec,
       },
     };
-    return this.sendToTokens(payload, 10);
+    return this.sendToTokens(payload, 10, await this.getUpdateTokens());
   }
 
   /**
@@ -368,9 +551,8 @@ export class LiveActivityPushService {
   private async sendToTokens(
     payload: Record<string, unknown>,
     priority: 5 | 10,
-    knownTokens?: string[]
+    tokens: string[]
   ): Promise<{ sent: number; failed: number; tokens: number }> {
-    const tokens = knownTokens ?? (await this.getTokens());
     if (tokens.length === 0) return { sent: 0, failed: 0, tokens: 0 };
 
     let sent = 0;

@@ -40,6 +40,13 @@ const envSchema = z.object({
   LIVE_ACTIVITY_MAX_PER_HOUR: z.coerce.number().min(1).default(200),
   LIVE_ACTIVITY_STALE_MS: z.coerce.number().min(0).default(5 * 60 * 1000),
   LIVE_ACTIVITY_MAX_ROWS: z.coerce.number().min(1).default(3),
+  //  - START_TTL_MS: how long, after a push-to-start (or an app confirming a live
+  //    per-activity token), we assume an activity is still on screen and so
+  //    suppress a duplicate push-to-start (issue #13). Defaults to iOS's ~8h
+  //    ActivityKit expiry, so revival naturally lines up with the system ending
+  //    the old activity. Lower it to revive sooner (risking a transient duplicate
+  //    the client dedupes); raise it to be more conservative about duplicates.
+  LIVE_ACTIVITY_START_TTL_MS: z.coerce.number().min(0).default(8 * 60 * 60 * 1000),
 });
 
 const parsed = envSchema.safeParse(process.env);

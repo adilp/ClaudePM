@@ -55,6 +55,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         requestPushAuthorization()
+
+        // Start the Live Activity observers up front (issue #13): the push-to-start
+        // token must be registered even before any activity exists, so the server
+        // can revive the lock-screen activity after iOS's ~8h expiry with no launch.
+        Task { @MainActor in AgentLiveActivityManager.shared.bootstrap() }
         return true
     }
 

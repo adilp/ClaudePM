@@ -16,7 +16,13 @@ import {
   rowSince,
   renderContentState,
   renderSignature,
+  shouldStartActivity,
+  buildStartAps,
 } from '../../src/services/live-activity-push.js';
+import {
+  LIVE_ACTIVITY_ATTRIBUTES,
+  LIVE_ACTIVITY_ATTRIBUTES_TYPE,
+} from '../../src/services/live-activity-push-types.js';
 import type { Agent } from '../../src/services/workmux-bridge-types.js';
 
 function agent(overrides: Partial<Agent> & Pick<Agent, 'id' | 'status' | 'title'>): Agent {
@@ -207,6 +213,58 @@ describe('LiveActivityPush pure logic', () => {
         0
       );
       expect(renderSignature(a)).not.toBe(renderSignature(b));
+    });
+  });
+
+  describe('shouldStartActivity (push-to-start gate, #13)', () => {
+    it('never starts when the fleet is empty', () => {
+      expect(shouldStartActivity(false, null, 1000)).toBe(false);
+      expect(shouldStartActivity(false, 5000, 1000)).toBe(false);
+    });
+
+    it('starts when non-empty and nothing is believed live (null clock)', () => {
+      expect(shouldStartActivity(true, null, 1000)).toBe(true);
+    });
+
+    it('suppresses a start while an activity is believed live (clock in the future)', () => {
+      expect(shouldStartActivity(true, 5000, 1000)).toBe(false);
+    });
+
+    it('starts again once the liveness window has elapsed (~8h expiry passed)', () => {
+      expect(shouldStartActivity(true, 1000, 1000)).toBe(true); // now === liveUntil
+      expect(shouldStartActivity(true, 1000, 2000)).toBe(true); // now  >  liveUntil
+    });
+  });
+
+  describe('buildStartAps (push-to-start payload, #13)', () => {
+    const state = renderContentState(
+      [agent({ id: '1', status: 'waiting', title: 'a', statusTs: 100 })],
+      3,
+      500
+    );
+
+    it('carries event:start with the exact attributes-type and root attributes', () => {
+      const aps = buildStartAps(state, 500, 800);
+      expect(aps.event).toBe('start');
+      // attributes-type MUST equal the Swift struct name verbatim, else iOS drops it.
+      expect(aps['attributes-type']).toBe(LIVE_ACTIVITY_ATTRIBUTES_TYPE);
+      expect(aps['attributes-type']).toBe('AgentActivityAttributes');
+      expect(aps.attributes).toEqual(LIVE_ACTIVITY_ATTRIBUTES);
+      expect(aps.attributes).toEqual({ appName: 'workmux' });
+      expect(aps['content-state']).toBe(state);
+      expect(aps.timestamp).toBe(500);
+    });
+
+    it('includes stale-date when provided and omits it when null', () => {
+      expect(buildStartAps(state, 500, 800)['stale-date']).toBe(800);
+      expect(buildStartAps(state, 500, null)).not.toHaveProperty('stale-date');
+    });
+
+    it('carries an alert — required for a start to actually surface on-device', () => {
+      const alert = buildStartAps(state, 500, 800).alert as Record<string, unknown>;
+      expect(alert).toBeTruthy();
+      expect(typeof alert.title).toBe('string');
+      expect(typeof alert.body).toBe('string');
     });
   });
 });
