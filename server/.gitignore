@@ -8,6 +8,10 @@ dist/
 .env
 .env.local
 
+# Secrets (APNs .p8 auth key, etc.)
+.secrets/
+*.p8
+
 # IDE
 .vscode/
 .idea/

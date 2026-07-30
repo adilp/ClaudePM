@@ -562,6 +562,9 @@ final class WebSocketClient {
         let agents = raw.compactMap { Self.decodeAgent(from: $0) }
         print("[WebSocket] Agent snapshot: \(agents.count) agent(s)")
         onAgentSnapshot?(agents)
+        // Also drive the Live Activity, independent of whether the Agents tab is
+        // on screen (its callbacks above get nil'd when it disappears).
+        Task { @MainActor in AgentLiveActivityManager.shared.applySnapshot(agents) }
     }
 
     /// Handle a single agent add/change (payload carries the whole agent).
@@ -570,6 +573,7 @@ final class WebSocketClient {
               let agent = Self.decodeAgent(from: dict) else { return }
         print("[WebSocket] Agent update: \(agent.id) [\(agent.status)]")
         onAgentUpdate?(agent)
+        Task { @MainActor in AgentLiveActivityManager.shared.upsert(agent) }
     }
 
     /// Handle an agent removal (payload carries just the id).
@@ -577,6 +581,7 @@ final class WebSocketClient {
         guard let id = payload["id"] as? String else { return }
         print("[WebSocket] Agent removed: \(id)")
         onAgentRemoved?(id)
+        Task { @MainActor in AgentLiveActivityManager.shared.remove(id: id) }
     }
 
     /// Decode an `Agent` from a parsed JSON object. The agents payload is

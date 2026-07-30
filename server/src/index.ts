@@ -17,6 +17,7 @@ import agentsRouter from './api/agents.js';
 import { apiKeyAuth } from './middleware/api-key-auth.js';
 import { sessionSupervisor } from './services/session-supervisor.js';
 import { workmuxBridge } from './services/workmux-bridge.js';
+import { apnsClient } from './services/apns-client.js';
 import { waitingDetector } from './services/waiting-detector.js';
 import { ticketStateMachine } from './services/ticket-state-machine.js';
 import { reviewerSubagent } from './services/reviewer-subagent.js';
@@ -136,6 +137,9 @@ const shutdown = (): void => {
 
   // Stop workmux bridge
   workmuxBridge.stop();
+
+  // Close the APNs http2 session
+  apnsClient.close();
 
   httpServer.close(() => {
     console.log('Server closed');

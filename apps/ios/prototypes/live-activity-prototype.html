@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PROTOTYPE — Live Activity content (issue #5)</title>
+<!--
+  THROWAWAY PROTOTYPE — claudePM issue #5 "Decide what the Live Activity + Dynamic Island show".
+  Question: summary vs per-agent? what content? colours/states? Feeds the ActivityKit implementation.
+  Three structurally-different variants of the SAME agent data, switch with ← / → or the bottom bar.
+  Not iOS code — an HTML mock at realistic fidelity to react to.
+
+  DECIDED 2026-07-29: Variant C ("hybrid list") wins — everywhere (lock screen + Dynamic Island
+  expanded). Headline "N active · X waiting · Y done" + top agents sorted waiting→working→recent
+  (status dot · task title · worktree · elapsed) + "+N done" footer. Island compact = waiting count.
+  This mock is the reference for the ActivityKit ContentState; keep until that ticket lands, then delete.
+-->
+<style>
+  :root{
+    --working:#30D158; --waiting:#FF9F0A; --done:#0A84FF; --other:#8E8E93;
+    --ink:#F2F2F7; --ink-dim:#AEAEB2; --ink-faint:#8E8E93;
+    --card:rgba(30,30,32,0.68);
+    --sf:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--sf); color:var(--ink);
+    background:#0b0b0f;
+    display:flex; flex-direction:column; align-items:center;
+    padding:18px 12px 120px; min-height:100%;
+  }
+  .banner{
+    width:100%; max-width:960px; text-align:center; color:#c9c9d4;
+    font-size:12.5px; line-height:1.5; margin-bottom:16px;
+    border:1px dashed #3a3a44; border-radius:10px; padding:9px 12px; background:#15151b;
+  }
+  .banner b{color:#ff6b6b}
+  .stage{display:flex; flex-wrap:wrap; gap:26px; justify-content:center; align-items:flex-start}
+
+  /* ---- Lock screen phone ---- */
+  .phone{
+    width:340px; border-radius:44px; padding:14px;
+    background:linear-gradient(160deg,#3a2b5f 0%,#243b63 44%,#123536 100%);
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.06);
+    position:relative; overflow:hidden;
+  }
+  .phone::after{ /* subtle wallpaper vignette */
+    content:""; position:absolute; inset:0; background:radial-gradient(120% 80% at 50% 0%,rgba(255,255,255,.10),transparent 60%); pointer-events:none;
+  }
+  .di-notch{
+    width:126px; height:37px; background:#000; border-radius:20px; margin:2px auto 30px;
+  }
+  .lock-time{ text-align:center; margin:2px 0 22px}
+  .lock-time .date{font-size:15px; color:rgba(255,255,255,.82); font-weight:600; letter-spacing:.2px}
+  .lock-time .clock{font-size:74px; font-weight:600; letter-spacing:-1px; line-height:1; color:#fff; margin-top:2px}
+  .stage-label{ width:100%; text-align:center; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#6f6f7c; margin:2px 0 12px}
+
+  /* ---- Live Activity card ---- */
+  .la{
+    background:var(--card);
+    -webkit-backdrop-filter:blur(24px) saturate(140%); backdrop-filter:blur(24px) saturate(140%);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:22px; padding:14px 15px; position:relative; z-index:1;
+  }
+  .la-head{display:flex; align-items:center; gap:8px; margin-bottom:11px}
+  .la-logo{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,#7c5cff,#00c2ff);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+  .la-app{font-size:12px;font-weight:700;color:var(--ink-dim);letter-spacing:.02em;text-transform:uppercase}
+  .la-when{margin-left:auto;font-size:11px;color:var(--ink-faint)}
+
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+  .s-working{background:var(--working)} .s-waiting{background:var(--waiting)}
+  .s-done{background:var(--done)} .s-other{background:var(--other)}
+  .c-working{color:var(--working)} .c-waiting{color:var(--waiting)}
+  .c-done{color:var(--done)} .c-other{color:var(--other)}
+
+  /* Variant A — aggregate */
+  .agg-head{font-size:15px;font-weight:600;margin-bottom:14px;color:#fff}
+  .agg-head .hl{color:var(--waiting);font-weight:700}
+  .agg-cols{display:flex;gap:10px}
+  .agg-col{flex:1;background:rgba(255,255,255,.05);border-radius:14px;padding:11px 8px;text-align:center}
+  .agg-col .n{font-size:30px;font-weight:700;line-height:1}
+  .agg-col .l{font-size:11px;color:var(--ink-dim);margin-top:5px;text-transform:uppercase;letter-spacing:.05em}
+  .agg-bar{display:flex;height:7px;border-radius:4px;overflow:hidden;margin-top:13px}
+
+  /* Variant B — single focused agent */
+  .one-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .one-status{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+  .one-proj{margin-left:auto;font-size:12px;color:var(--ink-dim);font-weight:600}
+  .one-title{font-size:19px;font-weight:600;line-height:1.25;color:#fff;margin-bottom:12px}
+  .one-meta{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--ink-dim)}
+  .one-meta .k{color:var(--ink-faint)}
+  .one-more{margin-top:12px;padding-top:11px;border-top:1px solid rgba(255,255,255,.09);font-size:12px;color:var(--ink-faint);display:flex;gap:12px;align-items:center}
+  .mini-dots{display:flex;gap:5px;align-items:center}
+
+  /* Variant C — hybrid list */
+  .hy-head{display:flex;align-items:baseline;gap:8px;margin-bottom:11px}
+  .hy-head .big{font-size:16px;font-weight:700;color:#fff}
+  .hy-head .sub{font-size:12px;color:var(--ink-dim)}
+  .hy-row{display:flex;align-items:center;gap:9px;padding:7px 0}
+  .hy-row + .hy-row{border-top:1px solid rgba(255,255,255,.07)}
+  .hy-row .t{font-size:13.5px;color:#fff;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .hy-row .p{font-size:11px;color:var(--ink-faint);flex:none}
+  .hy-row .e{font-size:11.5px;color:var(--ink-dim);flex:none;min-width:30px;text-align:right}
+  .hy-foot{margin-top:9px;font-size:11.5px;color:var(--ink-faint);text-align:center}
+
+  /* ---- Dynamic Island panels ---- */
+  .di-wrap{display:flex;flex-direction:column;gap:22px;align-items:center}
+  .di-block{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .di-cap{font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:#6f6f7c}
+  .di-canvas{background:#000;border-radius:26px;padding:12px 16px;display:flex;align-items:center;min-height:44px}
+  /* compact wraps around the camera */
+  .di-compact{gap:74px}
+  .di-lead,.di-trail{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#fff}
+  .di-minimal{width:64px;justify-content:center;gap:6px}
+  .di-min-pill{background:#000;border-radius:20px;min-height:38px;padding:0 14px;display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px;color:#fff}
+  .di-exp{width:280px;flex-direction:column;align-items:stretch;padding:14px 16px;gap:10px;border-radius:30px}
+  .di-exp-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-dim)}
+  .di-exp-head .la-logo{width:18px;height:18px}
+
+  /* switcher */
+  .switch{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:#1c1c22;border:1px solid #33333d;border-radius:999px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);
+    display:flex;align-items:center;gap:4px;padding:6px 8px;z-index:50;
+  }
+  .switch button{
+    background:#2c2c34;border:none;color:#fff;width:38px;height:38px;border-radius:50%;
+    font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .switch button:hover{background:#3a3a44}
+  .switch .lab{min-width:250px;text-align:center;font-size:13px;font-weight:600;padding:0 10px}
+  .switch .lab small{display:block;color:#8e8e93;font-weight:500;font-size:11px;margin-top:1px}
+  .hide{display:none!important}
+  h2.section{width:100%;text-align:center;color:#6f6f7c;font-size:11px;letter-spacing:.14em;text-transform:uppercase;margin:6px 0 -6px}
+</style>
+</head>
+<body>
+  <div class="banner">
+    <b>PROTOTYPE</b> · issue #5 — what should the Live Activity + Dynamic Island show? ·
+    Same data, three answers. Use <b>←</b> / <b>→</b> or the bar below to switch. ·
+    Colours match the app: <span class="c-working">working</span> ·
+    <span class="c-waiting">waiting</span> · <span class="c-done">done</span>. ·
+    Scenario: <b>2 working · 1 waiting · 5 done</b> (8 agents).
+  </div>
+
+  <div class="stage">
+    <!-- LOCK SCREEN -->
+    <div>
+      <div class="phone">
+        <div class="di-notch"></div>
+        <div class="lock-time">
+          <div class="date">Wednesday, 29 July</div>
+          <div class="clock">9:41</div>
+        </div>
+        <div class="stage-label">Lock Screen — Live Activity</div>
+        <div class="la" id="la"></div>
+      </div>
+    </div>
+
+    <!-- DYNAMIC ISLAND -->
+    <div class="di-wrap">
+      <h2 class="section">Dynamic Island</h2>
+      <div class="di-block">
+        <div class="di-cap">Compact</div>
+        <div class="di-canvas di-compact" id="di-compact"></div>
+      </div>
+      <div class="di-block">
+        <div class="di-cap">Minimal</div>
+        <div id="di-minimal"></div>
+      </div>
+      <div class="di-block">
+        <div class="di-cap">Expanded (long-press)</div>
+        <div class="di-canvas di-exp" id="di-exp"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="switch">
+    <button id="prev" aria-label="Previous">‹</button>
+    <div class="lab" id="lab"></div>
+    <button id="next" aria-label="Next">›</button>
+  </div>
+
+<script>
+  // ---- shared data: one representative busy moment ----
+  const AGENTS = [
+    {project:'SignalVote',   worktree:'feebug',        status:'waiting', title:'Fix vote-tally rounding',              elapsed:'3m'},
+    {project:'claudePM',     worktree:'Database',      status:'working', title:'Set up Workmux project',              elapsed:'12m'},
+    {project:'SSO',          worktree:'sso-web',       status:'working', title:'Show projected values on quote page', elapsed:'1m'},
+    {project:'CanvassingApp',worktree:'canvassingApp', status:'done',    title:'Refactor door-knock sync',            elapsed:'25m'},
+    {project:'SignalVote',   worktree:'181',           status:'done',    title:'Add precinct filter',                 elapsed:'40m'},
+    {project:'SignalVote',   worktree:'182',           status:'done',    title:'Wire results websocket',              elapsed:'1h'},
+    {project:'SignalVote',   worktree:'183',           status:'done',    title:'Tidy canvasser onboarding',           elapsed:'2h'},
+    {project:'SignalVote',   worktree:'180',           status:'done',    title:'Bump dependencies',                   elapsed:'3h'},
+  ];
+  const PRIORITY = {waiting:0, working:1, done:2, other:3};
+  const sorted = [...AGENTS].sort((a,b)=>PRIORITY[a.status]-PRIORITY[b.status]);
+  const count = s => AGENTS.filter(a=>a.status===s).length;
+  const W = count('working'), A_ = count('waiting'), D = count('done'), TOTAL = AGENTS.length;
+  const focus = sorted[0]; // highest-priority agent = what B tracks
+
+  const logo = '<span class="la-logo">wm</span>';
+  const head = '<div class="la-head">'+logo+'<span class="la-app">workmux</span><span class="la-when">now</span></div>';
+
+  // ---------- LOCK SCREEN renderers ----------
+  const LA = {
+    A: () => head + `
+      <div class="agg-head">${TOTAL} agents · <span class="hl">${A_} need${A_===1?'s':''} you</span></div>
+      <div class="agg-cols">
+        <div class="agg-col"><div class="n c-working">${W}</div><div class="l">Working</div></div>
+        <div class="agg-col"><div class="n c-waiting">${A_}</div><div class="l">Waiting</div></div>
+        <div class="agg-col"><div class="n c-done">${D}</div><div class="l">Done</div></div>
+      </div>
+      <div class="agg-bar">
+        <div style="flex:${W};background:var(--working)"></div>
+        <div style="flex:${A_};background:var(--waiting)"></div>
+        <div style="flex:${D};background:var(--done)"></div>
+      </div>`,
+
+    B: () => head + `
+      <div class="one-top">
+        <span class="dot s-${focus.status}"></span>
+        <span class="one-status c-${focus.status}">${focus.status}</span>
+        <span class="one-proj">${focus.project} · ${focus.worktree}</span>
+      </div>
+      <div class="one-title">${focus.title}</div>
+      <div class="one-meta"><span><span class="k">for</span> ${focus.elapsed}</span></div>
+      <div class="one-more">
+        <span class="mini-dots">
+          <span class="dot s-working"></span>${W}
+          <span class="dot s-waiting" style="margin-left:6px"></span>${A_}
+          <span class="dot s-done" style="margin-left:6px"></span>${D}
+        </span>
+        <span style="margin-left:auto">+${TOTAL-1} more agents</span>
+      </div>`,
+
+    C: () => {
+      const rows = sorted.slice(0,3).map(a=>`
+        <div class="hy-row">
+          <span class="dot s-${a.status}"></span>
+          <span class="t">${a.title}</span>
+          <span class="p">${a.worktree}</span>
+          <span class="e c-${a.status}">${a.elapsed}</span>
+        </div>`).join('');
+      return head + `
+        <div class="hy-head"><span class="big">${W+A_} active</span>
+          <span class="sub">· ${A_} waiting · ${D} done</span></div>
+        ${rows}
+        <div class="hy-foot">+ ${D} done</div>`;
+    }
+  };
+
+  // ---------- DYNAMIC ISLAND renderers ----------
+  const DI_COMPACT = {
+    A: () => `<div class="di-lead"><span class="dot s-working"></span>${W}</div>
+              <div class="di-trail">${A_}<span class="dot s-waiting"></span></div>`,
+    B: () => `<div class="di-lead"><span class="dot s-${focus.status}"></span>${focus.worktree}</div>
+              <div class="di-trail">${focus.elapsed}</div>`,
+    C: () => `<div class="di-lead"><span class="dot s-waiting"></span>${A_}</div>
+              <div class="di-trail">${W+A_}/${TOTAL}</div>`
+  };
+  const DI_MINIMAL = {
+    A: () => `<div class="di-min-pill"><span class="dot s-waiting"></span>${A_}</div>`,
+    B: () => `<div class="di-min-pill"><span class="dot s-${focus.status}"></span></div>`,
+    C: () => `<div class="di-min-pill"><span class="dot s-waiting"></span>${A_}</div>`
+  };
+  const DI_EXP = {
+    A: () => `<div class="di-exp-head">${logo} workmux · ${TOTAL} agents</div>
+      <div class="agg-cols">
+        <div class="agg-col"><div class="n c-working">${W}</div><div class="l">Working</div></div>
+        <div class="agg-col"><div class="n c-waiting">${A_}</div><div class="l">Waiting</div></div>
+        <div class="agg-col"><div class="n c-done">${D}</div><div class="l">Done</div></div>
+      </div>`,
+    B: () => `<div class="di-exp-head">${logo} ${focus.project} · ${focus.worktree}</div>
+      <div class="one-title" style="font-size:16px;margin:0">${focus.title}</div>
+      <div class="one-meta"><span class="dot s-${focus.status}"></span>
+        <span class="one-status c-${focus.status}">${focus.status}</span>
+        <span style="margin-left:auto;color:var(--ink-dim)">${focus.elapsed} · +${TOTAL-1} more</span></div>`,
+    C: () => {
+      const rows = sorted.slice(0,3).map(a=>`
+        <div class="hy-row"><span class="dot s-${a.status}"></span>
+          <span class="t">${a.title}</span>
+          <span class="e c-${a.status}">${a.elapsed}</span></div>`).join('');
+      return `<div class="di-exp-head">${logo} workmux · ${W+A_} active</div>${rows}`;
+    }
+  };
+
+  const NAMES = {A:'Control tower — counts only', B:'Single focused agent', C:'Hybrid — headline + top 3'};
+  const KEYS = ['A','B','C'];
+  let cur = new URLSearchParams(location.search).get('variant');
+  if(!KEYS.includes(cur)) cur = 'A';
+
+  function render(){
+    document.getElementById('la').innerHTML = LA[cur]();
+    document.getElementById('di-compact').innerHTML = DI_COMPACT[cur]();
+    document.getElementById('di-minimal').innerHTML = DI_MINIMAL[cur]();
+    document.getElementById('di-exp').innerHTML = DI_EXP[cur]();
+    document.getElementById('lab').innerHTML = `${cur} — ${NAMES[cur]}<small>variant ${KEYS.indexOf(cur)+1} of ${KEYS.length}</small>`;
+    const u = new URL(location); u.searchParams.set('variant',cur); history.replaceState({},'',u);
+  }
+  function step(d){ cur = KEYS[(KEYS.indexOf(cur)+d+KEYS.length)%KEYS.length]; render(); }
+  document.getElementById('prev').onclick = ()=>step(-1);
+  document.getElementById('next').onclick = ()=>step(1);
+  addEventListener('keydown', e=>{
+    const t=e.target.tagName; if(t==='INPUT'||t==='TEXTAREA'||e.target.isContentEditable) return;
+    if(e.key==='ArrowLeft') step(-1); if(e.key==='ArrowRight') step(1);
+  });
+  render();
+</script>
+</body>
+</html>

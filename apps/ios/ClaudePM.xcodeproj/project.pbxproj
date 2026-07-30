@@ -54,6 +54,12 @@
 		DOCSTABVIEW01DOCSTABVIEW01 /* DocsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCSTABVIEW00DOCSTABVIEW00 /* DocsTabView.swift */; };
 		DOCSBROWSER01DOCSBROWSER01 /* DocsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCSBROWSER00DOCSBROWSER00 /* DocsBrowserView.swift */; };
 		DOCDETAILV001DOCDETAILV001 /* DocDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DOCDETAILV000DOCDETAILV000 /* DocDetailView.swift */; };
+		ACTATTR01ACTATTR01ACT002 /* AgentActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACTATTR00ACTATTR00ACT001 /* AgentActivityAttributes.swift */; };
+		ACTATTR02ACTATTR02ACT003 /* AgentActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACTATTR00ACTATTR00ACT001 /* AgentActivityAttributes.swift */; };
+		LAMGR001LAMGR001LAMGR002 /* AgentLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = LAMGR000LAMGR000LAMGR001 /* AgentLiveActivityManager.swift */; };
+		WBUNDLE1WBUNDLE1WBUNDL02 /* ClaudePMWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = WBUNDLE0WBUNDLE0WBUNDL01 /* ClaudePMWidgetsBundle.swift */; };
+		WGTLA001WGTLA001WGTLA002 /* AgentsLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGTLA000WGTLA000WGTLA001 /* AgentsLiveActivity.swift */; };
+		EMBEDBF0EMBEDBF0EMBEDB01 /* ClaudePMWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WGTAPPEXWGTAPPEXWGTAPX01 /* ClaudePMWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,7 +70,28 @@
 			remoteGlobalIDString = A1000200A1000200A1000200;
 			remoteInfo = ClaudePM;
 		};
+		WGTPROXYWGTPROXYWGTPRX01 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1000100A1000100A1000100 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = WGTTGT00WGTTGT00WGTTGT01;
+			remoteInfo = ClaudePMWidgetsExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EMBEDEXTEMBEDEXTEMBEDX01 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EMBEDBF0EMBEDBF0EMBEDB01 /* ClaudePMWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0951EE2550AB4CF2AFFE5048 /* DiffViewer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiffViewer.swift; sourceTree = "<group>"; };
@@ -115,6 +142,12 @@
 		DOCSTABVIEW00DOCSTABVIEW00 /* DocsTabView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocsTabView.swift; sourceTree = "<group>"; };
 		DOCSBROWSER00DOCSBROWSER00 /* DocsBrowserView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocsBrowserView.swift; sourceTree = "<group>"; };
 		DOCDETAILV000DOCDETAILV000 /* DocDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DocDetailView.swift; sourceTree = "<group>"; };
+		ACTATTR00ACTATTR00ACT001 /* AgentActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentActivityAttributes.swift; sourceTree = "<group>"; };
+		LAMGR000LAMGR000LAMGR001 /* AgentLiveActivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentLiveActivityManager.swift; sourceTree = "<group>"; };
+		WBUNDLE0WBUNDLE0WBUNDL01 /* ClaudePMWidgetsBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClaudePMWidgetsBundle.swift; sourceTree = "<group>"; };
+		WGTLA000WGTLA000WGTLA001 /* AgentsLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentsLiveActivity.swift; sourceTree = "<group>"; };
+		WGTINFO0WGTINFO0WGTINF01 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		WGTAPPEXWGTAPPEXWGTAPX01 /* ClaudePMWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ClaudePMWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,6 +160,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1000300A1000300A1000010 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		WGTFWK00WGTFWK00WGTFWK01 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -150,8 +190,19 @@
 			children = (
 				A1000400A1000400A1000000 /* ClaudePM */,
 				A1000500A1000500A1000000 /* ClaudePMTests */,
+				WGTGROUPWGTGROUPWGTGRP01 /* ClaudePMWidgets */,
 				A1000600A1000600A1000000 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		WGTGROUPWGTGROUPWGTGRP01 /* ClaudePMWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				WBUNDLE0WBUNDLE0WBUNDL01 /* ClaudePMWidgetsBundle.swift */,
+				WGTLA000WGTLA000WGTLA001 /* AgentsLiveActivity.swift */,
+				WGTINFO0WGTINFO0WGTINF01 /* Info.plist */,
+			);
+			path = ClaudePMWidgets;
 			sourceTree = "<group>";
 		};
 		A1000400A1000400A1000000 /* ClaudePM */ = {
@@ -186,6 +237,7 @@
 				B02EF6DE785916C7BBABC59B /* AIAnalysis.swift */,
 				DOCTREENODE00DOCTREENODE00 /* DocTreeNode.swift */,
 				AGENT100AGENT100AGENT100 /* Agent.swift */,
+				ACTATTR00ACTATTR00ACT001 /* AgentActivityAttributes.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -198,6 +250,7 @@
 				A1000009A1000009A1000000 /* WebSocketClient.swift */,
 				A100001AA100001AA1000000 /* NotificationManager.swift */,
 				A100001DA100001DA1000000 /* PtyConnection.swift */,
+				LAMGR000LAMGR000LAMGR001 /* AgentLiveActivityManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -283,6 +336,7 @@
 			children = (
 				A1000200A1000200A1000001 /* ClaudePM.app */,
 				A1000300A1000300A1000001 /* ClaudePMTests.xctest */,
+				WGTAPPEXWGTAPPEXWGTAPX01 /* ClaudePMWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -297,10 +351,12 @@
 				A1000200A1000200A1000020 /* Sources */,
 				A1000200A1000200A1000010 /* Frameworks */,
 				A1000200A1000200A1000030 /* Resources */,
+				EMBEDEXTEMBEDEXTEMBEDX01 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				WGTDEP00WGTDEP00WGTDEP01 /* PBXTargetDependency */,
 			);
 			name = ClaudePM;
 			packageProductDependencies = (
@@ -328,6 +384,23 @@
 			productReference = A1000300A1000300A1000001 /* ClaudePMTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		WGTTGT00WGTTGT00WGTTGT01 /* ClaudePMWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = WGTCFGLSWGTCFGLSWGTCFG01 /* Build configuration list for PBXNativeTarget "ClaudePMWidgetsExtension" */;
+			buildPhases = (
+				WGTSRC00WGTSRC00WGTSRC01 /* Sources */,
+				WGTFWK00WGTFWK00WGTFWK01 /* Frameworks */,
+				WGTRES00WGTRES00WGTRES01 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ClaudePMWidgetsExtension;
+			productName = ClaudePMWidgetsExtension;
+			productReference = WGTAPPEXWGTAPPEXWGTAPX01 /* ClaudePMWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -344,6 +417,9 @@
 					A1000300A1000300A1000200 = {
 						CreatedOnToolsVersion = 15.0;
 						TestTargetID = A1000200A1000200A1000200;
+					};
+					WGTTGT00WGTTGT00WGTTGT01 = {
+						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
@@ -365,6 +441,7 @@
 			targets = (
 				A1000200A1000200A1000200 /* ClaudePM */,
 				A1000300A1000300A1000200 /* ClaudePMTests */,
+				WGTTGT00WGTTGT00WGTTGT01 /* ClaudePMWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -381,6 +458,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A1000300A1000300A1000030 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		WGTRES00WGTRES00WGTRES01 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -436,6 +520,8 @@
 				DOCSTABVIEW01DOCSTABVIEW01 /* DocsTabView.swift in Sources */,
 				DOCSBROWSER01DOCSBROWSER01 /* DocsBrowserView.swift in Sources */,
 				DOCDETAILV001DOCDETAILV001 /* DocDetailView.swift in Sources */,
+				ACTATTR01ACTATTR01ACT002 /* AgentActivityAttributes.swift in Sources */,
+				LAMGR001LAMGR001LAMGR002 /* AgentLiveActivityManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -447,6 +533,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		WGTSRC00WGTSRC00WGTSRC01 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				WBUNDLE1WBUNDLE1WBUNDL02 /* ClaudePMWidgetsBundle.swift in Sources */,
+				WGTLA001WGTLA001WGTLA002 /* AgentsLiveActivity.swift in Sources */,
+				ACTATTR02ACTATTR02ACT003 /* AgentActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -454,6 +550,11 @@
 			isa = PBXTargetDependency;
 			target = A1000200A1000200A1000200 /* ClaudePM */;
 			targetProxy = A1000020A1000020A1000020 /* PBXContainerItemProxy */;
+		};
+		WGTDEP00WGTDEP00WGTDEP01 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = WGTTGT00WGTTGT00WGTTGT01 /* ClaudePMWidgetsExtension */;
+			targetProxy = WGTPROXYWGTPROXYWGTPRX01 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -588,6 +689,7 @@
 				DEVELOPMENT_TEAM = 647Y8SN38G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_ENTITLEMENTS = ClaudePM/ClaudePM.entitlements;
 				INFOPLIST_FILE = ClaudePM/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -618,6 +720,7 @@
 				DEVELOPMENT_TEAM = 647Y8SN38G;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				CODE_SIGN_ENTITLEMENTS = ClaudePM/ClaudePM.entitlements;
 				INFOPLIST_FILE = ClaudePM/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -673,6 +776,59 @@
 			};
 			name = Release;
 		};
+		WGTDBG00WGTDBG00WGTDBG01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 647Y8SN38G;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ClaudePMWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "ClaudePM Widgets";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudepm.ios.ClaudePMWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		WGTREL00WGTREL00WGTREL01 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 647Y8SN38G;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ClaudePMWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "ClaudePM Widgets";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudepm.ios.ClaudePMWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -699,6 +855,15 @@
 			buildConfigurations = (
 				A1000300A1000300A1000400 /* Debug */,
 				A1000300A1000300A1000500 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		WGTCFGLSWGTCFGLSWGTCFG01 /* Build configuration list for PBXNativeTarget "ClaudePMWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				WGTDBG00WGTDBG00WGTDBG01 /* Debug */,
+				WGTREL00WGTREL00WGTREL01 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

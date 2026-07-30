@@ -12,5 +12,13 @@
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+    <!-- Enables ActivityKit Live Activities (lock-screen / Dynamic Island). -->
+    <key>NSSupportsLiveActivities</key>
+    <true/>
+    <!-- Allows remote pushes to wake the app / update Live Activities in background. -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
 </dict>
 </plist>

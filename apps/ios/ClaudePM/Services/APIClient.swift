@@ -147,6 +147,64 @@ actor APIClient {
         }
     }
 
+    /// Register this device's APNs token with the backend so the server can
+    /// send push / Live Activity updates. Safe to call on every launch — the
+    /// server upserts on the token.
+    /// - Parameter token: hex-encoded APNs device token
+    func registerDevice(token: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/devices/register")
+        let payload = try JSONEncoder().encode(["token": token, "platform": "ios"])
+        let (_, response) = try await performRequest(
+            url: url, method: "POST", body: payload, requiresAuth: true
+        )
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
+    /// Register a Live Activity **push token** with the backend so the server
+    /// can push lock-screen / Dynamic Island content updates (consumed by a
+    /// later ticket). This is distinct from `registerDevice` — a Live Activity
+    /// token is per-activity and variable-length, not the 64-hex device token —
+    /// so it goes to its own endpoint. Safe to call on every token rotation.
+    /// - Parameter token: hex-encoded ActivityKit push token
+    func registerLiveActivityToken(_ token: String) async throws {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/devices/live-activity")
+        let payload = try JSONEncoder().encode([
+            "token": token,
+            "platform": "ios",
+            "activity": "agents",
+        ])
+        let (_, response) = try await performRequest(
+            url: url, method: "POST", body: payload, requiresAuth: true
+        )
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+    }
+
     /// Discover manually created panes in tmux sessions
     /// - Returns: DiscoverSessionsResponse with discovered and existing panes
     func discoverSessions() async throws -> DiscoverSessionsResponse {

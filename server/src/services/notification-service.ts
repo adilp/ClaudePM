@@ -6,6 +6,7 @@
 
 import { prisma } from '../config/db.js';
 import { TypedEventEmitter } from '../utils/typed-event-emitter.js';
+import { apnsClient } from './apns-client.js';
 import type { Notification, NotificationType } from '../generated/prisma/index.js';
 
 // ============================================================================
@@ -372,23 +373,52 @@ export class NotificationService extends TypedEventEmitter<NotificationServiceEv
    * Currently supports APNs for iOS/macOS
    */
   async sendPush(payload: PushNotificationPayload): Promise<{ sent: number; failed: number }> {
-    const devices = await prisma.deviceToken.findMany();
+    const configError = apnsClient.configError();
+    if (configError) {
+      console.warn(`[NotificationService] Skipping push — ${configError}`);
+      return { sent: 0, failed: 0 };
+    }
 
+    const devices = await prisma.deviceToken.findMany();
     if (devices.length === 0) {
       return { sent: 0, failed: 0 };
     }
 
-    // TODO: Implement actual APNs sending
-    // For now, log what would be sent
-    console.log(`[NotificationService] Would send push to ${devices.length} devices:`, payload);
+    // Standard alert payload. Custom keys ride alongside `aps` so the app can
+    // route the tap; APNs ignores anything outside `aps`.
+    const apsBody = {
+      aps: {
+        alert: { title: payload.title, body: payload.body },
+        sound: 'default',
+      },
+      ...(payload.data ?? {}),
+    };
 
-    // When implementing APNs:
-    // 1. Use @parse/node-apn or similar library
-    // 2. Configure with APNs certificate/key from env
-    // 3. Send to each device token
-    // 4. Handle token invalidation (remove stale tokens)
+    let sent = 0;
+    let failed = 0;
+    const stale: string[] = [];
 
-    return { sent: 0, failed: 0 };
+    for (const device of devices) {
+      const result = await apnsClient.send(device.token, apsBody, { pushType: 'alert' });
+      if (result.ok) {
+        sent += 1;
+      } else {
+        failed += 1;
+        console.warn(
+          `[NotificationService] Push to ${device.token.slice(0, 8)}… failed ` +
+            `(status ${result.status}${result.reason ? `, ${result.reason}` : ''})`
+        );
+        if (result.shouldPrune) stale.push(device.token);
+      }
+    }
+
+    // Drop tokens Apple has permanently rejected so we stop retrying them.
+    if (stale.length > 0) {
+      await prisma.deviceToken.deleteMany({ where: { token: { in: stale } } });
+      console.log(`[NotificationService] Pruned ${stale.length} dead device token(s)`);
+    }
+
+    return { sent, failed };
   }
 
   /**
