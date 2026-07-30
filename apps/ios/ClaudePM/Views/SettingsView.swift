@@ -33,6 +33,8 @@ struct SettingsView: View {
                                 .autocorrectionDisabled()
                         } else {
                             SecureField("API Key", text: $apiKey)
+                                .autocapitalization(.none)
+                                .autocorrectionDisabled()
                         }
 
                         Button {
@@ -112,9 +114,16 @@ struct SettingsView: View {
             return
         }
 
+        // Trim whitespace/newlines. Pasting a long key on iOS easily picks up a
+        // trailing space or newline, which passes the no-auth health check but
+        // fails the authenticated WS handshake / agent list — surfacing as an
+        // endless "reconnecting" loop rather than an obvious auth error.
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        apiKey = trimmedKey
+
         // Save API key to Keychain
-        if !apiKey.isEmpty {
-            if !KeychainHelper.save(apiKey: apiKey) {
+        if !trimmedKey.isEmpty {
+            if !KeychainHelper.save(apiKey: trimmedKey) {
                 saveError = "Failed to save API key"
                 isSaving = false
                 return

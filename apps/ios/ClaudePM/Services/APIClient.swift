@@ -35,6 +35,49 @@ struct ImageUploadResponse: Codable {
     let markdownRef: String
 }
 
+// MARK: - Workmux Command Models (#11 server endpoints)
+
+/// Captured output from a server-run `workmux` command. `exit_code` on the wire
+/// (decoded with `.convertFromSnakeCase`).
+struct AgentCommandOutput: Codable, Equatable {
+    let stdout: String
+    let stderr: String
+    let exitCode: Int
+}
+
+/// Success payload from the merge / remove / add command endpoints.
+struct AgentCommandResult: Codable, Equatable {
+    let success: Bool
+    /// "merge" | "remove" | "add".
+    let action: String
+    /// The worktree path the command acted in (present for merge/remove).
+    let workdir: String?
+    let output: AgentCommandOutput
+}
+
+/// A typed failure from a workmux command route, carrying enough for the UI to
+/// react: offer a force-retry on a dirty worktree, and show workmux's own words.
+enum AgentCommandError: Error, LocalizedError, Equatable {
+    /// 409 WORKTREE_DIRTY — the worktree has uncommitted changes. `files` lists
+    /// them; retry with `force: true` to discard and remove.
+    case dirtyWorktree(message: String, files: [String])
+    /// 401 — the command routes are gated behind the server's `API_KEY`.
+    case unauthorized
+    /// Any other server-side rejection, with an optional captured command output.
+    case failed(message: String, output: AgentCommandOutput?)
+
+    var errorDescription: String? {
+        switch self {
+        case .dirtyWorktree(let message, _):
+            return message
+        case .unauthorized:
+            return "Command rejected — set the server API key in Settings."
+        case .failed(let message, _):
+            return message
+        }
+    }
+}
+
 /// API client for communicating with the Claude PM backend
 actor APIClient {
     static let shared = APIClient()
@@ -145,6 +188,144 @@ actor APIClient {
         } catch {
             throw APIError.decodingError(error)
         }
+    }
+
+    // MARK: - Workmux Commands (#11)
+
+    /// The saved task library from the server (`~/.config/claudepm/tasks.yaml`).
+    /// Returns an empty array when the file is absent. Read-only; used to
+    /// pre-fill the New-agent task box.
+    func getTaskPresets() async throws -> [String] {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+
+        let url = baseURL.appendingPathComponent("api/agents/task-presets")
+        let (data, response) = try await performRequest(url: url, method: "GET", requiresAuth: true)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            throw APIError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.serverError(httpResponse.statusCode)
+        }
+
+        struct TaskPresetsResponse: Decodable { let presets: [String] }
+        do {
+            return try JSONDecoder().decode(TaskPresetsResponse.self, from: data).presets
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+
+    /// Merge the agent's worktree (`workmux merge`, no force).
+    /// - Parameter id: the live agent id (e.g. `tmux:default:%1`); it is
+    ///   percent-encoded here so it survives as a single path segment.
+    func mergeAgent(id: String) async throws -> AgentCommandResult {
+        let url = try agentCommandURL(id: id, action: "merge")
+        return try await runAgentCommand(url: url, body: nil)
+    }
+
+    /// Remove the agent's worktree (`workmux remove`). A dirty worktree is
+    /// refused by the server with `AgentCommandError.dirtyWorktree` unless
+    /// `force` is true.
+    func removeAgent(id: String, force: Bool = false) async throws -> AgentCommandResult {
+        let url = try agentCommandURL(id: id, action: "remove")
+        let body = try JSONEncoder().encode(["force": force])
+        return try await runAgentCommand(url: url, body: body)
+    }
+
+    /// Create a new agent in `project` (`workmux add <name> [-p task] -b`).
+    /// A project with no existing agent surfaces the server's bootstrap-gap
+    /// rejection as `AgentCommandError.failed`.
+    func addAgent(project: String, name: String, task: String?) async throws -> AgentCommandResult {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+        let url = baseURL.appendingPathComponent("api/agents/add")
+
+        struct AddBody: Encodable {
+            let project: String
+            let name: String
+            let task: String?
+        }
+        // task is omitted from the JSON when nil (synthesized encodeIfPresent).
+        let body = try JSONEncoder().encode(AddBody(project: project, name: name, task: task))
+        return try await runAgentCommand(url: url, body: body)
+    }
+
+    // MARK: - Workmux command helpers
+
+    /// Build the URL for a per-agent command, percent-encoding the id. The id
+    /// contains `:` and `%` (e.g. `tmux:default:%1`), so it must be encoded like
+    /// `encodeURIComponent` — otherwise Express mis-parses the path segment.
+    private func agentCommandURL(id: String, action: String) throws -> URL {
+        guard let baseURL = baseURL else {
+            throw APIError.invalidURL
+        }
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        guard let encodedId = id.addingPercentEncoding(withAllowedCharacters: allowed) else {
+            throw APIError.invalidURL
+        }
+        let base = baseURL.absoluteString.hasSuffix("/")
+            ? String(baseURL.absoluteString.dropLast())
+            : baseURL.absoluteString
+        guard let url = URL(string: "\(base)/api/agents/\(encodedId)/\(action)") else {
+            throw APIError.invalidURL
+        }
+        return url
+    }
+
+    /// POST a workmux command and map the response: 200 → `AgentCommandResult`,
+    /// 401 → `.unauthorized`, 409 dirty → `.dirtyWorktree`, anything else →
+    /// `.failed` (carrying the server message + any captured output).
+    private func runAgentCommand(url: URL, body: Data?) async throws -> AgentCommandResult {
+        let (data, response) = try await performRequest(
+            url: url, method: "POST", body: body, requiresAuth: true, timeout: 30
+        )
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        if httpResponse.statusCode == 200 {
+            do {
+                return try decoder.decode(AgentCommandResult.self, from: data)
+            } catch {
+                throw APIError.decodingError(error)
+            }
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw AgentCommandError.unauthorized
+        }
+
+        struct AgentCommandErrorBody: Decodable {
+            let error: String
+            let code: String?
+            let dirty: Bool?
+            let files: [String]?
+            let output: AgentCommandOutput?
+        }
+        let errorBody = try? decoder.decode(AgentCommandErrorBody.self, from: data)
+
+        if httpResponse.statusCode == 409, let errorBody, errorBody.dirty == true {
+            throw AgentCommandError.dirtyWorktree(
+                message: errorBody.error,
+                files: errorBody.files ?? []
+            )
+        }
+
+        throw AgentCommandError.failed(
+            message: errorBody?.error ?? "Server error (\(httpResponse.statusCode))",
+            output: errorBody?.output
+        )
     }
 
     /// Register this device's APNs token with the backend so the server can
@@ -1460,10 +1641,16 @@ actor APIClient {
     // MARK: - Private Helpers
 
     /// Perform a network request with optional method and body
-    private func performRequest(url: URL, method: String = "GET", body: Data? = nil, requiresAuth: Bool) async throws -> (Data, URLResponse) {
+    /// - Parameter timeout: overrides the session's default request timeout
+    ///   (used for the workmux command POSTs, which spawn subprocesses on the
+    ///   Mac and can take longer than the 10s default).
+    private func performRequest(url: URL, method: String = "GET", body: Data? = nil, requiresAuth: Bool, timeout: TimeInterval? = nil) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.addValue("application/json", forHTTPHeaderField: "Accept")
+        if let timeout {
+            request.timeoutInterval = timeout
+        }
 
         if body != nil {
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
